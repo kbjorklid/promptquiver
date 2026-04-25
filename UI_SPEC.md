@@ -94,12 +94,12 @@ To ensure architectural consistency, the following Ratatui widgets and ecosystem
 | :--- | :--- | :--- |
 | **Global Layout** | `ratatui::layout::Layout` | Vertical constraints (Header, Main, Footer). |
 | **Navigation Tabs** | `ratatui::widgets::Tabs` | Top-level view switching. |
-| **List Views** | `ratatui::widgets::List` | Displays prompts, notes, and search results with stateful selection. |
-| **Smart Editor** | `tui-textarea` (Crate) | Multi-line text input with Vim/Emacs keybinding support. |
-| **Status Bar** | `ratatui::widgets::Paragraph` | Footer information with `Style` for background highlights. |
-| **Modals / Toasts** | `ratatui::widgets::Clear` + `Block` | Toasts and autocomplete windows rendered over the main area. |
-| **Checkboxes** | `ratatui::widgets::ListItem` | Custom string formatting: `[x]` vs `[ ]`. |
-| **Spinners** | `throbber-widgets-tui` (Crate) | For background Git polling and I/O feedback. |
+| **List Views** | `ratatui::widgets::List` | Displays prompts, notes, and search results. |
+| **Smart Editor** | `ratatui-textarea` | Multi-line text input with Vim/Emacs bindings. |
+| **Status Bar** | `ratatui::widgets::Paragraph` | Footer info with background highlights. |
+| **Modals / Popups** | `tui-popup` | Autocomplete and confirmation overlays. |
+| **Notifications** | `ratatui-toaster` | Temporary toast messages (centered above footer). |
+| **Spinners** | `throbber-widgets-tui` | Background Git polling and I/O feedback. |
 
 ### Styling Constants
 - **Borders:** `BorderType::Rounded` for focus areas.

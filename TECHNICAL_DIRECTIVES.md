@@ -56,6 +56,7 @@ The application follows **The Elm Architecture (TEA)**:
 
 ### 4.3 Recommended Crates
 - **UI:** `ratatui`, `crossterm`.
+- **Widgets:** `ratatui-textarea`, `ratatui-toaster`, `tui-popup`.
 - **Data:** `serde`, `toml`, `uuid`.
 - **System:** `arboard` (Clipboard), `directories` (Standard OS paths).
 - **Async:** `tokio`.
