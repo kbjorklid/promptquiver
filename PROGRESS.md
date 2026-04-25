@@ -46,15 +46,15 @@
     - [x] Snippet discovery
     - [x] Textarea integration
     - [x] Autocomplete popup UI
-- [ ] Comments & Metadata
+- [x] Comments & Metadata (Comment stripping and Snippet expansion implemented)
 
 ### 5. Persistence
 - [x] TOML Parser/Serializer (via serde/toml)
 - [x] Atomic File I/O (Temp file + Rename)
-- [x] `FileSystemStorage` implementation
+- [x] `FileSystemStorage` implementation (Project hash-based filenames, OS data directory)
 
 ### 6. Polishing
-- [ ] Atlas Branding & UI Styling
+- [ ] Atlas Branding & UI Styling (Basic UI modularized)
 - [ ] Toast Notifications
 - [x] Git Branch Poller (Tokio background task)
 
@@ -64,4 +64,10 @@
 - **Shell:** Windows PowerShell (use `;` for chaining).
 - **Architecture:** Clean Architecture (Contracts -> Implementation).
 - **Testing:** E2E-First via `ratatui::backend::TestBackend`.
-- **Status (2026-04-25):** Major milestone reached. All core features (Prompts, Snippets, Autocomplete, Git Polling, TOML Storage) are implemented and verified with 9 E2E tests. Upgraded to Ratatui 0.30 and all other dependencies to latest versions (April 2026). Fixed ratatui-textarea deprecation.
+- **Status (2026-04-25):** Major milestone reached. All core features (Prompts, Snippets, Autocomplete, Git Polling, TOML Storage) are implemented and verified with 9 E2E tests.
+- **Refactoring (Latest):** 
+  - Modularized `ui` crate into `header`, `list`, `footer`, `editor`, and `utils`.
+  - Implemented `contracts::Processor` for comment stripping (`--`) and snippet expansion (`$$name`).
+  - Aligned autocomplete triggers with spec: `@` (files), `$` (insert text), `$$` (insert variable), `/` (commands).
+  - Updated `FileSystemStorage` to use OS data directory and `projects/{hash}.toml` layout.
+  - All E2E and unit tests passing.

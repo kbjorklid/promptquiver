@@ -302,8 +302,8 @@ async fn test_autocomplete() {
     // Move to end of "Hello "
     app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
 
-    // Type '{{t'
-    for c in "{{t".chars() {
+    // Type '$$t'
+    for c in "$$t".chars() {
         app.textarea.input(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Char(c),
             crossterm::event::KeyModifiers::empty(),
@@ -318,7 +318,7 @@ async fn test_autocomplete() {
     // Select it
     app.select_suggestion();
     assert!(!app.autocomplete_open);
-    assert_eq!(app.textarea.lines()[0], "Hello {{ts}}");
+    assert_eq!(app.textarea.lines()[0], "Hello $$ts");
 }
 
 

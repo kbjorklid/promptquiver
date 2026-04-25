@@ -10,7 +10,7 @@ use crossterm::event::{Event, KeyCode, KeyEventKind};
 #[tokio::main]
 async fn main() -> Result<()> {
     // Infrastructure
-    let storage: Arc<dyn Storage> = Arc::new(FileSystemStorage::new());
+    let storage: Arc<dyn Storage> = Arc::new(FileSystemStorage::new(None));
     let clipboard: Arc<dyn Clipboard> = Arc::new(MockClipboard::new());
     let git: Arc<dyn Git> = Arc::new(MockGit::new(None));
 

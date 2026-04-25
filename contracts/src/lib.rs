@@ -62,6 +62,9 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+pub mod processor;
+pub use processor::Processor;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Prompts,

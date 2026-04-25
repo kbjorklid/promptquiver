@@ -86,24 +86,44 @@ impl Storage for InMemoryStorage {
     }
 }
 
+#[derive(Debug)]
 pub struct FileSystemStorage {
-    home_dir: PathBuf,
+    base_dir: PathBuf,
 }
 
 impl FileSystemStorage {
-    pub fn new() -> Self {
-        let home_dir = directories::BaseDirs::new()
-            .map(|d| d.home_dir().to_path_buf())
-            .unwrap_or_else(|| PathBuf::from("."));
-        Self { home_dir }
+    pub fn new(base_dir: Option<PathBuf>) -> Self {
+        let base_dir = base_dir.unwrap_or_else(|| {
+            directories::ProjectDirs::from("", "", "promptquiver")
+                .map(|d| d.data_dir().to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."))
+        });
+        
+        // Ensure data directory exists
+        if !base_dir.exists() {
+            let _ = std::fs::create_dir_all(&base_dir);
+        }
+        
+        Self { base_dir }
     }
 
     fn global_path(&self) -> PathBuf {
-        self.home_dir.join(".promptquiver.toml")
+        self.base_dir.join("common.toml")
     }
 
     fn project_path(&self, project_path: &str) -> PathBuf {
-        PathBuf::from(project_path).join(".promptquiver.toml")
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(project_path.as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        let filename = format!("{}.toml", &hash[..8]);
+        
+        let projects_dir = self.base_dir.join("projects");
+        if !projects_dir.exists() {
+            let _ = std::fs::create_dir_all(&projects_dir);
+        }
+        
+        projects_dir.join(filename)
     }
 
     async fn read_toml<T: serde::de::DeserializeOwned>(&self, path: PathBuf) -> Result<T> {
@@ -305,8 +325,8 @@ mod tests {
     #[tokio::test]
     async fn test_file_system_storage() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let home_dir = temp_dir.path().to_path_buf();
-        let storage = FileSystemStorage { home_dir };
+        let base_dir = temp_dir.path().to_path_buf();
+        let storage = FileSystemStorage::new(Some(base_dir));
 
         let prompt = Prompt::new("test".to_string(), contracts::PromptType::Prompt, None, None);
         let project_path = temp_dir.path().to_str().unwrap();

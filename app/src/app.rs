@@ -194,7 +194,6 @@ impl<'a> App<'a> {
                     snippets.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
                 }
                 Tab::Canned => {
-                    // Canned prompts are global and don't get archived
                     let mut canned = self.storage.get_global_canned().await?;
                     canned.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
                     self.storage.save_global_canned(canned).await?;
@@ -206,10 +205,11 @@ impl<'a> App<'a> {
             self.storage.save_project_prompts(&path, prompts).await?;
             self.storage.save_project_notes(&path, notes).await?;
             self.storage.save_project_archive(&path, archive).await?;
-            self.storage.save_global_snippets(snippets).await?;
+            self.storage.save_global_snippets(snippets.clone()).await?;
 
-            // Copy to clipboard
-            self.clipboard.copy(target.text.clone()).await?;
+            // Process text before copying
+            let processed_text = contracts::Processor::process(&target.text, &snippets);
+            self.clipboard.copy(processed_text).await?;
         }
 
         // Re-load current view
@@ -379,22 +379,51 @@ impl<'a> App<'a> {
         
         let before_cursor = &line[..col];
 
-        if let Some(pos) = before_cursor.rfind("{{") {
-            let query = &before_cursor[pos + 2..];
-            if !query.contains('}') {
-                let snippets = self.storage.get_global_snippets().await?;
-                self.suggestions = snippets
-                    .into_iter()
-                    .filter(|s| s.name.as_deref().unwrap_or(&s.text).contains(query))
-                    .collect();
-                
-                if !self.suggestions.is_empty() {
-                    self.autocomplete_open = true;
-                    if self.suggestion_index >= self.suggestions.len() {
-                        self.suggestion_index = 0;
+        // Find the last trigger before cursor
+        let triggers = ["$$", "$", "@", "/"];
+        let mut best_trigger = None;
+        let mut best_pos = 0;
+
+        for trigger in triggers {
+            if let Some(pos) = before_cursor.rfind(trigger) {
+                // Check if it's the latest trigger
+                if best_trigger.is_none() || pos > best_pos {
+                    // Special case for $$ vs $
+                    if trigger == "$" && pos > 0 && &before_cursor[pos-1..pos+1] == "$$" {
+                        continue;
                     }
-                } else {
-                    self.autocomplete_open = false;
+                    best_trigger = Some(trigger);
+                    best_pos = pos;
+                }
+            }
+        }
+
+        if let Some(trigger) = best_trigger {
+            let query = &before_cursor[best_pos + trigger.len()..];
+            
+            match trigger {
+                "$" | "$$" => {
+                    let snippets = self.storage.get_global_snippets().await?;
+                    self.suggestions = snippets
+                        .into_iter()
+                        .filter(|s| s.name.as_deref().unwrap_or(&s.text).contains(query))
+                        .collect();
+                }
+                "@" => {
+                    // File search - mock for now or implement basic walk
+                    self.suggestions = Vec::new(); 
+                }
+                "/" => {
+                    // Slash commands - mock for now
+                    self.suggestions = Vec::new();
+                }
+                _ => self.suggestions = Vec::new(),
+            }
+            
+            if !self.suggestions.is_empty() {
+                self.autocomplete_open = true;
+                if self.suggestion_index >= self.suggestions.len() {
+                    self.suggestion_index = 0;
                 }
             } else {
                 self.autocomplete_open = false;
@@ -427,26 +456,43 @@ impl<'a> App<'a> {
             let row = cursor.0;
             let col = cursor.1;
             let line = self.textarea.lines()[row].clone();
-            
             let before_cursor = &line[..col];
             
-            if let Some(pos) = before_cursor.rfind("{{") {
-                let new_tag = format!("{{{{{}}}}}", name);
-                let mut new_line = line[..pos].to_string();
-                new_line.push_str(&new_tag);
+            let triggers = ["$$", "$", "@", "/"];
+            let mut best_trigger = None;
+            let mut best_pos = 0;
+
+            for trigger in triggers {
+                if let Some(pos) = before_cursor.rfind(trigger) {
+                    if best_trigger.is_none() || pos > best_pos {
+                        if trigger == "$" && pos > 0 && &before_cursor[pos-1..pos+1] == "$$" {
+                            continue;
+                        }
+                        best_trigger = Some(trigger);
+                        best_pos = pos;
+                    }
+                }
+            }
+
+            if let Some(trigger) = best_trigger {
+                let replacement = match trigger {
+                    "$$" => format!("$${}", name),
+                    "$" => snippet.text.clone(),
+                    "@" => name.to_string(),
+                    "/" => format!("/{}", name),
+                    _ => name.to_string(),
+                };
+
+                let mut new_line = line[..best_pos].to_string();
+                new_line.push_str(&replacement);
                 new_line.push_str(&line[col..]);
                 
-                // Clear the whole line from cursor position
-                for _ in 0..col {
-                    self.textarea.input(crossterm::event::KeyEvent::new(
-                        crossterm::event::KeyCode::Backspace,
-                        crossterm::event::KeyModifiers::empty(),
-                    ));
-                }
-                self.textarea.insert_str(&new_line);
+                let new_col = best_pos + replacement.len();
                 
-                // Move cursor to end of inserted tag
-                let new_col = pos + new_tag.len();
+                // This is a bit hacky with ratatui-textarea but works for simple cases
+                self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, 0));
+                self.textarea.delete_line_by_end();
+                self.textarea.insert_str(&new_line);
                 self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, new_col as u16));
             }
             
