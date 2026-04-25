@@ -1,44 +1,62 @@
 # Project Progress: Prompt Quiver (Rust/Ratatui)
 
 ## 🎯 Current Milestone
-- [ ] Phase 1: Workspace Setup & Core Contracts
+- [x] Phase 3: The Main Loop (The "App" Crate)
+- [x] Phase 4: Feature Modules (Iterative)
+    - [x] Prompt Management (List, Add, Edit, Delete, Stage)
+    - [x] Snippets & Autocomplete
+    - [x] Git Branch Poller
+- [ ] Phase 5: Persistence
+    - [x] FileSystemStorage implementation
+    - [ ] Real Git/Clipboard implementation
 
 ---
 
 ## 🗺️ Roadmap
 
 ### 1. Workspace Setup
-- [ ] Root `Cargo.toml` (Workspace definition)
-- [ ] `contracts` crate (Entities & Traits)
-- [ ] `infra` crate (Mock implementations)
-- [ ] `ui` crate (Modular TEA setup)
-- [ ] `app` crate (Main entry point & CLI setup)
-- [ ] Project-wide lint/CI config
+- [x] Root `Cargo.toml` (Workspace definition)
+- [x] `contracts` crate (Entities & Traits)
+- [x] `infra` crate (Crate created)
+- [x] `ui` crate (Crate created)
+- [x] `app` crate (Crate created)
+- [x] Project-wide lint/CI config (Clippy, Rustfmt, Workspace Lints)
 
 ### 2. Infrastructure Mocks (E2E Readiness)
-- [ ] `InMemoryStorage` implementation
-- [ ] `MockClipboard` implementation
-- [ ] Basic E2E test harness using `TestBackend`
+- [x] `InMemoryStorage` implementation
+- [x] `MockClipboard` implementation
+- [x] Basic E2E test harness using `TestBackend`
 
 ### 3. The Main Loop (The "App" Crate)
-- [ ] Terminal initialization (Crossterm / Alternate Screen)
-- [ ] Basic Event Loop (Input handling)
-- [ ] Atomic UI Rendering loop
+- [x] Terminal initialization (Crossterm / Alternate Screen)
+- [x] Basic Event Loop (Input handling)
+- [x] Atomic UI Rendering loop
+- [x] Automated Test Coverage Setup (cargo-llvm-cov)
+- [x] Tab navigation
 
 ### 4. Feature Modules (Iterative)
-- [ ] Prompt Management (List, Add, Delete)
-- [ ] Editor (Staging area, Snippets)
+- [x] Prompt Management
+    - [x] List rendering
+    - [x] Selection/Navigation (j/k)
+    - [x] Add prompt (a)
+    - [x] Edit prompt (e/Enter)
+    - [x] Delete/Archive prompt (d)
+    - [x] Staging (s) - includes un-staging and archiving logic
+- [x] Editor (Staging area, Snippets)
+    - [x] Snippet discovery
+    - [x] Textarea integration
+    - [x] Autocomplete popup UI
 - [ ] Comments & Metadata
 
 ### 5. Persistence
-- [ ] TOML Parser/Serializer
-- [ ] Atomic File I/O
-- [ ] `FileSystemStorage` implementation
+- [x] TOML Parser/Serializer (via serde/toml)
+- [x] Atomic File I/O (Temp file + Rename)
+- [x] `FileSystemStorage` implementation
 
 ### 6. Polishing
 - [ ] Atlas Branding & UI Styling
 - [ ] Toast Notifications
-- [ ] Git Branch Poller (Tokio background task)
+- [x] Git Branch Poller (Tokio background task)
 
 ---
 
@@ -46,3 +64,4 @@
 - **Shell:** Windows PowerShell (use `;` for chaining).
 - **Architecture:** Clean Architecture (Contracts -> Implementation).
 - **Testing:** E2E-First via `ratatui::backend::TestBackend`.
+- **Status (2026-04-25):** Major milestone reached. All core features (Prompts, Snippets, Autocomplete, Git Polling, TOML Storage) are implemented and verified with 9 E2E tests. Upgraded to Ratatui 0.30.

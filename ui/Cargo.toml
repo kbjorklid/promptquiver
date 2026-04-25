@@ -1,0 +1,17 @@
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+contracts = { path = "../contracts" }
+ratatui.workspace = true
+ratatui-textarea.workspace = true
+crossterm.workspace = true
+tokio.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true

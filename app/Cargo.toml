@@ -1,0 +1,21 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+contracts = { path = "../contracts" }
+infra = { path = "../infra" }
+ui = { path = "../ui" }
+ratatui-textarea.workspace = true
+tokio.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+serde.workspace = true

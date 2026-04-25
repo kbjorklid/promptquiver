@@ -1,0 +1,22 @@
+[package]
+name = "infra"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+contracts = { path = "../contracts" }
+serde.workspace = true
+serde_toml.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+arboard.workspace = true
+directories.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "macros"] }
+tempfile = "3"
