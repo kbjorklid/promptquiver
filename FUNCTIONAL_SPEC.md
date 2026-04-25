@@ -113,12 +113,14 @@ Triggered in the editor when a line starts with or a space is followed by:
 
 ### Global
 - `Tab / Shift+Tab`: Cycle tabs.
+- `Left / Right`: Cycle tabs.
 - `1-6`: Jump to tab.
 - `q`: Quit.
 - `u / Ctrl+y`: Undo / Redo.
 
 ### List View
 - `j / k`: Move selection.
+- `h / l`: Cycle tabs (vim-style).
 - `Enter / e`: Edit.
 - `a / i`: Add after / before.
 - `y / c`: Copy processed text.

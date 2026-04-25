@@ -6,52 +6,36 @@
     - [x] Prompt Management (List, Add, Edit, Delete, Stage)
     - [x] Snippets & Autocomplete
     - [x] Git Branch Poller
-- [x] Phase 5: Persistence
-    - [x] FileSystemStorage implementation
-    - [x] Real Git/Clipboard implementation
-
----
-
-## 🗺️ Roadmap
-
-### 1. Workspace Setup
-- [x] Root `Cargo.toml` (Workspace definition)
-- [x] `contracts` crate (Entities & Traits)
-- [x] `infra` crate (Crate created)
-- [x] `ui` crate (Crate created)
-- [x] `app` crate (Crate created)
-- [x] Project-wide lint/CI config (Clippy, Rustfmt, Workspace Lints)
-
-### 2. Infrastructure Mocks (E2E Readiness)
-- [x] `InMemoryStorage` implementation
-- [x] `MockClipboard` implementation
-- [x] Basic E2E test harness using `TestBackend`
-
-### 3. The Main Loop (The "App" Crate)
-- [x] Terminal initialization (Crossterm / Alternate Screen)
-- [x] Basic Event Loop (Input handling)
-- [x] Atomic UI Rendering loop
-- [x] Automated Test Coverage Setup (cargo-llvm-cov)
-- [x] Tab navigation
-
-### 4. Feature Modules (Iterative)
-- [x] Prompt Management
-    - [x] List rendering
-    - [x] Selection/Navigation (j/k)
-    - [x] Add prompt (a)
-    - [x] Edit prompt (e/Enter)
-    - [x] Delete/Archive prompt (d)
-    - [x] Staging (s) - includes un-staging and archiving logic
+    - [x] Tab navigation (Tab, Arrows, h/l)
+    - [x] Tab jump shortcuts (1-6)
+    - [ ] Restore from Archive (r) (not-done)
+    - [ ] Move mode (m) (not-done)
+    - [ ] Branch filter toggle (b) (not-done)
+    - [ ] Local search (/) (not-done)
+    - [ ] Global search (G) (not-done)
 - [x] Editor (Staging area, Snippets)
     - [x] Snippet discovery
     - [x] Textarea integration
     - [x] Autocomplete popup UI
-- [x] Comments & Metadata (Comment stripping and Snippet expansion implemented)
+    - [ ] File search mentions (@) (not-done)
+    - [ ] Slash command mentions (/) (not-done)
+    - [ ] Save & Stage shortcut (Ctrl+g) (not-done)
+    - [ ] Close confirmation if modified (Esc) (not-done)
+- [x] Comments & Metadata
+    - [x] Comment stripping implementation
+    - [x] Snippet expansion implementation
+    - [ ] Use Display Title in list view (not-done)
+- [ ] Undo/Redo System (not-done)
+    - [ ] Session-based history stack (u / Ctrl+y) (not-done)
 
 ### 5. Persistence
 - [x] TOML Parser/Serializer (via serde/toml)
 - [x] Atomic File I/O (Temp file + Rename)
-- [x] `FileSystemStorage` implementation (Project hash-based filenames, OS data directory)
+- [x] `FileSystemStorage` implementation
+    - [x] Project hash-based filenames
+    - [x] OS data directory integration
+    - [ ] `[info]` section in project files (not-done)
+    - [ ] `[settings]` in `common.toml` (not-done)
 - [x] `RealClipboard` implementation (via `arboard`)
 - [x] `RealGit` implementation (via `git rev-parse`)
 
@@ -59,6 +43,7 @@
 - [x] Atlas Branding & UI Styling (Centered title, separate tab bar, rounded borders)
 - [x] Toast Notifications (via `ratatui-toaster`)
 - [x] Git Branch Poller (Tokio background task)
+- [ ] New items branch assignment (not-done)
 
 ---
 

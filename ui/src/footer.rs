@@ -18,7 +18,7 @@ pub fn render(
         }
     } else {
         format!(
-            " q: Quit | Tab: Next Tab | j/k: Nav | s: Stage | a: Add | e: Edit | Index: {}/{} ",
+            " q: Quit | Tab/Arrows/hl: Tabs | j/k: Nav | s: Stage | a: Add | e: Edit | {}/{} ",
             if prompts_len == 0 { 0 } else { selected_index + 1 },
             prompts_len
         )
