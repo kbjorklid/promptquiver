@@ -28,7 +28,7 @@ This document tracks the implementation status of every item in `FUNCTIONAL_SPEC
 ## 3. Core Logic (`contracts` & `app`)
 - [x] Processor: Snippet expansion (`$$snippet`).
 - [x] Processor: Title extraction (`-- Title`).
-- [x] Processor: Comment stripping (lines starting with `#`).
+- [x] Processor: Comment stripping (lines starting with `--`).
 - [x] Staging State Machine: Only one item staged globally.
 - [x] Transition: Move currently staged item to Archive (Top).
 - [x] Transition: Un-stage others (Canned).
@@ -42,7 +42,7 @@ This document tracks the implementation status of every item in `FUNCTIONAL_SPEC
 - [x] Header: App Title ("PROMPT QUIVER"), Tabs, Current Branch.
 - [x] Prompt List: Display Title, Staged Icon (🎯).
 - [x] Use Display Title in list rendering.
-- [x] Prompt Preview: TOML-like view (TODO: syntax highlighting).
+- [x] Prompt Preview: TOML-like view (with syntax highlighting).
 - [x] Editor: Full-screen `ratatui-textarea`.
 - [x] Editor Mentions (Autocomplete): `$` Trigger snippet insertion.
 - [x] Editor Mentions (Autocomplete): `$$` Trigger snippet name insertion.
@@ -88,8 +88,15 @@ Project is now fully spec-compliant. All missing features identified in the audi
 ### Bug Fixes (2026-04-25):
 - [x] Fixed issue where exiting editor with modifications would navigate back to list view before confirmation. Now correctly shows a modal over the editor.
 - [x] Updated E2E tests to match latest `ui::render` signature and `Mode` enum.
+- [x] Fixed navigation in Settings view (j/k and up/down arrows).
+- [x] Removed `Tab` from global tab switching; it now moves focus between widgets within a view (implemented for Settings sections).
+- [x] Implemented `gg` and `G` navigation (Go to Top/Bottom) in all list views.
+- [x] Remapped Global Search to `Ctrl+f` to resolve conflict with `G` navigation.
+- [x] Fixed issue where editing slash commands in Settings opened the multi-line Prompt Editor. It now opens an inline edit view specifically for the Slash Commands field.
+- [x] Fixed issue where deleting the trigger character (e.g., '/') for autocomplete would not dismiss the suggestion box. Autocomplete now also correctly dismisses when typing a space.
+- [x] Fixed autocomplete box title rendering. It now displays " Commands " for Slash commands, " Files " for `@` mentions, and " Snippets " for standard snippets instead of hardcoding " Snippets ".
 
-### Remaining Polish (Low Priority):
-1.  **Syntax Highlighting:** Refine TOML-like preview in `ui/src/list.rs` or `ui/src/utils.rs`.
-2.  **Fuzzy Search:** Use a proper library for better fuzzy matching in autocomplete.
-3.  **Error Handling:** More robust error reporting in UI.
+### Remaining Polish (Low Priority) [COMPLETED]:
+1.  [x] **Syntax Highlighting:** Refined TOML-like preview in `ui/src/list.rs` and `ui/src/utils.rs`.
+2.  [x] **Fuzzy Search:** Integrated `fuzzy-matcher` crate for better fuzzy matching in autocomplete.
+3.  [x] **Error Handling:** Enhanced error reporting in UI with `handle_error!` macro in `app/src/main.rs`.

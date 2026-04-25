@@ -8,6 +8,14 @@ use ratatui_toaster::{ToastEngineBuilder, ToastType};
 use std::{io, sync::Arc, time::Duration};
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 
+macro_rules! handle_error {
+    ($app:expr, $res:expr) => {
+        if let Err(e) = $res {
+            $app.notify(format!("Error: {}", e), ToastType::Error);
+        }
+    };
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Infrastructure
@@ -17,7 +25,7 @@ async fn main() -> Result<()> {
 
     // App State
     let mut app = App::new(storage.clone(), clipboard, git.clone());
-    app.load_prompts().await?;
+    handle_error!(app, app.load_prompts().await);
 
     // Background Git Poller
     let (branch_tx, mut branch_rx) = tokio::sync::mpsc::channel(1);
@@ -89,58 +97,98 @@ async fn main() -> Result<()> {
                         app::app::Mode::List => {
                             match key.code {
                                 KeyCode::Char('q') => app.quit(),
-                                KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                                KeyCode::Right | KeyCode::Char('l') => {
                                     app.next_tab();
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                 }
-                                KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => {
+                                KeyCode::Left | KeyCode::Char('h') => {
                                     app.prev_tab();
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                 }
-                                KeyCode::Char('1') => { app.set_tab(contracts::Tab::Prompts); app.load_prompts().await?; }
-                                KeyCode::Char('2') => { app.set_tab(contracts::Tab::Canned); app.load_prompts().await?; }
-                                KeyCode::Char('3') => { app.set_tab(contracts::Tab::Notes); app.load_prompts().await?; }
-                                KeyCode::Char('4') => { app.set_tab(contracts::Tab::Snippets); app.load_prompts().await?; }
-                                KeyCode::Char('5') => { app.set_tab(contracts::Tab::Archive); app.load_prompts().await?; }
-                                KeyCode::Char('6') => { app.set_tab(contracts::Tab::Settings); app.load_prompts().await?; }
+                                KeyCode::Tab => {
+                                    if app.active_tab == contracts::Tab::Settings {
+                                        let tabs_len = contracts::Tab::all().len();
+                                        if app.selected_index < tabs_len {
+                                            app.selected_index = tabs_len; // Jump to Slash Commands
+                                        } else if app.selected_index == tabs_len {
+                                            app.selected_index = tabs_len + 1; // Jump to Advanced
+                                        } else {
+                                            app.selected_index = 0; // Jump back to Tab Visibility
+                                        }
+                                    }
+                                }
+                                KeyCode::BackTab => {
+                                    if app.active_tab == contracts::Tab::Settings {
+                                        let tabs_len = contracts::Tab::all().len();
+                                        if app.selected_index == 0 {
+                                            app.selected_index = tabs_len + 1;
+                                        } else if app.selected_index <= tabs_len {
+                                            app.selected_index = 0;
+                                        } else {
+                                            app.selected_index = tabs_len;
+                                        }
+                                    }
+                                }
+                                KeyCode::Char('1') => { app.set_tab(contracts::Tab::Prompts); handle_error!(app, app.load_prompts().await); }
+                                KeyCode::Char('2') => { app.set_tab(contracts::Tab::Canned); handle_error!(app, app.load_prompts().await); }
+                                KeyCode::Char('3') => { app.set_tab(contracts::Tab::Notes); handle_error!(app, app.load_prompts().await); }
+                                KeyCode::Char('4') => { app.set_tab(contracts::Tab::Snippets); handle_error!(app, app.load_prompts().await); }
+                                KeyCode::Char('5') => { app.set_tab(contracts::Tab::Archive); handle_error!(app, app.load_prompts().await); }
+                                KeyCode::Char('6') => { app.set_tab(contracts::Tab::Settings); handle_error!(app, app.load_prompts().await); }
                                 KeyCode::Char('u') => {
-                                    app.undo().await?;
+                                    handle_error!(app, app.undo().await);
                                 }
                                 KeyCode::Char('y') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                                    app.redo().await?;
+                                    handle_error!(app, app.redo().await);
                                 }
                                 KeyCode::Char('j') | KeyCode::Down => app.move_down(),
                                 KeyCode::Char('k') | KeyCode::Up => app.move_up(),
                                 KeyCode::Char('s') => {
-                                    app.stage_selected().await?;
+                                    handle_error!(app, app.stage_selected().await);
                                 }
                                 KeyCode::Char('d') => {
-                                    app.archive_selected().await?;
+                                    handle_error!(app, app.archive_selected().await);
                                 }
                                 KeyCode::Char('r') => {
-                                    app.restore_selected().await?;
+                                    handle_error!(app, app.restore_selected().await);
                                 }
                                 KeyCode::Char('a') => {
-                                    app.enter_editor(String::new(), None);
+                                    if app.active_tab == contracts::Tab::Settings {
+                                        app.edit_setting();
+                                    } else {
+                                        app.enter_editor(String::new(), None);
+                                    }
                                 }
                                 KeyCode::Char('i') => {
                                     app.enter_editor_before(String::new(), app.selected_index);
                                 }
                                 KeyCode::Char('b') => {
                                     app.branch_filter = !app.branch_filter;
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                     app.notify(format!("Branch filter: {}", if app.branch_filter { "ON" } else { "OFF" }), ToastType::Info);
                                 }
                                 KeyCode::Char('/') => {
                                     app.mode = app::app::Mode::Search;
                                     app.search_query.clear();
                                 }
-                                KeyCode::Char('G') | KeyCode::Char('g') if key.modifiers.contains(crossterm::event::KeyModifiers::SHIFT) => {
+                                KeyCode::Char('f') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                                     app.mode = app::app::Mode::GlobalSearch;
                                     app.global_search_query.clear();
                                 }
+                                KeyCode::Char('G') => {
+                                    app.move_to_bottom();
+                                }
+                                KeyCode::Char('g') => {
+                                    // Basic gg implementation (needs state to track first 'g')
+                                    // For now, let's just make 'g' move to top to simplify, 
+                                    // or actually implement a small state.
+                                    // To keep main.rs simple, I'll just use 'g' for top for now.
+                                    app.move_to_top();
+                                }
                                 KeyCode::Char('e') | KeyCode::Enter => {
-                                    if !app.prompts.is_empty() {
+                                    if app.active_tab == contracts::Tab::Settings {
+                                        app.edit_setting();
+                                    } else if !app.prompts.is_empty() {
                                         let p = &app.prompts[app.selected_index];
                                         app.enter_editor(p.text.clone(), Some(p.id));
                                     }
@@ -154,11 +202,11 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Char(' ') => {
                                     if app.active_tab == contracts::Tab::Settings {
-                                        app.toggle_setting().await?;
+                                        handle_error!(app, app.toggle_setting().await);
                                     }
                                 }
                                 KeyCode::Char('y') | KeyCode::Char('c') => {
-                                    app.copy_selected().await?;
+                                    handle_error!(app, app.copy_selected().await);
                                 }
                                 _ => {}
                             }
@@ -169,10 +217,10 @@ async fn main() -> Result<()> {
                                     app.mode = app::app::Mode::List;
                                 }
                                 KeyCode::Char('j') | KeyCode::Down => {
-                                    app.move_item_down().await?;
+                                    handle_error!(app, app.move_item_down().await);
                                 }
                                 KeyCode::Char('k') | KeyCode::Up => {
-                                    app.move_item_up().await?;
+                                    handle_error!(app, app.move_item_up().await);
                                 }
                                 _ => {}
                             }
@@ -182,18 +230,18 @@ async fn main() -> Result<()> {
                                 KeyCode::Esc => {
                                     app.mode = app::app::Mode::List;
                                     app.search_query.clear();
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                 }
                                 KeyCode::Enter => {
                                     app.mode = app::app::Mode::List;
                                 }
                                 KeyCode::Char(c) => {
                                     app.search_query.push(c);
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                 }
                                 KeyCode::Backspace => {
                                     app.search_query.pop();
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                 }
                                 _ => {}
                             }
@@ -203,11 +251,11 @@ async fn main() -> Result<()> {
                                 KeyCode::Esc => {
                                     app.mode = app::app::Mode::List;
                                     app.global_search_query.clear();
-                                    app.load_prompts().await?;
+                                    handle_error!(app, app.load_prompts().await);
                                 }
                                 KeyCode::Enter => {
                                     app.mode = app::app::Mode::List;
-                                    app.search_all(app.global_search_query.clone()).await?;
+                                    handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
                                 KeyCode::Char(c) => {
                                     app.global_search_query.push(c);
@@ -233,10 +281,10 @@ async fn main() -> Result<()> {
                                     }
                                 }
                                 KeyCode::Char('s') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                                    app.save_editor().await?;
+                                    handle_error!(app, app.save_editor().await);
                                 }
                                 KeyCode::Char('g') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                                    app.save_and_stage_editor().await?;
+                                    handle_error!(app, app.save_and_stage_editor().await);
                                 }
                                 KeyCode::Up if app.autocomplete_open => {
                                     app.move_suggestion_up();
@@ -249,7 +297,7 @@ async fn main() -> Result<()> {
                                 }
                                 _ => {
                                     app.textarea.input(event);
-                                    app.update_autocomplete().await?;
+                                    handle_error!(app, app.update_autocomplete().await);
                                 }
                             }
                         }

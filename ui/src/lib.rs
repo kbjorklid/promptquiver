@@ -41,24 +41,28 @@ pub fn render(
     header::render(f, chunks[0], active_tab, current_branch);
 
     if mode == "Editor" || mode == "Confirm Discard" {
-        editor::render(f, chunks[1], textarea, suggestions, suggestion_index);
+        if active_tab == Tab::Settings {
+            settings::render(f, chunks[1], settings, selected_index, Some(textarea));
+        } else {
+            editor::render(f, chunks[1], textarea, suggestions, suggestion_index);
 
-        if mode == "Confirm Discard" {
-            let area = utils::centered_rect(60, 25, f.area());
-            f.render_widget(Clear, area);
-            let block = Block::default()
-                .title(" Discard Changes? ")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Yellow));
-            let text = Paragraph::new("\nAre you sure you want to discard changes?\n\n(y) Yes, (n) No")
-                .alignment(ratatui::layout::Alignment::Center)
-                .block(block);
-            f.render_widget(text, area);
+            if mode == "Confirm Discard" {
+                let area = utils::centered_rect(60, 25, f.area());
+                f.render_widget(Clear, area);
+                let block = Block::default()
+                    .title(" Discard Changes? ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Yellow));
+                let text = Paragraph::new("\nAre you sure you want to discard changes?\n\n(y) Yes, (n) No")
+                    .alignment(ratatui::layout::Alignment::Center)
+                    .block(block);
+                f.render_widget(text, area);
+            }
         }
     } else {
         match active_tab {
             Tab::Settings => {
-                settings::render(f, chunks[1], settings, selected_index);
+                settings::render(f, chunks[1], settings, selected_index, None);
             }
             _ => {
                 let display_query = if !global_search_query.is_empty() {
@@ -67,6 +71,9 @@ pub fn render(
                     search_query
                 };
                 list::render(f, chunks[1], active_tab, prompts, selected_index, mode, display_query);
+                
+                let selected_prompt = prompts.get(selected_index);
+                list::render_preview(f, chunks[2], selected_prompt);
             }
         }
     }

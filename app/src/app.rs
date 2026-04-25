@@ -2,6 +2,8 @@ use contracts::{Clipboard, Git, Prompt, PromptType, Storage, Tab};
 use ratatui_textarea::TextArea;
 use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastPosition};
 use std::sync::Arc;
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 
 use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +131,12 @@ impl<'a> App<'a> {
     }
 
     pub fn move_down(&mut self) {
-        if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
+        if self.active_tab == Tab::Settings {
+            let total_settings = Tab::all().len() + 2; // tabs + slash + advanced
+            if self.selected_index < total_settings - 1 {
+                self.selected_index += 1;
+            }
+        } else if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
             self.selected_index += 1;
         }
     }
@@ -137,6 +144,19 @@ impl<'a> App<'a> {
     pub fn move_up(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
+        }
+    }
+
+    pub fn move_to_top(&mut self) {
+        self.selected_index = 0;
+    }
+
+    pub fn move_to_bottom(&mut self) {
+        if self.active_tab == Tab::Settings {
+            let total_settings = Tab::all().len() + 2;
+            self.selected_index = total_settings - 1;
+        } else if !self.prompts.is_empty() {
+            self.selected_index = self.prompts.len() - 1;
         }
     }
 
@@ -392,9 +412,39 @@ impl<'a> App<'a> {
         self.suggestions.clear();
     }
 
+    pub fn edit_setting(&mut self) {
+        if self.active_tab != Tab::Settings {
+            return;
+        }
+        let tabs = Tab::all();
+        if self.selected_index == tabs.len() {
+            // Edit Slash Commands
+            let text = self.settings.slash_commands.join(", ");
+            self.mode = Mode::Editor;
+            self.textarea = TextArea::new(text.lines().map(String::from).collect());
+            self.editing_id = None;
+            self.insert_index = None;
+            self.original_text = text;
+        }
+    }
+
     pub async fn save_editor(&mut self) -> contracts::Result<()> {
         let text = self.textarea.lines().join("\n");
         let path = self.current_project_path();
+
+        if self.active_tab == Tab::Settings {
+            let tabs = Tab::all();
+            if self.selected_index == tabs.len() {
+                self.settings.slash_commands = text.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                self.storage.save_settings(self.settings.clone()).await?;
+            }
+            self.exit_editor();
+            self.notify("Settings saved!", ToastType::Success);
+            return Ok(());
+        }
 
         self.push_history();
 
@@ -655,27 +705,56 @@ impl<'a> App<'a> {
         if let Some(trigger) = best_trigger {
             let query = &before_cursor[best_pos + trigger.len()..];
             
+            // If there's a space after the trigger, we abort autocomplete.
+            if query.contains(' ') {
+                self.autocomplete_open = false;
+                self.suggestions.clear();
+                return Ok(());
+            }
+
+            let matcher = SkimMatcherV2::default();
+            
             match trigger {
                 "$" | "$$" => {
                     let snippets = self.storage.get_global_snippets().await?;
-                    self.suggestions = snippets
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
                         .into_iter()
-                        .filter(|s| s.name.as_deref().unwrap_or(&s.text).contains(query))
+                        .filter_map(|s| {
+                            let text = s.name.as_deref().unwrap_or(&s.text);
+                            matcher.fuzzy_match(text, query).map(|score| (score, s))
+                        })
                         .collect();
+                    
+                    scored_suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 "@" => {
                     let mut files = Vec::new();
                     let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
                     self.walk_files(&current_dir, query, &mut files);
-                    self.suggestions = files;
+                    
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = files
+                        .into_iter()
+                        .filter_map(|f| {
+                            let text = f.name.as_deref().unwrap_or(&f.text);
+                            matcher.fuzzy_match(text, query).map(|score| (score, f))
+                        })
+                        .collect();
+                    
+                    scored_suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    self.suggestions = scored_suggestions.into_iter().map(|(_, f)| f).collect();
                 }
                 "/" => {
                     // Slash commands from settings
-                    self.suggestions = self.settings.slash_commands
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = self.settings.slash_commands
                         .iter()
-                        .filter(|cmd| cmd.contains(query))
-                        .map(|cmd| Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone())))
+                        .filter_map(|cmd| {
+                            matcher.fuzzy_match(cmd, query).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone()))))
+                        })
                         .collect();
+                        
+                    scored_suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 _ => self.suggestions = Vec::new(),
             }

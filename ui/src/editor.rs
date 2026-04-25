@@ -43,8 +43,14 @@ pub fn render(
             })
             .collect();
         
+        let title = match suggestions[0].r#type {
+            contracts::PromptType::Snippet => " Snippets ",
+            contracts::PromptType::Note => " Files ",
+            contracts::PromptType::Prompt => " Commands ",
+        };
+
         let list = List::new(items)
-            .block(Block::default().title(" Snippets ").borders(Borders::ALL));
+            .block(Block::default().title(title).borders(Borders::ALL));
         f.render_widget(list, popup_area);
     }
 }

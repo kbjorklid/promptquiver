@@ -57,3 +57,22 @@ pub fn render(
         f.render_widget(list, area);
     }
 }
+
+pub fn render_preview(
+    f: &mut Frame<'_>,
+    area: Rect,
+    prompt: Option<&Prompt>,
+) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Preview ");
+
+    if let Some(prompt) = prompt {
+        let lines = crate::utils::highlight_text(&prompt.text);
+        let paragraph = Paragraph::new(lines).block(block);
+        f.render_widget(paragraph, area);
+    } else {
+        let empty = Paragraph::new("No selection").block(block);
+        f.render_widget(empty, area);
+    }
+}

@@ -1,14 +1,16 @@
 use contracts::{Settings, Tab};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Clear};
 use ratatui::style::{Style, Color, Modifier};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
+use ratatui_textarea::TextArea;
 
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
     settings: &Settings,
     selected_index: usize,
+    textarea: Option<&TextArea<'_>>,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -38,13 +40,37 @@ pub fn render(
     f.render_widget(tab_list, chunks[0]);
 
     // Slash Commands
-    let slash_cmds = Paragraph::new(settings.slash_commands.join(", "))
-        .block(Block::default().borders(Borders::ALL).title(" Slash Commands "));
-    f.render_widget(slash_cmds, chunks[1]);
+    let slash_style = if selected_index == tabs.len() {
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Slash Commands ")
+        .border_style(slash_style);
+
+    if selected_index == tabs.len() && textarea.is_some() {
+        let mut ta = textarea.unwrap().clone();
+        ta.set_block(block.title(" Edit Slash Commands (Ctrl+S to save, Esc to cancel) "));
+        f.render_widget(Clear, chunks[1]);
+        f.render_widget(&ta, chunks[1]);
+    } else {
+        let slash_cmds = Paragraph::new(settings.slash_commands.join(", "))
+            .block(block);
+        f.render_widget(slash_cmds, chunks[1]);
+    }
 
     // Claude Commands
+    let advanced_style = if selected_index == tabs.len() + 1 {
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
     let claude_status = if settings.enable_claude_commands { "[ON]" } else { "[OFF]" };
     let claude_p = Paragraph::new(format!(" Enable Claude Commands: {}", claude_status))
-        .block(Block::default().borders(Borders::ALL).title(" Advanced "));
+        .block(Block::default().borders(Borders::ALL).title(" Advanced ")
+        .border_style(advanced_style));
     f.render_widget(claude_p, chunks[2]);
 }
