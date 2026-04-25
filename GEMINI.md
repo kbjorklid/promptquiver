@@ -50,6 +50,7 @@ You must operate in a strict **Test-Implement-Refactor** cycle for every feature
 
 ## 4. Operational Context
 
+- **User Profile:** The user is an experienced software developer but is new to Rust, its ecosystem, and Ratatui. Provide clear explanations for Rust-specific idioms and crate choices when appropriate.
 - **Shell:** You are working in a Windows PowerShell environment. Use `;` instead of `&&` for command chaining.
 - Use `tail -f debug.log` in your mind (and suggest it to the user) to monitor your file-based logging.
 - When implementating UI, refer to `UI_SPEC.md` for specific color constants (Yellow for prompts, Cyan for notes, etc.).
