@@ -4,11 +4,22 @@ use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastP
 use std::sync::Arc;
 
 use std::fmt;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     List,
     Editor,
+    Move,
+    Search,
+    GlobalSearch,
+    ConfirmDiscard,
+}
+
+#[derive(Debug, Clone)]
+pub struct HistoryEntry {
+// ...
+
+    pub tab: Tab,
+    pub prompts: Vec<Prompt>,
 }
 
 pub struct App<'a> {
@@ -22,11 +33,19 @@ pub struct App<'a> {
     pub mode: Mode,
     pub textarea: TextArea<'a>,
     pub editing_id: Option<uuid::Uuid>,
+    pub insert_index: Option<usize>,
     pub current_branch: Option<String>,
     pub autocomplete_open: bool,
     pub suggestions: Vec<Prompt>,
     pub suggestion_index: usize,
     pub toaster: Option<ToastEngine<ToastMessage>>,
+    pub settings: contracts::Settings,
+    pub undo_stack: Vec<HistoryEntry>,
+    pub redo_stack: Vec<HistoryEntry>,
+    pub branch_filter: bool,
+    pub search_query: String,
+    pub original_text: String,
+    pub global_search_query: String,
 }
 
 
@@ -62,11 +81,19 @@ impl<'a> App<'a> {
             mode: Mode::List,
             textarea: TextArea::default(),
             editing_id: None,
+            insert_index: None,
             current_branch: None,
             autocomplete_open: false,
             suggestions: Vec::new(),
             suggestion_index: 0,
             toaster: None,
+            settings: contracts::Settings::default(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            branch_filter: false,
+            search_query: String::new(),
+            original_text: String::new(),
+            global_search_query: String::new(),
         }
     }
 
@@ -113,10 +140,35 @@ impl<'a> App<'a> {
         }
     }
 
+    pub async fn move_item_up(&mut self) -> contracts::Result<()> {
+        if self.selected_index > 0 && !self.prompts.is_empty() {
+            self.push_history();
+            self.prompts.swap(self.selected_index, self.selected_index - 1);
+            self.selected_index -= 1;
+            self.save_current_list().await?;
+        }
+        Ok(())
+    }
+
+    pub async fn move_item_down(&mut self) -> contracts::Result<()> {
+        if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
+            self.push_history();
+            self.prompts.swap(self.selected_index, self.selected_index + 1);
+            self.selected_index += 1;
+            self.save_current_list().await?;
+        }
+        Ok(())
+    }
+
     pub async fn load_prompts(&mut self) -> contracts::Result<()> {
         let path = self.current_project_path();
         
-        self.prompts = match self.active_tab {
+        // Ensure project info is saved
+        let _ = self.storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
+
+        self.settings = self.storage.get_settings().await.unwrap_or_default();
+
+        let mut prompts = match self.active_tab {
             Tab::Prompts => self.storage.get_project_prompts(&path).await?,
             Tab::Notes => self.storage.get_project_notes(&path).await?,
             Tab::Archive => self.storage.get_project_archive(&path).await?,
@@ -124,6 +176,22 @@ impl<'a> App<'a> {
             Tab::Snippets => self.storage.get_global_snippets().await?,
             Tab::Settings => Vec::new(),
         };
+
+        if self.branch_filter {
+            if let Some(ref branch) = self.current_branch {
+                prompts.retain(|p| p.branch.as_deref() == Some(branch));
+            }
+        }
+
+        if !self.search_query.is_empty() {
+            let query = self.search_query.to_lowercase();
+            prompts.retain(|p| {
+                p.text.to_lowercase().contains(&query) || 
+                p.name.as_deref().unwrap_or("").to_lowercase().contains(&query)
+            });
+        }
+        
+        self.prompts = prompts;
         
         if self.selected_index >= self.prompts.len() && !self.prompts.is_empty() {
             self.selected_index = self.prompts.len() - 1;
@@ -139,11 +207,73 @@ impl<'a> App<'a> {
             .into_owned()
     }
 
+    pub fn push_history(&mut self) {
+        let entry = HistoryEntry {
+            tab: self.active_tab,
+            prompts: self.prompts.clone(),
+        };
+        self.undo_stack.push(entry);
+        self.redo_stack.clear();
+        
+        // Limit stack size
+        if self.undo_stack.len() > 100 {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    pub async fn undo(&mut self) -> contracts::Result<()> {
+        if let Some(entry) = self.undo_stack.pop() {
+            let current = HistoryEntry {
+                tab: self.active_tab,
+                prompts: self.prompts.clone(),
+            };
+            self.redo_stack.push(current);
+
+            self.active_tab = entry.tab;
+            self.prompts = entry.prompts;
+            
+            self.save_current_list().await?;
+            self.notify("Undo", ToastType::Info);
+        }
+        Ok(())
+    }
+
+    pub async fn redo(&mut self) -> contracts::Result<()> {
+        if let Some(entry) = self.redo_stack.pop() {
+            let current = HistoryEntry {
+                tab: self.active_tab,
+                prompts: self.prompts.clone(),
+            };
+            self.undo_stack.push(current);
+
+            self.active_tab = entry.tab;
+            self.prompts = entry.prompts;
+
+            self.save_current_list().await?;
+            self.notify("Redo", ToastType::Info);
+        }
+        Ok(())
+    }
+
+    async fn save_current_list(&mut self) -> contracts::Result<()> {
+        let path = self.current_project_path();
+        match self.active_tab {
+            Tab::Prompts => self.storage.save_project_prompts(&path, self.prompts.clone()).await?,
+            Tab::Notes => self.storage.save_project_notes(&path, self.prompts.clone()).await?,
+            Tab::Archive => self.storage.save_project_archive(&path, self.prompts.clone()).await?,
+            Tab::Canned => self.storage.save_global_canned(self.prompts.clone()).await?,
+            Tab::Snippets => self.storage.save_global_snippets(self.prompts.clone()).await?,
+            Tab::Settings => {}
+        }
+        Ok(())
+    }
+
     pub async fn stage_selected(&mut self) -> contracts::Result<()> {
         if self.prompts.is_empty() {
             return Ok(());
         }
 
+        self.push_history();
         let path = self.current_project_path();
         let target_idx = self.selected_index;
         let is_staged = self.prompts[target_idx].staged;
@@ -159,6 +289,7 @@ impl<'a> App<'a> {
             let mut notes = self.storage.get_project_notes(&path).await?;
             let mut snippets = self.storage.get_global_snippets().await?;
             let mut archive = self.storage.get_project_archive(&path).await?;
+            let mut canned = self.storage.get_global_canned().await?;
 
             let mut to_archive = Vec::new();
 
@@ -178,6 +309,11 @@ impl<'a> App<'a> {
                 if p.staged {
                     p.staged = false;
                     to_archive.push(p.clone());
+                }
+            }
+            for p in &mut canned {
+                if p.staged {
+                    p.staged = false;
                 }
             }
 
@@ -208,9 +344,7 @@ impl<'a> App<'a> {
                     snippets.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
                 }
                 Tab::Canned => {
-                    let mut canned = self.storage.get_global_canned().await?;
                     canned.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
-                    self.storage.save_global_canned(canned).await?;
                 }
                 _ => {}
             }
@@ -220,6 +354,7 @@ impl<'a> App<'a> {
             self.storage.save_project_notes(&path, notes).await?;
             self.storage.save_project_archive(&path, archive).await?;
             self.storage.save_global_snippets(snippets.clone()).await?;
+            self.storage.save_global_canned(canned).await?;
 
             // Process text before copying
             let processed_text = contracts::Processor::process(&target.text, &snippets);
@@ -237,11 +372,22 @@ impl<'a> App<'a> {
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
         self.editing_id = id;
+        self.insert_index = None;
+        self.original_text = text;
+    }
+
+    pub fn enter_editor_before(&mut self, text: String, index: usize) {
+        self.mode = Mode::Editor;
+        self.textarea = TextArea::new(text.lines().map(String::from).collect());
+        self.editing_id = None;
+        self.insert_index = Some(index);
+        self.original_text = text;
     }
 
     pub fn exit_editor(&mut self) {
         self.mode = Mode::List;
         self.editing_id = None;
+        self.insert_index = None;
         self.autocomplete_open = false;
         self.suggestions.clear();
     }
@@ -250,13 +396,18 @@ impl<'a> App<'a> {
         let text = self.textarea.lines().join("\n");
         let path = self.current_project_path();
 
+        self.push_history();
+
         if let Some(id) = self.editing_id {
-            // Edit existing
+            // ... (Edit existing logic - remains same)
+            let (title, _) = contracts::Processor::extract_title(&text);
+            
             match self.active_tab {
                 Tab::Prompts => {
                     let mut list = self.storage.get_project_prompts(&path).await?;
                     if let Some(p) = list.iter_mut().find(|p| p.id == id) {
                         p.text = text;
+                        p.name = title;
                         p.updated_at = chrono::Utc::now();
                     }
                     self.storage.save_project_prompts(&path, list).await?;
@@ -265,6 +416,7 @@ impl<'a> App<'a> {
                     let mut list = self.storage.get_project_notes(&path).await?;
                     if let Some(p) = list.iter_mut().find(|p| p.id == id) {
                         p.text = text;
+                        p.name = title;
                         p.updated_at = chrono::Utc::now();
                     }
                     self.storage.save_project_notes(&path, list).await?;
@@ -273,14 +425,20 @@ impl<'a> App<'a> {
                     let mut list = self.storage.get_global_canned().await?;
                     if let Some(p) = list.iter_mut().find(|p| p.id == id) {
                         p.text = text;
+                        p.name = title;
                         p.updated_at = chrono::Utc::now();
                     }
                     self.storage.save_global_canned(list).await?;
                 }
                 Tab::Snippets => {
+                    if title.is_none() {
+                        self.notify("Snippets MUST have a title (-- Title)", ToastType::Error);
+                        return Ok(());
+                    }
                     let mut list = self.storage.get_global_snippets().await?;
                     if let Some(p) = list.iter_mut().find(|p| p.id == id) {
                         p.text = text;
+                        p.name = title;
                         p.updated_at = chrono::Utc::now();
                     }
                     self.storage.save_global_snippets(list).await?;
@@ -294,27 +452,51 @@ impl<'a> App<'a> {
                 Tab::Snippets => PromptType::Snippet,
                 _ => PromptType::Prompt,
             };
-            let prompt = Prompt::new(text, r#type, None, None);
+            
+            let (title, _) = contracts::Processor::extract_title(&text);
+            if r#type == PromptType::Snippet && title.is_none() {
+                self.notify("Snippets MUST have a title (-- Title)", ToastType::Error);
+                return Ok(());
+            }
+
+            let current_branch = self.git.get_current_branch(&path).await.unwrap_or_default();
+            let prompt = Prompt::new(text, r#type, current_branch, title);
             
             match self.active_tab {
                 Tab::Prompts => {
                     let mut list = self.storage.get_project_prompts(&path).await?;
-                    list.push(prompt);
+                    if let Some(idx) = self.insert_index {
+                        list.insert(idx, prompt);
+                    } else {
+                        list.push(prompt);
+                    }
                     self.storage.save_project_prompts(&path, list).await?;
                 }
                 Tab::Notes => {
                     let mut list = self.storage.get_project_notes(&path).await?;
-                    list.push(prompt);
+                    if let Some(idx) = self.insert_index {
+                        list.insert(idx, prompt);
+                    } else {
+                        list.push(prompt);
+                    }
                     self.storage.save_project_notes(&path, list).await?;
                 }
                 Tab::Canned => {
                     let mut list = self.storage.get_global_canned().await?;
-                    list.push(prompt);
+                    if let Some(idx) = self.insert_index {
+                        list.insert(idx, prompt);
+                    } else {
+                        list.push(prompt);
+                    }
                     self.storage.save_global_canned(list).await?;
                 }
                 Tab::Snippets => {
                     let mut list = self.storage.get_global_snippets().await?;
-                    list.push(prompt);
+                    if let Some(idx) = self.insert_index {
+                        list.insert(idx, prompt);
+                    } else {
+                        list.push(prompt);
+                    }
                     self.storage.save_global_snippets(list).await?;
                 }
                 _ => {}
@@ -332,6 +514,7 @@ impl<'a> App<'a> {
             return Ok(());
         }
 
+        self.push_history();
         let path = self.current_project_path();
         let target = self.prompts[self.selected_index].clone();
 
@@ -378,6 +561,59 @@ impl<'a> App<'a> {
         }
 
         self.load_prompts().await?;
+        Ok(())
+    }
+
+    pub async fn copy_selected(&mut self) -> contracts::Result<()> {
+        if self.prompts.is_empty() {
+            return Ok(());
+        }
+
+        let target = &self.prompts[self.selected_index];
+        let snippets = self.storage.get_global_snippets().await?;
+        
+        let processed_text = contracts::Processor::process(&target.text, &snippets);
+        self.clipboard.copy(processed_text).await?;
+        self.notify("Copied to clipboard!", ToastType::Success);
+        
+        Ok(())
+    }
+
+    pub async fn restore_selected(&mut self) -> contracts::Result<()> {
+        if self.active_tab != Tab::Archive || self.prompts.is_empty() {
+            return Ok(());
+        }
+
+        self.push_history();
+        let path = self.current_project_path();
+        let target = self.prompts[self.selected_index].clone();
+
+        // 1. Remove from Archive
+        let mut archive = self.storage.get_project_archive(&path).await?;
+        archive.retain(|p| p.id != target.id);
+        self.storage.save_project_archive(&path, archive).await?;
+
+        // 2. Add back to original list based on type
+        match target.r#type {
+            PromptType::Prompt => {
+                let mut list = self.storage.get_project_prompts(&path).await?;
+                list.push(target);
+                self.storage.save_project_prompts(&path, list).await?;
+            }
+            PromptType::Note => {
+                let mut list = self.storage.get_project_notes(&path).await?;
+                list.push(target);
+                self.storage.save_project_notes(&path, list).await?;
+            }
+            PromptType::Snippet => {
+                let mut list = self.storage.get_global_snippets().await?;
+                list.push(target);
+                self.storage.save_global_snippets(list).await?;
+            }
+        }
+
+        self.load_prompts().await?;
+        self.notify("Prompt restored", ToastType::Success);
         Ok(())
     }
 
@@ -428,12 +664,18 @@ impl<'a> App<'a> {
                         .collect();
                 }
                 "@" => {
-                    // File search - mock for now or implement basic walk
-                    self.suggestions = Vec::new(); 
+                    let mut files = Vec::new();
+                    let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    self.walk_files(&current_dir, query, &mut files);
+                    self.suggestions = files;
                 }
                 "/" => {
-                    // Slash commands - mock for now
-                    self.suggestions = Vec::new();
+                    // Slash commands from settings
+                    self.suggestions = self.settings.slash_commands
+                        .iter()
+                        .filter(|cmd| cmd.contains(query))
+                        .map(|cmd| Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone())))
+                        .collect();
                 }
                 _ => self.suggestions = Vec::new(),
             }
@@ -517,6 +759,94 @@ impl<'a> App<'a> {
             self.autocomplete_open = false;
             self.suggestions.clear();
             self.suggestion_index = 0;
+        }
+    }
+
+    pub async fn toggle_setting(&mut self) -> contracts::Result<()> {
+        if self.active_tab != Tab::Settings {
+            return Ok(());
+        }
+
+        let tabs = Tab::all();
+        if self.selected_index < tabs.len() {
+            let tab = tabs[self.selected_index];
+            let current = self.settings.tab_visibility.get(&tab).cloned().unwrap_or(true);
+            self.settings.tab_visibility.insert(tab, !current);
+            self.storage.save_settings(self.settings.clone()).await?;
+            self.notify(format!("Toggled visibility for {:?}", tab), ToastType::Info);
+        } else if self.selected_index == tabs.len() {
+             // Slash commands - maybe edit?
+        } else if self.selected_index == tabs.len() + 1 {
+            self.settings.enable_claude_commands = !self.settings.enable_claude_commands;
+            self.storage.save_settings(self.settings.clone()).await?;
+            self.notify(format!("Claude commands: {}", if self.settings.enable_claude_commands { "ON" } else { "OFF" }), ToastType::Info);
+        }
+
+        Ok(())
+    }
+
+    pub async fn save_and_stage_editor(&mut self) -> contracts::Result<()> {
+        self.save_editor().await?;
+        self.stage_selected().await?;
+        Ok(())
+    }
+
+    pub async fn search_all(&mut self, query: String) -> contracts::Result<()> {
+        // ... (implementation remains same as above)
+        let path = self.current_project_path();
+        let query_lower = query.to_lowercase();
+        
+        let mut results = Vec::new();
+        
+        // Search all sources
+        let prompts = self.storage.get_project_prompts(&path).await?;
+        let notes = self.storage.get_project_notes(&path).await?;
+        let archive = self.storage.get_project_archive(&path).await?;
+        let canned = self.storage.get_global_canned().await?;
+        let snippets = self.storage.get_global_snippets().await?;
+        
+        let mut all = prompts;
+        all.extend(notes);
+        all.extend(archive);
+        all.extend(canned);
+        all.extend(snippets);
+        
+        for p in all {
+            if p.text.to_lowercase().contains(&query_lower) || 
+               p.name.as_deref().unwrap_or("").to_lowercase().contains(&query_lower) {
+                results.push(p);
+            }
+        }
+        
+        self.prompts = results;
+        self.selected_index = 0;
+        self.notify(format!("Global search found {} results", self.prompts.len()), ToastType::Info);
+        Ok(())
+    }
+
+    fn walk_files(&self, dir: &std::path::Path, query: &str, results: &mut Vec<Prompt>) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name == "target" || name == ".git" || name == "node_modules" {
+                            continue;
+                        }
+                    }
+                    self.walk_files(&path, query, results);
+                } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.contains(query) {
+                        results.push(Prompt::new(
+                            path.to_string_lossy().to_string(),
+                            PromptType::Note,
+                            None,
+                            Some(name.to_string()),
+                        ));
+                    }
+                }
+                if results.len() > 20 { break; }
+            }
         }
     }
 }

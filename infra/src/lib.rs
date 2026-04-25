@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use contracts::{Clipboard, Git, Prompt, Result, Storage};
+use contracts::{Clipboard, Git, ProjectInfo, Prompt, Result, Settings, Storage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -10,8 +10,10 @@ pub struct InMemoryStorage {
     project_prompts: RwLock<HashMap<String, Vec<Prompt>>>,
     project_notes: RwLock<HashMap<String, Vec<Prompt>>>,
     project_archive: RwLock<HashMap<String, Vec<Prompt>>>,
+    project_info: RwLock<HashMap<String, ProjectInfo>>,
     global_canned: RwLock<Vec<Prompt>>,
     global_snippets: RwLock<Vec<Prompt>>,
+    settings: RwLock<Settings>,
 }
 
 impl InMemoryStorage {
@@ -21,8 +23,10 @@ impl InMemoryStorage {
             project_prompts: RwLock::new(HashMap::new()),
             project_notes: RwLock::new(HashMap::new()),
             project_archive: RwLock::new(HashMap::new()),
+            project_info: RwLock::new(HashMap::new()),
             global_canned: RwLock::new(Vec::new()),
             global_snippets: RwLock::new(Vec::new()),
+            settings: RwLock::new(Settings::default()),
         }
     }
 }
@@ -50,6 +54,11 @@ impl Storage for InMemoryStorage {
         Ok(archive.get(project_path).cloned().unwrap_or_default())
     }
 
+    async fn get_project_info(&self, project_path: &str) -> Result<ProjectInfo> {
+        let info = self.project_info.read().await;
+        Ok(info.get(project_path).cloned().unwrap_or_default())
+    }
+
     async fn save_project_prompts(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
         self.project_prompts.write().await.insert(project_path.to_string(), prompts);
         Ok(())
@@ -65,12 +74,21 @@ impl Storage for InMemoryStorage {
         Ok(())
     }
 
+    async fn save_project_info(&self, project_path: &str, info: ProjectInfo) -> Result<()> {
+        self.project_info.write().await.insert(project_path.to_string(), info);
+        Ok(())
+    }
+
     async fn get_global_canned(&self) -> Result<Vec<Prompt>> {
         Ok(self.global_canned.read().await.clone())
     }
 
     async fn get_global_snippets(&self) -> Result<Vec<Prompt>> {
         Ok(self.global_snippets.read().await.clone())
+    }
+
+    async fn get_settings(&self) -> Result<Settings> {
+        Ok(self.settings.read().await.clone())
     }
 
     async fn save_global_canned(&self, prompts: Vec<Prompt>) -> Result<()> {
@@ -82,6 +100,12 @@ impl Storage for InMemoryStorage {
     async fn save_global_snippets(&self, prompts: Vec<Prompt>) -> Result<()> {
         let mut global = self.global_snippets.write().await;
         *global = prompts;
+        Ok(())
+    }
+
+    async fn save_settings(&self, settings: Settings) -> Result<()> {
+        let mut s = self.settings.write().await;
+        *s = settings;
         Ok(())
     }
 }
@@ -156,6 +180,8 @@ impl FileSystemStorage {
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct ProjectFile {
     #[serde(default)]
+    info: ProjectInfo,
+    #[serde(default)]
     main: Vec<Prompt>,
     #[serde(default)]
     notes: Vec<Prompt>,
@@ -169,6 +195,8 @@ struct GlobalFile {
     canned: Vec<Prompt>,
     #[serde(default)]
     snippets: Vec<Prompt>,
+    #[serde(default)]
+    settings: Settings,
 }
 
 #[async_trait]
@@ -186,6 +214,11 @@ impl Storage for FileSystemStorage {
     async fn get_project_archive(&self, project_path: &str) -> Result<Vec<Prompt>> {
         let file: ProjectFile = self.read_toml(self.project_path(project_path)).await.unwrap_or_default();
         Ok(file.archive)
+    }
+
+    async fn get_project_info(&self, project_path: &str) -> Result<ProjectInfo> {
+        let file: ProjectFile = self.read_toml(self.project_path(project_path)).await.unwrap_or_default();
+        Ok(file.info)
     }
 
     async fn save_project_prompts(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
@@ -209,6 +242,13 @@ impl Storage for FileSystemStorage {
         self.write_toml(path, &file).await
     }
 
+    async fn save_project_info(&self, project_path: &str, info: ProjectInfo) -> Result<()> {
+        let path = self.project_path(project_path);
+        let mut file: ProjectFile = self.read_toml(path.clone()).await.unwrap_or_default();
+        file.info = info;
+        self.write_toml(path, &file).await
+    }
+
     async fn get_global_canned(&self) -> Result<Vec<Prompt>> {
         let file: GlobalFile = self.read_toml(self.global_path()).await.unwrap_or_default();
         Ok(file.canned)
@@ -217,6 +257,11 @@ impl Storage for FileSystemStorage {
     async fn get_global_snippets(&self) -> Result<Vec<Prompt>> {
         let file: GlobalFile = self.read_toml(self.global_path()).await.unwrap_or_default();
         Ok(file.snippets)
+    }
+
+    async fn get_settings(&self) -> Result<Settings> {
+        let file: GlobalFile = self.read_toml(self.global_path()).await.unwrap_or_default();
+        Ok(file.settings)
     }
 
     async fn save_global_canned(&self, prompts: Vec<Prompt>) -> Result<()> {
@@ -230,6 +275,13 @@ impl Storage for FileSystemStorage {
         let path = self.global_path();
         let mut file: GlobalFile = self.read_toml(path.clone()).await.unwrap_or_default();
         file.snippets = prompts;
+        self.write_toml(path, &file).await
+    }
+
+    async fn save_settings(&self, settings: Settings) -> Result<()> {
+        let path = self.global_path();
+        let mut file: GlobalFile = self.read_toml(path.clone()).await.unwrap_or_default();
+        file.settings = settings;
         self.write_toml(path, &file).await
     }
 }

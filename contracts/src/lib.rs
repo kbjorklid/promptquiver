@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PromptType {
     #[serde(rename = "prompt")]
@@ -48,6 +50,18 @@ impl Prompt {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Settings {
+    pub tab_visibility: HashMap<Tab, bool>,
+    pub slash_commands: Vec<String>,
+    pub enable_claude_commands: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectInfo {
+    pub path: String,
+}
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Storage error: {0}")]
@@ -65,7 +79,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub mod processor;
 pub use processor::Processor;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Tab {
     Prompts,
     Canned,
@@ -105,16 +119,20 @@ pub trait Storage: Send + Sync {
     async fn get_project_prompts(&self, project_path: &str) -> Result<Vec<Prompt>>;
     async fn get_project_notes(&self, project_path: &str) -> Result<Vec<Prompt>>;
     async fn get_project_archive(&self, project_path: &str) -> Result<Vec<Prompt>>;
+    async fn get_project_info(&self, project_path: &str) -> Result<ProjectInfo>;
     
     async fn save_project_prompts(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()>;
     async fn save_project_notes(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()>;
     async fn save_project_archive(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()>;
+    async fn save_project_info(&self, project_path: &str, info: ProjectInfo) -> Result<()>;
 
     async fn get_global_canned(&self) -> Result<Vec<Prompt>>;
     async fn get_global_snippets(&self) -> Result<Vec<Prompt>>;
+    async fn get_settings(&self) -> Result<Settings>;
     
     async fn save_global_canned(&self, prompts: Vec<Prompt>) -> Result<()>;
     async fn save_global_snippets(&self, prompts: Vec<Prompt>) -> Result<()>;
+    async fn save_settings(&self, settings: Settings) -> Result<()>;
 }
 
 

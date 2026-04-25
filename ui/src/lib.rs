@@ -9,6 +9,7 @@ pub mod list;
 pub mod footer;
 pub mod editor;
 pub mod utils;
+pub mod settings;
 
 pub fn render(
     f: &mut Frame<'_>,
@@ -21,24 +22,38 @@ pub fn render(
     suggestions: &[Prompt],
     suggestion_index: usize,
     toaster: &mut Option<ToastEngine<ToastMessage>>,
+    search_query: &str,
+    global_search_query: &str,
+    settings: &contracts::Settings,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1), // Atlas Branding
-            Constraint::Length(3), // Tabs
-            Constraint::Min(0),    // Main area
+            Constraint::Length(3), // Header
+            Constraint::Min(10),   // Content
+            Constraint::Length(10), // Preview
             Constraint::Length(3), // Footer
         ])
         .split(f.area());
-    
-    header::render_branding(f, chunks[0]);
-    header::render_tabs(f, chunks[1], active_tab, current_branch);
-    
+
+    header::render(f, chunks[0], active_tab, current_branch);
+
     if mode == "Editor" {
-        editor::render(f, chunks[2], textarea, suggestions, suggestion_index);
+        editor::render(f, chunks[1], textarea, suggestions, suggestion_index);
     } else {
-        list::render(f, chunks[2], active_tab, prompts, selected_index);
+        match active_tab {
+            Tab::Settings => {
+                settings::render(f, chunks[1], settings, selected_index);
+            }
+            _ => {
+                let display_query = if !global_search_query.is_empty() {
+                    global_search_query
+                } else {
+                    search_query
+                };
+                list::render(f, chunks[1], active_tab, prompts, selected_index, mode, display_query);
+            }
+        }
     }
 
     footer::render(
