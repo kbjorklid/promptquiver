@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+debug.log
+.env
+*.profraw
+*.profdata
