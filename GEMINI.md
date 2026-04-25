@@ -15,11 +15,13 @@ Before writing any code, you MUST review the following specifications in order:
 3.  **[TECHNICAL_DIRECTIVES.md](./TECHNICAL_DIRECTIVES.md)**: The architectural rules, crate choices, and the **E2E-First** testing philosophy.
 4.  **[TEST_SCENARIOS.md](./TEST_SCENARIOS.md)**: The specific user journeys you must verify via integration tests.
 5.  **[DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)**: Practical guidance on terminal lifecycle, logging, and Git integration.
+6.  **[PROGRESS.md](./PROGRESS.md)**: The source of truth for the current project state, completed tasks, and next steps.
 
 ---
 
 ## 2. Core Mandates
 
+- **State Management:** You MUST update `PROGRESS.md` after every significant task completion or milestone. This file is the primary reference for maintaining context between sessions.
 - **Language:** Rust (Stable).
 - **Architecture:** Cargo Workspace with hard boundaries between modules. Use the "Contracts" pattern (Traits) for dependency inversion.
 - **Testing:** Prioritize End-to-End (E2E) tests using `ratatui::backend::TestBackend`. Unit tests are only for isolated, complex logic.
