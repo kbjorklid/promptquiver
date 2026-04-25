@@ -18,5 +18,5 @@ arboard.workspace = true
 directories.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full", "macros"] }
-tempfile = "3"
+tokio = { version = "1.52", features = ["full", "macros"] }
+tempfile = "3.27"

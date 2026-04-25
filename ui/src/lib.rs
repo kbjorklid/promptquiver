@@ -90,7 +90,7 @@ pub fn render(
     if mode == "Editor" {
         let area = centered_rect(80, 80, f.area());
         f.render_widget(Clear, area);
-        f.render_widget(textarea.widget(), area);
+        f.render_widget(textarea, area);
 
         // Autocomplete popup
         if !suggestions.is_empty() {

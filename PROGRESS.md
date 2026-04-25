@@ -64,4 +64,4 @@
 - **Shell:** Windows PowerShell (use `;` for chaining).
 - **Architecture:** Clean Architecture (Contracts -> Implementation).
 - **Testing:** E2E-First via `ratatui::backend::TestBackend`.
-- **Status (2026-04-25):** Major milestone reached. All core features (Prompts, Snippets, Autocomplete, Git Polling, TOML Storage) are implemented and verified with 9 E2E tests. Upgraded to Ratatui 0.30.
+- **Status (2026-04-25):** Major milestone reached. All core features (Prompts, Snippets, Autocomplete, Git Polling, TOML Storage) are implemented and verified with 9 E2E tests. Upgraded to Ratatui 0.30 and all other dependencies to latest versions (April 2026). Fixed ratatui-textarea deprecation.

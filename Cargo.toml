@@ -8,17 +8,17 @@ members = [
 ]
 
 [workspace.dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.52", features = ["full"] }
 ratatui = "0.30"
 crossterm = "0.29"
-serde = { version = "1.0", features = ["derive"] }
-serde_toml = { version = "0.8", package = "toml" }
-uuid = { version = "1.13", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2.0"
-anyhow = "1.0"
-async-trait = "0.1"
-arboard = "3.4"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_toml = { version = "1.1.2", package = "toml" }
+uuid = { version = "1.23", features = ["v4", "serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
+thiserror = "2.0.18"
+anyhow = "1.0.102"
+async-trait = "0.1.89"
+arboard = "3.6.1"
 directories = "6.0"
 ratatui-textarea = "0.9"
 # Note: ratatui-toaster and tui-popup might need specific versions, I'll check later.
