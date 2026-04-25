@@ -10,7 +10,7 @@ async fn test_basic_render() {
     let storage = Arc::new(InMemoryStorage::new());
     let clipboard = Arc::new(MockClipboard::new());
     let git = Arc::new(MockGit::new(None));
-    let app = App::new(storage, clipboard, git);
+    let mut app = App::new(storage, clipboard, git);
 
     let backend = TestBackend::new(40, 10);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -31,6 +31,7 @@ async fn test_basic_render() {
                 app.current_branch.as_deref(),
                 &app.suggestions,
                 app.suggestion_index,
+                &mut app.toaster,
             );
         })
         .unwrap();

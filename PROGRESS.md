@@ -70,4 +70,5 @@
 - **Refactoring (Latest):** 
   - Implemented `RealClipboard` and `RealGit` in `infra`.
   - Added Toast notifications and Atlas branding in `ui`.
+  - Improved Editor visualization: The editor now takes over the main area with a rounded border and clear title, providing better separation from the list view.
   - All E2E and unit tests passing.

@@ -35,7 +35,11 @@ pub fn render(
     header::render_branding(f, chunks[0]);
     header::render_tabs(f, chunks[1], active_tab, current_branch);
     
-    list::render(f, chunks[2], active_tab, prompts, selected_index);
+    if mode == "Editor" {
+        editor::render(f, chunks[2], textarea, suggestions, suggestion_index);
+    } else {
+        list::render(f, chunks[2], active_tab, prompts, selected_index);
+    }
 
     footer::render(
         f,
@@ -45,10 +49,6 @@ pub fn render(
         selected_index,
         !suggestions.is_empty(),
     );
-
-    if mode == "Editor" {
-        editor::render(f, textarea, suggestions, suggestion_index);
-    }
 
     if let Some(ref mut toaster) = toaster {
         f.render_widget(&*toaster, f.area());

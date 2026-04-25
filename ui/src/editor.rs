@@ -4,17 +4,25 @@ use ratatui::style::{Style, Color};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui_textarea::TextArea;
-use crate::utils::centered_rect;
 
 pub fn render(
     f: &mut Frame<'_>,
+    area: Rect,
     textarea: &TextArea<'_>,
     suggestions: &[Prompt],
     suggestion_index: usize,
 ) {
-    let area = centered_rect(80, 80, f.area());
+    let mut textarea = textarea.clone();
+    textarea.set_block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .title(" Edit Prompt (Ctrl+S to save, Esc to cancel) ")
+            .border_style(Style::default().fg(Color::Cyan)),
+    );
+
     f.render_widget(Clear, area);
-    f.render_widget(textarea, area);
+    f.render_widget(&textarea, area);
 
     // Autocomplete popup
     if !suggestions.is_empty() {
