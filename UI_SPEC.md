@@ -84,4 +84,24 @@ The application uses a three-section vertical layout:
 
 - **Structure:** A scrollable list of categorized options.
 - **Checkboxes:** Use `[x]` (Green) and `[ ]` (Red) for Boolean toggles.
-- **Inline Editing:** For Slash Commands, allow editing directly in the list row by replacing the text with an input field.
+---
+
+## 7. Ratatui Implementation Mapping
+
+To ensure architectural consistency, the following Ratatui widgets and ecosystem crates are selected:
+
+| UI Component | Ratatui Widget / Crate | Purpose |
+| :--- | :--- | :--- |
+| **Global Layout** | `ratatui::layout::Layout` | Vertical constraints (Header, Main, Footer). |
+| **Navigation Tabs** | `ratatui::widgets::Tabs` | Top-level view switching. |
+| **List Views** | `ratatui::widgets::List` | Displays prompts, notes, and search results with stateful selection. |
+| **Smart Editor** | `tui-textarea` (Crate) | Multi-line text input with Vim/Emacs keybinding support. |
+| **Status Bar** | `ratatui::widgets::Paragraph` | Footer information with `Style` for background highlights. |
+| **Modals / Toasts** | `ratatui::widgets::Clear` + `Block` | Toasts and autocomplete windows rendered over the main area. |
+| **Checkboxes** | `ratatui::widgets::ListItem` | Custom string formatting: `[x]` vs `[ ]`. |
+| **Spinners** | `throbber-widgets-tui` (Crate) | For background Git polling and I/O feedback. |
+
+### Styling Constants
+- **Borders:** `BorderType::Rounded` for focus areas.
+- **Selection Style:** `Style::default().bg(Color::Indexed(240)).fg(Color::White)` (or similar high-contrast gray).
+- **Text Alignment:** `Alignment::Center` for branding and notifications.
