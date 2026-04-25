@@ -341,6 +341,7 @@ impl Git for MockGit {
     }
 }
 
+#[derive(Debug)]
 pub struct RealClipboard;
 
 impl RealClipboard {
@@ -382,6 +383,7 @@ impl Clipboard for RealClipboard {
     }
 }
 
+#[derive(Debug)]
 pub struct RealGit;
 
 impl RealGit {

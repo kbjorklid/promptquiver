@@ -12,7 +12,7 @@ async fn test_basic_render() {
     let git = Arc::new(MockGit::new(None));
     let mut app = App::new(storage, clipboard, git);
 
-    let backend = TestBackend::new(40, 10);
+    let backend = TestBackend::new(40, 30);
     let mut terminal = Terminal::new(backend).unwrap();
 
     terminal
@@ -20,6 +20,10 @@ async fn test_basic_render() {
             let mode_str = match app.mode {
                 app::app::Mode::List => "List",
                 app::app::Mode::Editor => "Editor",
+                app::app::Mode::Move => "Move",
+                app::app::Mode::Search => "Search",
+                app::app::Mode::GlobalSearch => "Global Search",
+                app::app::Mode::ConfirmDiscard => "Confirm Discard",
             };
             ui::render(
                 f,
@@ -32,6 +36,9 @@ async fn test_basic_render() {
                 &app.suggestions,
                 app.suggestion_index,
                 &mut app.toaster,
+                &app.search_query,
+                &app.global_search_query,
+                &app.settings,
             );
         })
         .unwrap();
@@ -320,6 +327,98 @@ async fn test_autocomplete() {
     app.select_suggestion();
     assert!(!app.autocomplete_open);
     assert_eq!(app.textarea.lines()[0], "Hello $$ts");
+}
+
+#[tokio::test]
+async fn test_editor_discard_confirmation_modal() {
+    let storage = Arc::new(InMemoryStorage::new());
+    let clipboard = Arc::new(MockClipboard::new());
+    let git = Arc::new(MockGit::new(None));
+    let mut app = App::new(storage, clipboard, git);
+
+    let backend = TestBackend::new(80, 30);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    // 1. Enter editor and modify text
+    app.enter_editor("Original".to_string(), None);
+    app.textarea.insert_str("Modified");
+    
+    // 2. Simulate Esc key
+    let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Esc,
+        crossterm::event::KeyModifiers::empty(),
+    ));
+    
+    // Handle Esc in Editor mode
+    if let crossterm::event::Event::Key(key) = event {
+        if key.code == crossterm::event::KeyCode::Esc {
+            let current_text = app.textarea.lines().join("\n");
+            if current_text != app.original_text {
+                app.mode = app::app::Mode::ConfirmDiscard;
+            }
+        }
+    }
+
+    assert_eq!(app.mode, app::app::Mode::ConfirmDiscard);
+
+    // 3. Render and verify that the modal is present AND editor content is still there
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                app.active_tab,
+                &app.prompts,
+                app.selected_index,
+                "Confirm Discard",
+                &app.textarea,
+                None,
+                &[],
+                0,
+                &mut None,
+                "",
+                "",
+                &contracts::Settings::default(),
+            );
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    
+    // Verify "Discard Changes?" title exists (modal)
+    let mut found_modal_title = false;
+    for y in 0..30 {
+        for x in 0..80 {
+            let mut line = String::new();
+            for i in 0..16 {
+                if x + i < 80 {
+                    line.push_str(buffer[(x + i, y)].symbol());
+                }
+            }
+            if line.contains("Discard Changes?") {
+                found_modal_title = true;
+                break;
+            }
+        }
+    }
+    assert!(found_modal_title, "Modal title 'Discard Changes?' not found");
+
+    // Verify editor content "Original" is visible
+    let mut found_original = false;
+    let mut found_modified = false;
+    for y in 0..30 {
+        let mut line = String::new();
+        for x in 0..80 {
+            line.push_str(buffer[(x, y)].symbol());
+        }
+        if line.contains("Original") {
+            found_original = true;
+        }
+        if line.contains("Modified") {
+            found_modified = true;
+        }
+    }
+    assert!(found_original, "Editor content 'Original' not found in buffer");
+    assert!(found_modified, "Editor content 'Modified' not found in buffer");
 }
 
 

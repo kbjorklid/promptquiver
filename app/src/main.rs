@@ -227,7 +227,6 @@ async fn main() -> Result<()> {
                                         let current_text = app.textarea.lines().join("\n");
                                         if current_text != app.original_text {
                                             app.mode = app::app::Mode::ConfirmDiscard;
-                                            app.notify("Discard changes? (y/n)", ToastType::Warning);
                                         } else {
                                             app.exit_editor();
                                         }

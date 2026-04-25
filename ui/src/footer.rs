@@ -16,6 +16,8 @@ pub fn render(
         } else {
             " Ctrl+s: Save | Esc: Cancel ".to_string()
         }
+    } else if mode == "Confirm Discard" {
+        " y: Discard | n: Cancel ".to_string()
     } else {
         format!(
             " q: Quit | Tab/Arrows/hl: Tabs | j/k: Nav | s: Stage | a: Add | e: Edit | {}/{} ",

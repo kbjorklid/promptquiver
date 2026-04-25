@@ -32,13 +32,14 @@ Before writing any code, you MUST review the following specifications in order:
 
 ## 3. Implementation Roadmap & Development Cycle
 
-You must operate in a strict **Test-Implement-Refactor** cycle for every feature:
+You must operate in a strict **Test-Implement-Refactor** cycle for every feature and bug fix:
 
-1.  **Plan:** Research the requirement and define the E2E test scenario.
-2.  **Test:** Write a failing E2E test in the relevant module using `TestBackend`.
-3.  **Implement:** Write the minimal code to pass the test.
-4.  **Refactor:** Perform a mandatory refactoring round to ensure the code meets Clean Architecture standards and Rust idioms. **Do not skip this step.**
-5.  **Verify:** Run the full E2E suite to ensure no regressions.
+1.  **Bug Reporting:** When a bug is reported, you MUST first write a failing test case that reproduces the issue before attempting any fix.
+2.  **Plan:** Research the requirement or bug and define the E2E test scenario.
+3.  **Test:** Write a failing E2E test in the relevant module using `TestBackend`.
+4.  **Implement:** Write the minimal code to pass the test.
+5.  **Refactor:** Perform a mandatory refactoring round to ensure the code meets Clean Architecture standards and Rust idioms. **Do not skip this step.**
+6.  **Verify:** Run the full E2E suite to ensure no regressions.
 
 ### Suggested Roadmap:
 1.  **Workspace Setup:** Create the Cargo Workspace and the `contracts` crate. Define your core Entities and Traits.

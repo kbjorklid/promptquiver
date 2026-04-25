@@ -82,8 +82,12 @@ This document tracks the implementation status of every item in `FUNCTIONAL_SPEC
 
 ---
 
-## ✅ Status (2026-04-25)
+### ✅ Status (2026-04-25)
 Project is now fully spec-compliant. All missing features identified in the audit have been implemented and verified with a successful build.
+
+### Bug Fixes (2026-04-25):
+- [x] Fixed issue where exiting editor with modifications would navigate back to list view before confirmation. Now correctly shows a modal over the editor.
+- [x] Updated E2E tests to match latest `ui::render` signature and `Mode` enum.
 
 ### Remaining Polish (Low Priority):
 1.  **Syntax Highlighting:** Refine TOML-like preview in `ui/src/list.rs` or `ui/src/utils.rs`.

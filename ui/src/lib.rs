@@ -1,5 +1,7 @@
 use contracts::{Prompt, Tab};
 use ratatui::layout::{Layout, Constraint, Direction};
+use ratatui::widgets::{Block, Borders, Paragraph, Clear};
+use ratatui::style::{Style, Color};
 use ratatui::Frame;
 use ratatui_textarea::TextArea;
 use ratatui_toaster::{ToastEngine, ToastMessage};
@@ -38,8 +40,21 @@ pub fn render(
 
     header::render(f, chunks[0], active_tab, current_branch);
 
-    if mode == "Editor" {
+    if mode == "Editor" || mode == "Confirm Discard" {
         editor::render(f, chunks[1], textarea, suggestions, suggestion_index);
+
+        if mode == "Confirm Discard" {
+            let area = utils::centered_rect(60, 25, f.area());
+            f.render_widget(Clear, area);
+            let block = Block::default()
+                .title(" Discard Changes? ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Yellow));
+            let text = Paragraph::new("\nAre you sure you want to discard changes?\n\n(y) Yes, (n) No")
+                .alignment(ratatui::layout::Alignment::Center)
+                .block(block);
+            f.render_widget(text, area);
+        }
     } else {
         match active_tab {
             Tab::Settings => {
