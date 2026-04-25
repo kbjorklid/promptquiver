@@ -1,49 +1,111 @@
 # Project Progress: Prompt Quiver (Rust/Ratatui)
 
-## 🎯 Current Milestone
-- [x] Phase 3: The Main Loop (The "App" Crate)
-- [x] Phase 4: Feature Modules (Iterative)
-    - [x] Prompt Management (List, Add, Edit, Delete, Stage)
-    - [x] Snippets & Autocomplete
-    - [x] Git Branch Poller
-    - [x] Tab navigation (Tab, Arrows, h/l)
-    - [x] Tab jump shortcuts (1-6)
-    - [ ] Restore from Archive (r) (not-done)
-    - [ ] Move mode (m) (not-done)
-    - [ ] Branch filter toggle (b) (not-done)
-    - [ ] Local search (/) (not-done)
-    - [ ] Global search (G) (not-done)
-- [x] Editor (Staging area, Snippets)
-    - [x] Snippet discovery
-    - [x] Textarea integration
-    - [x] Autocomplete popup UI
-    - [ ] File search mentions (@) (not-done)
-    - [ ] Slash command mentions (/) (not-done)
-    - [ ] Save & Stage shortcut (Ctrl+g) (not-done)
-    - [ ] Close confirmation if modified (Esc) (not-done)
-- [x] Comments & Metadata
-    - [x] Comment stripping implementation
-    - [x] Snippet expansion implementation
-    - [ ] Use Display Title in list view (not-done)
-- [ ] Undo/Redo System (not-done)
-    - [ ] Session-based history stack (u / Ctrl+y) (not-done)
+## 🎯 Current Milestone: Full Spec Compliance Audit
+This document tracks the implementation status of every item in `FUNCTIONAL_SPEC.md`.
 
-### 5. Persistence
-- [x] TOML Parser/Serializer (via serde/toml)
-- [x] Atomic File I/O (Temp file + Rename)
-- [x] `FileSystemStorage` implementation
-    - [x] Project hash-based filenames
-    - [x] OS data directory integration
-    - [ ] `[info]` section in project files (not-done)
-    - [ ] `[settings]` in `common.toml` (not-done)
-- [x] `RealClipboard` implementation (via `arboard`)
-- [x] `RealGit` implementation (via `git rev-parse`)
+---
 
-### 6. Polishing
-- [x] Atlas Branding & UI Styling (Centered title, separate tab bar, rounded borders)
-- [x] Toast Notifications (via `ratatui-toaster`)
-- [x] Git Branch Poller (Tokio background task)
-- [ ] New items branch assignment (not-done)
+## 1. Core Philosophy
+- [x] Context-Aware (Project-based storage)
+- [x] Global Knowledge (Snippets, Canned, Settings)
+- [x] Rapid Throughput (Keyboard-driven)
+- [ ] Non-Destructive (Archive implemented; **Undo/Redo MISSING**)
+
+---
+
+## 2. Data Model
+
+### 2.1 The Prompt Object
+- [x] Fields: `id`, `text`, `type`, `branch`, `name`, `staged`, `created_at`, `updated_at`
+- [ ] Mandatory `name` for Snippets (**Currently optional in editor**)
+
+### 2.2 Storage Structure
+- [x] TOML format
+- [x] Standard OS data directory
+- [ ] Project Storage: `[info]` section with `path` (**MISSING**)
+- [x] Project Storage: 8-char SHA-256 hash filenames
+- [x] Global Storage: `common.toml`
+- [ ] Global Storage: `[settings]` section (**MISSING**)
+
+### 2.3 Settings Schema (**ENTIRELY MISSING**)
+- [ ] `tab_visibility` map
+- [ ] `slash_commands` list
+- [ ] `enable_claude_commands` toggle
+
+---
+
+## 3. Logic & Algorithms
+
+### 3.1 Comment Processing
+- [x] Extract Title (`-- Title` + empty line)
+- [x] Strip Comments (lines starting with `--`)
+- [ ] Use Display Title in list rendering (**Currently using text/name**)
+
+### 3.2 Snippet Expansion
+- [x] Pattern: `$$name`
+- [x] Recursive expansion implementation
+
+### 3.3 The Staging State Machine
+- [x] Identify target item
+- [x] Transition: Un-stage others (Main, Notes, Snippets)
+- [ ] Transition: Un-stage others (Canned) (**Currently missed in logic**)
+- [x] Transition: Move un-staged to top of Archive
+- [x] Transition: Set target to staged
+- [x] Action: Copy processed text to clipboard
+
+### 3.4 Editor Mentions (Autocomplete)
+- [ ] `@` Fuzzy file search (**Triggered but no results**)
+- [x] `$` Fuzzy Snippet search (Full text)
+- [x] `$$` Fuzzy Snippet search (Variable reference)
+- [ ] `/` Slash commands (**Triggered but no results**)
+
+---
+
+## 4. Feature Catalog
+
+### 4.1 Navigation
+- [x] Tabs: Prompts, Canned, Notes, Snippets, Archive, Settings
+- [ ] Branch Filter mode (`b`) (**MISSING**)
+- [ ] Local Search (filter current view) (**MISSING**)
+- [ ] Global Search (across all project files) (**MISSING**)
+
+### 4.2 Undo/Redo (**MISSING**)
+- [ ] Session-based history stack
+
+### 4.3 Git Integration
+- [x] Automatic branch detection
+- [ ] Assign branch to new items (**Currently created with None**)
+
+---
+
+## 5. Interaction Map (Keybindings)
+
+### Global
+- [x] `Tab / Shift+Tab`: Cycle tabs
+- [x] `Left / Right`: Cycle tabs
+- [x] `1-6`: Jump to tab
+- [x] `q`: Quit
+- [ ] `u / Ctrl+y`: Undo / Redo (**MISSING**)
+
+### List View
+- [x] `j / k`: Move selection
+- [x] `h / l`: Cycle tabs
+- [x] `Enter / e`: Edit
+- [ ] `a / i`: Add after / before (**'i' missing; 'a' always adds to end**)
+- [ ] `y / c`: Copy processed text (**MISSING**)
+- [x] `s`: Stage / Un-stage
+- [x] `d`: Move to Archive / Delete
+- [ ] `r`: Restore from Archive (**MISSING**)
+- [ ] `m`: Move mode (reorder) (**MISSING**)
+- [ ] `/`: Local search (**MISSING**)
+- [ ] `G`: Global search (**MISSING**)
+- [ ] `b`: Toggle branch filter (**MISSING**)
+
+### Editor
+- [x] `Ctrl+s`: Save and exit
+- [ ] `Ctrl+g`: Save, Stage, and exit (**MISSING**)
+- [ ] `Esc`: Close (confirm if modified) (**Close works, no confirmation**)
+- [x] `Up / Down`: Navigate autocomplete
 
 ---
 
@@ -51,9 +113,4 @@
 - **Shell:** Windows PowerShell (use `;` for chaining).
 - **Architecture:** Clean Architecture (Contracts -> Implementation).
 - **Testing:** E2E-First via `ratatui::backend::TestBackend`.
-- **Status (2026-04-25):** Project substantially complete. All core and infrastructure features implemented, including real-world Git and Clipboard integration, and a polished UI with branding and notifications.
-- **Refactoring (Latest):** 
-  - Implemented `RealClipboard` and `RealGit` in `infra`.
-  - Added Toast notifications and Atlas branding in `ui`.
-  - Improved Editor visualization: The editor now takes over the main area with a rounded border and clear title, providing better separation from the list view.
-  - All E2E and unit tests passing.
+- **Status (2026-04-25):** Core features implemented. Audit revealed several missing interaction and persistence features required for full spec compliance.
