@@ -23,8 +23,8 @@ sha2 = "0.10"
 arboard = "3.6.1"
 directories = "6.0"
 ratatui-textarea = "0.9"
-# Note: ratatui-toaster and tui-popup might need specific versions, I'll check later.
-# For now, let's stick to the core ones.
+ratatui-toaster = "0.1.2"
+tui-popup = "0.7.2"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

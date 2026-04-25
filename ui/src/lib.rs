@@ -2,6 +2,7 @@ use contracts::{Prompt, Tab};
 use ratatui::layout::{Layout, Constraint, Direction};
 use ratatui::Frame;
 use ratatui_textarea::TextArea;
+use ratatui_toaster::{ToastEngine, ToastMessage};
 
 pub mod header;
 pub mod list;
@@ -19,23 +20,26 @@ pub fn render(
     current_branch: Option<&str>,
     suggestions: &[Prompt],
     suggestion_index: usize,
+    toaster: &mut Option<ToastEngine<ToastMessage>>,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header/Tabs
+            Constraint::Length(1), // Atlas Branding
+            Constraint::Length(3), // Tabs
             Constraint::Min(0),    // Main area
             Constraint::Length(3), // Footer
         ])
         .split(f.area());
     
-    header::render(f, chunks[0], active_tab, current_branch);
+    header::render_branding(f, chunks[0]);
+    header::render_tabs(f, chunks[1], active_tab, current_branch);
     
-    list::render(f, chunks[1], active_tab, prompts, selected_index);
+    list::render(f, chunks[2], active_tab, prompts, selected_index);
 
     footer::render(
         f,
-        chunks[2],
+        chunks[3],
         mode,
         prompts.len(),
         selected_index,
@@ -44,5 +48,9 @@ pub fn render(
 
     if mode == "Editor" {
         editor::render(f, textarea, suggestions, suggestion_index);
+    }
+
+    if let Some(ref mut toaster) = toaster {
+        f.render_widget(&*toaster, f.area());
     }
 }

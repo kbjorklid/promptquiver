@@ -289,6 +289,85 @@ impl Git for MockGit {
     }
 }
 
+pub struct RealClipboard;
+
+impl RealClipboard {
+    #[must_use]
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for RealClipboard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl Clipboard for RealClipboard {
+    async fn copy(&self, text: String) -> Result<()> {
+        tokio::task::spawn_blocking(move || {
+            let mut clipboard = arboard::Clipboard::new()
+                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
+            clipboard.set_text(text)
+                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| contracts::Error::Clipboard(e.to_string()))?
+    }
+
+    async fn paste(&self) -> Result<String> {
+        tokio::task::spawn_blocking(|| {
+            let mut clipboard = arboard::Clipboard::new()
+                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
+            clipboard.get_text()
+                .map_err(|e| contracts::Error::Clipboard(e.to_string()))
+        })
+        .await
+        .map_err(|e| contracts::Error::Clipboard(e.to_string()))?
+    }
+}
+
+pub struct RealGit;
+
+impl RealGit {
+    #[must_use]
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for RealGit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl Git for RealGit {
+    async fn get_current_branch(&self, path: &str) -> Result<Option<String>> {
+        let output = tokio::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(path)
+            .output()
+            .await
+            .map_err(|e| contracts::Error::Git(e.to_string()))?;
+
+        if output.status.success() {
+            let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if branch == "HEAD" || branch.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(branch))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

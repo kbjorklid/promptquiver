@@ -2,8 +2,9 @@ use anyhow::Result;
 use app::app::App;
 use app::tui::{self, Tui};
 use contracts::{Clipboard, Git, Storage};
-use infra::{FileSystemStorage, MockClipboard, MockGit};
+use infra::{FileSystemStorage, RealClipboard, RealGit};
 use ratatui::Terminal;
+use ratatui_toaster::ToastEngineBuilder;
 use std::{io, sync::Arc, time::Duration};
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 
@@ -11,8 +12,8 @@ use crossterm::event::{Event, KeyCode, KeyEventKind};
 async fn main() -> Result<()> {
     // Infrastructure
     let storage: Arc<dyn Storage> = Arc::new(FileSystemStorage::new(None));
-    let clipboard: Arc<dyn Clipboard> = Arc::new(MockClipboard::new());
-    let git: Arc<dyn Git> = Arc::new(MockGit::new(None));
+    let clipboard: Arc<dyn Clipboard> = Arc::new(RealClipboard::new());
+    let git: Arc<dyn Git> = Arc::new(RealGit::new());
 
     // App State
     let mut app = App::new(storage.clone(), clipboard, git.clone());
@@ -41,6 +42,13 @@ async fn main() -> Result<()> {
 
     tui.enter()?;
 
+    // Initialize toaster with terminal area
+    app.toaster = Some(
+        ToastEngineBuilder::new(tui.terminal.size()?.into())
+            .default_duration(Duration::from_secs(3))
+            .build()
+    );
+
     while !app.should_quit {
         // Handle background updates
         if let Ok(branch) = branch_rx.try_recv() {
@@ -62,6 +70,7 @@ async fn main() -> Result<()> {
                 app.current_branch.as_deref(),
                 &app.suggestions,
                 app.suggestion_index,
+                &mut app.toaster,
             );
         })?;
 

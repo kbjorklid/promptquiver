@@ -6,9 +6,9 @@
     - [x] Prompt Management (List, Add, Edit, Delete, Stage)
     - [x] Snippets & Autocomplete
     - [x] Git Branch Poller
-- [ ] Phase 5: Persistence
+- [x] Phase 5: Persistence
     - [x] FileSystemStorage implementation
-    - [ ] Real Git/Clipboard implementation
+    - [x] Real Git/Clipboard implementation
 
 ---
 
@@ -52,10 +52,12 @@
 - [x] TOML Parser/Serializer (via serde/toml)
 - [x] Atomic File I/O (Temp file + Rename)
 - [x] `FileSystemStorage` implementation (Project hash-based filenames, OS data directory)
+- [x] `RealClipboard` implementation (via `arboard`)
+- [x] `RealGit` implementation (via `git rev-parse`)
 
 ### 6. Polishing
-- [ ] Atlas Branding & UI Styling (Basic UI modularized)
-- [ ] Toast Notifications
+- [x] Atlas Branding & UI Styling (Centered title, separate tab bar, rounded borders)
+- [x] Toast Notifications (via `ratatui-toaster`)
 - [x] Git Branch Poller (Tokio background task)
 
 ---
@@ -64,10 +66,8 @@
 - **Shell:** Windows PowerShell (use `;` for chaining).
 - **Architecture:** Clean Architecture (Contracts -> Implementation).
 - **Testing:** E2E-First via `ratatui::backend::TestBackend`.
-- **Status (2026-04-25):** Major milestone reached. All core features (Prompts, Snippets, Autocomplete, Git Polling, TOML Storage) are implemented and verified with 9 E2E tests.
+- **Status (2026-04-25):** Project substantially complete. All core and infrastructure features implemented, including real-world Git and Clipboard integration, and a polished UI with branding and notifications.
 - **Refactoring (Latest):** 
-  - Modularized `ui` crate into `header`, `list`, `footer`, `editor`, and `utils`.
-  - Implemented `contracts::Processor` for comment stripping (`--`) and snippet expansion (`$$name`).
-  - Aligned autocomplete triggers with spec: `@` (files), `$` (insert text), `$$` (insert variable), `/` (commands).
-  - Updated `FileSystemStorage` to use OS data directory and `projects/{hash}.toml` layout.
+  - Implemented `RealClipboard` and `RealGit` in `infra`.
+  - Added Toast notifications and Atlas branding in `ui`.
   - All E2E and unit tests passing.

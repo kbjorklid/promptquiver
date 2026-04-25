@@ -11,6 +11,7 @@ contracts = { path = "../contracts" }
 infra = { path = "../infra" }
 ui = { path = "../ui" }
 ratatui-textarea.workspace = true
+ratatui-toaster.workspace = true
 tokio.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true

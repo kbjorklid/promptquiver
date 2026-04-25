@@ -1,5 +1,6 @@
 use contracts::{Clipboard, Git, Prompt, PromptType, Storage, Tab};
 use ratatui_textarea::TextArea;
+use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastPosition};
 use std::sync::Arc;
 
 use std::fmt;
@@ -25,7 +26,9 @@ pub struct App<'a> {
     pub autocomplete_open: bool,
     pub suggestions: Vec<Prompt>,
     pub suggestion_index: usize,
+    pub toaster: Option<ToastEngine<ToastMessage>>,
 }
+
 
 impl<'a> fmt::Debug for App<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -63,11 +66,21 @@ impl<'a> App<'a> {
             autocomplete_open: false,
             suggestions: Vec::new(),
             suggestion_index: 0,
+            toaster: None,
         }
     }
 
-    pub const fn tick(&mut self) {
+    pub fn tick(&mut self) {
         // Handle background tasks or state updates
+    }
+
+    pub fn notify(&mut self, message: impl Into<String>, kind: ToastType) {
+        if let Some(ref mut toaster) = self.toaster {
+            let toast = ToastBuilder::new(message.into().into())
+                .toast_type(kind)
+                .position(ToastPosition::BottomRight);
+            toaster.show_toast(toast);
+        }
     }
 
     pub const fn quit(&mut self) {
@@ -138,6 +151,7 @@ impl<'a> App<'a> {
         if is_staged {
             // Un-stage
             self.prompts[target_idx].staged = false;
+            self.notify("Prompt un-staged", ToastType::Info);
         } else {
             // Stage
             // 1. Un-stage and Archive others
@@ -210,6 +224,7 @@ impl<'a> App<'a> {
             // Process text before copying
             let processed_text = contracts::Processor::process(&target.text, &snippets);
             self.clipboard.copy(processed_text).await?;
+            self.notify("Prompt staged and copied to clipboard!", ToastType::Success);
         }
 
         // Re-load current view
@@ -308,6 +323,7 @@ impl<'a> App<'a> {
 
         self.exit_editor();
         self.load_prompts().await?;
+        self.notify("Prompt saved!", ToastType::Success);
         Ok(())
     }
 
@@ -324,6 +340,7 @@ impl<'a> App<'a> {
             let mut archive = self.storage.get_project_archive(&path).await?;
             archive.retain(|p| p.id != target.id);
             self.storage.save_project_archive(&path, archive).await?;
+            self.notify("Prompt deleted permanently", ToastType::Warning);
         } else {
             // Move to archive
             // 1. Remove from current list
@@ -357,6 +374,7 @@ impl<'a> App<'a> {
             archived_item.staged = false;
             archive.insert(0, archived_item);
             self.storage.save_project_archive(&path, archive).await?;
+            self.notify("Prompt moved to archive", ToastType::Info);
         }
 
         self.load_prompts().await?;
