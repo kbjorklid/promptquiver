@@ -9,13 +9,10 @@ This document outlines the architectural and implementation requirements for the
 The project is organized as a Cargo Workspace to enforce hard boundaries between modules and prevent circular dependencies.
 
 ### 1.1 Crate Layout
-- `contracts/`: **The Core Domain.** Contains all shared data structures (Entities), Error types, and Trait definitions (Interfaces). No dependencies on other modules.
-- `app/`: The main entry point. Orchestrates the TUI loop, event polling, and dependency injection.
-- `modules/prompt_management/`: Handles list logic, staging, archiving, and project-specific persistence.
-- `modules/global_knowledge/`: Handles snippets, canned prompts, and the `common.toml` persistence.
-- `modules/editor/`: The multi-line text editor with autocomplete logic.
-- `modules/search/`: Global search implementation.
-- `infra/`: Concrete implementations of external services (Clipboard, Git, File System).
+- `contracts/`: **The Core Domain.** Shared entities (Prompt, Note), Error types, and Trait definitions (Storage, Clipboard).
+- `infra/`: **The Infrastructure.** Concrete implementations of traits (File system, Git, Clipboard).
+- `ui/`: **The Interface.** All Ratatui logic, organized as internal modules (e.g., `mod editor`, `mod search`).
+- `app/`: **The Orchestrator.** Main entry point, event loop, and dependency injection.
 
 ---
 

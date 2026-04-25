@@ -10,6 +10,9 @@
 ### 1. Workspace Setup
 - [ ] Root `Cargo.toml` (Workspace definition)
 - [ ] `contracts` crate (Entities & Traits)
+- [ ] `infra` crate (Mock implementations)
+- [ ] `ui` crate (Modular TEA setup)
+- [ ] `app` crate (Main entry point & CLI setup)
 - [ ] Project-wide lint/CI config
 
 ### 2. Infrastructure Mocks (E2E Readiness)
