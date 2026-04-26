@@ -959,6 +959,7 @@ impl App<'_> {
             }
         } else {
             self.autocomplete_open = false;
+            self.suggestions.clear();
         }
 
         Ok(())
@@ -1007,7 +1008,7 @@ impl App<'_> {
                 let replacement = match trigger {
                     "$$" => format!("$${name}"),
                     "$" => snippet.text.clone(),
-                    "@" => name.to_string(),
+                    "@" => format!("@{name}"),
                     "/" => format!("/{name}"),
                     _ => name.to_string(),
                 };
