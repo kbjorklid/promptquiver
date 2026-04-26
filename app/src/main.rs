@@ -74,18 +74,20 @@ async fn main() -> Result<()> {
             };
             ui::render(
                 f,
-                app.active_tab,
-                &app.prompts,
-                app.selected_index,
-                mode_str,
-                &app.textarea,
-                app.current_branch.as_deref(),
-                &app.suggestions,
-                app.suggestion_index,
+                ui::RenderState {
+                    active_tab: app.active_tab,
+                    prompts: &app.prompts,
+                    selected_index: app.selected_index,
+                    mode: mode_str,
+                    textarea: &app.textarea,
+                    current_branch: app.current_branch.as_deref(),
+                    suggestions: &app.suggestions,
+                    suggestion_index: app.suggestion_index,
+                    search_query: &app.search_query,
+                    global_search_query: &app.global_search_query,
+                    settings: &app.settings,
+                },
                 &mut app.toaster,
-                &app.search_query,
-                &app.global_search_query,
-                &app.settings,
             );
 
         })?;
@@ -105,20 +107,17 @@ async fn main() -> Result<()> {
                                     app.prev_tab();
                                     handle_error!(app, app.load_prompts().await);
                                 }
-                                KeyCode::Tab => {
-                                    if app.active_tab == contracts::Tab::Settings {
+                                KeyCode::Tab
+                                    if app.active_tab == contracts::Tab::Settings => {
                                         let tabs_len = contracts::Tab::all().len();
-                                        if app.selected_index < tabs_len {
-                                            app.selected_index = tabs_len; // Jump to Slash Commands
-                                        } else if app.selected_index == tabs_len {
-                                            app.selected_index = tabs_len + 1; // Jump to Advanced
-                                        } else {
-                                            app.selected_index = 0; // Jump back to Tab Visibility
+                                        match app.selected_index.cmp(&tabs_len) {
+                                            std::cmp::Ordering::Less => app.selected_index = tabs_len, // Jump to Slash Commands
+                                            std::cmp::Ordering::Equal => app.selected_index = tabs_len + 1, // Jump to Advanced
+                                            std::cmp::Ordering::Greater => app.selected_index = 0, // Jump back to Tab Visibility
                                         }
                                     }
-                                }
-                                KeyCode::BackTab => {
-                                    if app.active_tab == contracts::Tab::Settings {
+                                KeyCode::BackTab
+                                    if app.active_tab == contracts::Tab::Settings => {
                                         let tabs_len = contracts::Tab::all().len();
                                         if app.selected_index == 0 {
                                             app.selected_index = tabs_len + 1;
@@ -128,7 +127,6 @@ async fn main() -> Result<()> {
                                             app.selected_index = tabs_len;
                                         }
                                     }
-                                }
                                 KeyCode::Char('1') => { app.set_tab(contracts::Tab::Prompts); handle_error!(app, app.load_prompts().await); }
                                 KeyCode::Char('2') => { app.set_tab(contracts::Tab::Canned); handle_error!(app, app.load_prompts().await); }
                                 KeyCode::Char('3') => { app.set_tab(contracts::Tab::Notes); handle_error!(app, app.load_prompts().await); }
@@ -200,12 +198,11 @@ async fn main() -> Result<()> {
                                         app::app::Mode::Move
                                     };
                                 }
-                                KeyCode::Char(' ') => {
-                                    if app.active_tab == contracts::Tab::Settings {
+                                KeyCode::Char(' ')
+                                    if app.active_tab == contracts::Tab::Settings => {
                                         handle_error!(app, app.toggle_setting().await);
                                     }
-                                }
-                                KeyCode::Char('y') | KeyCode::Char('c') => {
+                                KeyCode::Char('y' | 'c') => {
                                     handle_error!(app, app.copy_selected().await);
                                 }
                                 _ => {}
@@ -273,10 +270,10 @@ async fn main() -> Result<()> {
                                         app.autocomplete_open = false;
                                     } else {
                                         let current_text = app.textarea.lines().join("\n");
-                                        if current_text != app.original_text {
-                                            app.mode = app::app::Mode::ConfirmDiscard;
-                                        } else {
+                                        if current_text == app.original_text {
                                             app.exit_editor();
+                                        } else {
+                                            app.mode = app::app::Mode::ConfirmDiscard;
                                         }
                                     }
                                 }
@@ -303,10 +300,10 @@ async fn main() -> Result<()> {
                         }
                         app::app::Mode::ConfirmDiscard => {
                             match key.code {
-                                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                                KeyCode::Char('y' | 'Y') | KeyCode::Enter => {
                                     app.exit_editor();
                                 }
-                                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                                KeyCode::Char('n' | 'N') | KeyCode::Esc => {
                                     app.mode = app::app::Mode::Editor;
                                 }
                                 _ => {}

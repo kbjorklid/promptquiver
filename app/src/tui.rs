@@ -14,7 +14,7 @@ pub struct Tui<B: Backend> {
 }
 
 impl<B: Backend> Tui<B> {
-    pub fn new(terminal: Terminal<B>) -> Self {
+    pub const fn new(terminal: Terminal<B>) -> Self {
         Self { terminal }
     }
 

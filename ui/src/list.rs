@@ -14,11 +14,11 @@ pub fn render(
     search_query: &str,
 ) {
     let title = if search_query.is_empty() {
-        format!(" {:?} ", active_tab)
+        format!(" {active_tab:?} ")
     } else if mode == "Global Search" {
-        format!(" {:?} (Global Search: {}) ", active_tab, search_query)
+        format!(" {active_tab:?} (Global Search: {search_query}) ")
     } else {
-        format!(" {:?} (Search: {}) ", active_tab, search_query)
+        format!(" {active_tab:?} (Search: {search_query}) ")
     };
 
     let list_items: Vec<ListItem<'_>> = prompts
@@ -29,12 +29,13 @@ pub fn render(
             let prefix = if i == selected_index { "> " } else { "  " };
             let staged_icon = if p.staged { "🎯 " } else { "" };
             
-            let display_name = if let Some(ref name) = p.name {
-                name.clone()
-            } else {
-                let (title, _) = contracts::Processor::extract_title(&p.text);
-                title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
-            };
+            let display_name = p.name.as_ref().map_or_else(
+                || {
+                    let (title, _) = contracts::Processor::extract_title(&p.text);
+                    title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
+                },
+                std::clone::Clone::clone,
+            );
             
             let style = if i == selected_index {
                 Style::default().bg(Color::Indexed(240)).fg(Color::White)
@@ -42,7 +43,7 @@ pub fn render(
                 Style::default()
             };
 
-            ListItem::new(format!("{}{}{}", prefix, staged_icon, display_name)).style(style)
+            ListItem::new(format!("{prefix}{staged_icon}{display_name}")).style(style)
         })
         .collect();
 

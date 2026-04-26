@@ -13,20 +13,25 @@ pub mod editor;
 pub mod utils;
 pub mod settings;
 
+#[derive(Debug, Clone, Copy)]
+pub struct RenderState<'a, 'b> {
+    pub active_tab: Tab,
+    pub prompts: &'a [Prompt],
+    pub selected_index: usize,
+    pub mode: &'a str,
+    pub textarea: &'a TextArea<'b>,
+    pub current_branch: Option<&'a str>,
+    pub suggestions: &'a [Prompt],
+    pub suggestion_index: usize,
+    pub search_query: &'a str,
+    pub global_search_query: &'a str,
+    pub settings: &'a contracts::Settings,
+}
+
 pub fn render(
     f: &mut Frame<'_>,
-    active_tab: Tab,
-    prompts: &[Prompt],
-    selected_index: usize,
-    mode: &str,
-    textarea: &TextArea<'_>,
-    current_branch: Option<&str>,
-    suggestions: &[Prompt],
-    suggestion_index: usize,
+    state: RenderState<'_, '_>,
     toaster: &mut Option<ToastEngine<ToastMessage>>,
-    search_query: &str,
-    global_search_query: &str,
-    settings: &contracts::Settings,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -38,15 +43,15 @@ pub fn render(
         ])
         .split(f.area());
 
-    header::render(f, chunks[0], active_tab, current_branch);
+    header::render(f, chunks[0], state.active_tab, state.current_branch);
 
-    if mode == "Editor" || mode == "Confirm Discard" {
-        if active_tab == Tab::Settings {
-            settings::render(f, chunks[1], settings, selected_index, Some(textarea));
+    if state.mode == "Editor" || state.mode == "Confirm Discard" {
+        if state.active_tab == Tab::Settings {
+            settings::render(f, chunks[1], state.settings, state.selected_index, Some(state.textarea));
         } else {
-            editor::render(f, chunks[1], textarea, suggestions, suggestion_index);
+            editor::render(f, chunks[1], state.textarea, state.suggestions, state.suggestion_index);
 
-            if mode == "Confirm Discard" {
+            if state.mode == "Confirm Discard" {
                 let area = utils::centered_rect(60, 25, f.area());
                 f.render_widget(Clear, area);
                 let block = Block::default()
@@ -60,31 +65,28 @@ pub fn render(
             }
         }
     } else {
-        match active_tab {
-            Tab::Settings => {
-                settings::render(f, chunks[1], settings, selected_index, None);
-            }
-            _ => {
-                let display_query = if !global_search_query.is_empty() {
-                    global_search_query
-                } else {
-                    search_query
-                };
-                list::render(f, chunks[1], active_tab, prompts, selected_index, mode, display_query);
-                
-                let selected_prompt = prompts.get(selected_index);
-                list::render_preview(f, chunks[2], selected_prompt);
-            }
+        if state.active_tab == Tab::Settings {
+            settings::render(f, chunks[1], state.settings, state.selected_index, None);
+        } else {
+            let display_query = if state.global_search_query.is_empty() {
+                state.search_query
+            } else {
+                state.global_search_query
+            };
+            list::render(f, chunks[1], state.active_tab, state.prompts, state.selected_index, state.mode, display_query);
+            
+            let selected_prompt = state.prompts.get(state.selected_index);
+            list::render_preview(f, chunks[2], selected_prompt);
         }
     }
 
     footer::render(
         f,
         chunks[3],
-        mode,
-        prompts.len(),
-        selected_index,
-        !suggestions.is_empty(),
+        state.mode,
+        state.prompts.len(),
+        state.selected_index,
+        !state.suggestions.is_empty(),
     );
 
     if let Some(ref mut toaster) = toaster {

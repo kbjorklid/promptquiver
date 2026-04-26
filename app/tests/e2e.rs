@@ -27,18 +27,20 @@ async fn test_basic_render() {
             };
             ui::render(
                 f,
-                app.active_tab,
-                &app.prompts,
-                app.selected_index,
-                mode_str,
-                &app.textarea,
-                app.current_branch.as_deref(),
-                &app.suggestions,
-                app.suggestion_index,
+                ui::RenderState {
+                    active_tab: app.active_tab,
+                    prompts: &app.prompts,
+                    selected_index: app.selected_index,
+                    mode: mode_str,
+                    textarea: &app.textarea,
+                    current_branch: app.current_branch.as_deref(),
+                    suggestions: &app.suggestions,
+                    suggestion_index: app.suggestion_index,
+                    search_query: &app.search_query,
+                    global_search_query: &app.global_search_query,
+                    settings: &app.settings,
+                },
                 &mut app.toaster,
-                &app.search_query,
-                &app.global_search_query,
-                &app.settings,
             );
         })
         .unwrap();
@@ -358,18 +360,20 @@ async fn test_autocomplete_slash_command_title() {
         .draw(|f| {
             ui::render(
                 f,
-                app.active_tab,
-                &app.prompts,
-                app.selected_index,
-                "Editor",
-                &app.textarea,
-                None,
-                &app.suggestions,
-                app.suggestion_index,
+                ui::RenderState {
+                    active_tab: app.active_tab,
+                    prompts: &app.prompts,
+                    selected_index: app.selected_index,
+                    mode: "Editor",
+                    textarea: &app.textarea,
+                    current_branch: None,
+                    suggestions: &app.suggestions,
+                    suggestion_index: app.suggestion_index,
+                    search_query: "",
+                    global_search_query: "",
+                    settings: &app.settings,
+                },
                 &mut None,
-                "",
-                "",
-                &app.settings,
             );
         })
         .unwrap();
@@ -432,18 +436,20 @@ async fn test_editor_discard_confirmation_modal() {
         .draw(|f| {
             ui::render(
                 f,
-                app.active_tab,
-                &app.prompts,
-                app.selected_index,
-                "Confirm Discard",
-                &app.textarea,
-                None,
-                &[],
-                0,
+                ui::RenderState {
+                    active_tab: app.active_tab,
+                    prompts: &app.prompts,
+                    selected_index: app.selected_index,
+                    mode: "Confirm Discard",
+                    textarea: &app.textarea,
+                    current_branch: None,
+                    suggestions: &[],
+                    suggestion_index: 0,
+                    search_query: "",
+                    global_search_query: "",
+                    settings: &contracts::Settings::default(),
+                },
                 &mut None,
-                "",
-                "",
-                &contracts::Settings::default(),
             );
         })
         .unwrap();

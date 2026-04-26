@@ -90,14 +90,14 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub fn all() -> Vec<Tab> {
+    pub fn all() -> Vec<Self> {
         vec![
-            Tab::Prompts,
-            Tab::Canned,
-            Tab::Notes,
-            Tab::Snippets,
-            Tab::Archive,
-            Tab::Settings,
+            Self::Prompts,
+            Self::Canned,
+            Self::Notes,
+            Self::Snippets,
+            Self::Archive,
+            Self::Settings,
         ]
     }
 

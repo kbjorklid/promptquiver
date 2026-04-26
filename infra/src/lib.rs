@@ -118,9 +118,7 @@ pub struct FileSystemStorage {
 impl FileSystemStorage {
     pub fn new(base_dir: Option<PathBuf>) -> Self {
         let base_dir = base_dir.unwrap_or_else(|| {
-            directories::ProjectDirs::from("", "", "promptquiver")
-                .map(|d| d.data_dir().to_path_buf())
-                .unwrap_or_else(|| PathBuf::from("."))
+            directories::ProjectDirs::from("", "", "promptquiver").map_or_else(|| PathBuf::from("."), |d| d.data_dir().to_path_buf())
         });
         
         // Ensure data directory exists
@@ -346,7 +344,7 @@ pub struct RealClipboard;
 
 impl RealClipboard {
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -388,7 +386,7 @@ pub struct RealGit;
 
 impl RealGit {
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

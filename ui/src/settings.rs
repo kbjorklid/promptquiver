@@ -24,7 +24,7 @@ pub fn render(
     // Tab Visibility
     let tabs = Tab::all();
     let items: Vec<ListItem<'_>> = tabs.iter().enumerate().map(|(i, t)| {
-        let is_visible = settings.tab_visibility.get(t).cloned().unwrap_or(true);
+        let is_visible = settings.tab_visibility.get(t).copied().unwrap_or(true);
         let prefix = if i == selected_index { "> " } else { "  " };
         let status = if is_visible { "[x]" } else { "[ ]" };
         let style = if i == selected_index {
@@ -32,7 +32,7 @@ pub fn render(
         } else {
             Style::default()
         };
-        ListItem::new(format!("{} {} {:?}", prefix, status, t)).style(style)
+        ListItem::new(format!("{prefix} {status} {t:?}")).style(style)
     }).collect();
 
     let tab_list = List::new(items)
@@ -69,7 +69,7 @@ pub fn render(
         Style::default()
     };
     let claude_status = if settings.enable_claude_commands { "[ON]" } else { "[OFF]" };
-    let claude_p = Paragraph::new(format!(" Enable Claude Commands: {}", claude_status))
+    let claude_p = Paragraph::new(format!(" Enable Claude Commands: {claude_status}"))
         .block(Block::default().borders(Borders::ALL).title(" Advanced ")
         .border_style(advanced_style));
     f.render_widget(claude_p, chunks[2]);

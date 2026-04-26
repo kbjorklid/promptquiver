@@ -51,7 +51,7 @@ pub struct App<'a> {
 }
 
 
-impl<'a> fmt::Debug for App<'a> {
+impl fmt::Debug for App<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("App")
             .field("should_quit", &self.should_quit)
@@ -65,7 +65,7 @@ impl<'a> fmt::Debug for App<'a> {
     }
 }
 
-impl<'a> App<'a> {
+impl App<'_> {
     #[must_use]
     pub fn new(
         storage: Arc<dyn Storage>,
@@ -99,7 +99,7 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub const fn tick(&mut self) {
         // Handle background tasks or state updates
     }
 
@@ -126,7 +126,7 @@ impl<'a> App<'a> {
         self.selected_index = 0;
     }
 
-    pub fn set_tab(&mut self, tab: Tab) {
+    pub const fn set_tab(&mut self, tab: Tab) {
         self.active_tab = tab;
     }
 
@@ -141,13 +141,13 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn move_up(&mut self) {
+    pub const fn move_up(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
         }
     }
 
-    pub fn move_to_top(&mut self) {
+    pub const fn move_to_top(&mut self) {
         self.selected_index = 0;
     }
 
@@ -358,7 +358,7 @@ impl<'a> App<'a> {
                     prompts.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
                 }
                 Tab::Notes => {
-                    notes.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
+                    for p in notes.iter_mut() { if p.id == target.id { p.staged = true; } }
                 }
                 Tab::Snippets => {
                     snippets.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
@@ -693,7 +693,7 @@ impl<'a> App<'a> {
                 // Check if it's the latest trigger
                 if best_trigger.is_none() || pos > best_pos {
                     // Special case for $$ vs $
-                    if trigger == "$" && pos > 0 && &before_cursor[pos-1..pos+1] == "$$" {
+                    if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
                         continue;
                     }
                     best_trigger = Some(trigger);
@@ -725,7 +725,7 @@ impl<'a> App<'a> {
                         })
                         .collect();
                     
-                    scored_suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
                     self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 "@" => {
@@ -741,7 +741,7 @@ impl<'a> App<'a> {
                         })
                         .collect();
                     
-                    scored_suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
                     self.suggestions = scored_suggestions.into_iter().map(|(_, f)| f).collect();
                 }
                 "/" => {
@@ -753,19 +753,19 @@ impl<'a> App<'a> {
                         })
                         .collect();
                         
-                    scored_suggestions.sort_by(|a, b| b.0.cmp(&a.0));
+                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
                     self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 _ => self.suggestions = Vec::new(),
             }
             
-            if !self.suggestions.is_empty() {
+            if self.suggestions.is_empty() {
+                self.autocomplete_open = false;
+            } else {
                 self.autocomplete_open = true;
                 if self.suggestion_index >= self.suggestions.len() {
                     self.suggestion_index = 0;
                 }
-            } else {
-                self.autocomplete_open = false;
             }
         } else {
             self.autocomplete_open = false;
@@ -774,13 +774,13 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    pub fn move_suggestion_down(&mut self) {
+    pub const fn move_suggestion_down(&mut self) {
         if !self.suggestions.is_empty() && self.suggestion_index < self.suggestions.len() - 1 {
             self.suggestion_index += 1;
         }
     }
 
-    pub fn move_suggestion_up(&mut self) {
+    pub const fn move_suggestion_up(&mut self) {
         if self.suggestion_index > 0 {
             self.suggestion_index -= 1;
         }
@@ -804,7 +804,7 @@ impl<'a> App<'a> {
             for trigger in triggers {
                 if let Some(pos) = before_cursor.rfind(trigger) {
                     if best_trigger.is_none() || pos > best_pos {
-                        if trigger == "$" && pos > 0 && &before_cursor[pos-1..pos+1] == "$$" {
+                        if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
                             continue;
                         }
                         best_trigger = Some(trigger);
@@ -815,10 +815,10 @@ impl<'a> App<'a> {
 
             if let Some(trigger) = best_trigger {
                 let replacement = match trigger {
-                    "$$" => format!("$${}", name),
+                    "$$" => format!("$${name}"),
                     "$" => snippet.text.clone(),
                     "@" => name.to_string(),
-                    "/" => format!("/{}", name),
+                    "/" => format!("/{name}"),
                     _ => name.to_string(),
                 };
 
@@ -849,10 +849,10 @@ impl<'a> App<'a> {
         let tabs = Tab::all();
         if self.selected_index < tabs.len() {
             let tab = tabs[self.selected_index];
-            let current = self.settings.tab_visibility.get(&tab).cloned().unwrap_or(true);
+            let current = self.settings.tab_visibility.get(&tab).copied().unwrap_or(true);
             self.settings.tab_visibility.insert(tab, !current);
             self.storage.save_settings(self.settings.clone()).await?;
-            self.notify(format!("Toggled visibility for {:?}", tab), ToastType::Info);
+            self.notify(format!("Toggled visibility for {tab:?}"), ToastType::Info);
         } else if self.selected_index == tabs.len() {
              // Slash commands - maybe edit?
         } else if self.selected_index == tabs.len() + 1 {

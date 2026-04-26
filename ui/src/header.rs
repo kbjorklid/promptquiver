@@ -25,8 +25,8 @@ pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, current_branch: Op
 }
 
 pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, current_branch: Option<&str>) {
-    let tab_titles = Tab::all().iter().map(|t| format!(" {:?} ", t)).collect::<Vec<_>>();
-    let branch_str = current_branch.map(|b| format!(" [b: {}] ", b)).unwrap_or_default();
+    let tab_titles = Tab::all().iter().map(|t| format!(" {t:?} ")).collect::<Vec<_>>();
+    let branch_str = current_branch.map(|b| format!(" [b: {b}] ")).unwrap_or_default();
     
     let tabs = Tabs::new(tab_titles)
         .block(Block::default().title(branch_str).borders(Borders::ALL))
