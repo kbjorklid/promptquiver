@@ -28,6 +28,7 @@ pub fn render(
         .map(|(i, p)| {
             let prefix = if i == selected_index { "> " } else { "  " };
             let staged_icon = if p.staged { "🎯 " } else { "" };
+            let copy_icon = if p.last_copied && !p.staged { "📋 " } else { "" };
             
             let display_name = p.name.as_ref().map_or_else(
                 || {
@@ -43,7 +44,7 @@ pub fn render(
                 Style::default()
             };
 
-            ListItem::new(format!("{prefix}{staged_icon}{display_name}")).style(style)
+            ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}")).style(style)
         })
         .collect();
 

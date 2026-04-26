@@ -245,6 +245,32 @@ impl App<'_> {
         self.current_path.clone()
     }
 
+    async fn clear_all_last_copied(&mut self) -> contracts::Result<()> {
+        let path = self.current_project_path();
+        
+        let mut prompts = self.storage.get_project_prompts(&path).await?;
+        let mut notes = self.storage.get_project_notes(&path).await?;
+        let mut snippets = self.storage.get_global_snippets().await?;
+        let mut canned = self.storage.get_global_canned().await?;
+        let mut archive = self.storage.get_project_archive(&path).await?;
+
+        let mut changed = false;
+        for p in &mut prompts { if p.last_copied { p.last_copied = false; changed = true; } }
+        for p in &mut notes { if p.last_copied { p.last_copied = false; changed = true; } }
+        for p in &mut snippets { if p.last_copied { p.last_copied = false; changed = true; } }
+        for p in &mut canned { if p.last_copied { p.last_copied = false; changed = true; } }
+        for p in &mut archive { if p.last_copied { p.last_copied = false; changed = true; } }
+
+        if changed {
+            self.storage.save_project_prompts(&path, prompts).await?;
+            self.storage.save_project_notes(&path, notes).await?;
+            self.storage.save_global_snippets(snippets).await?;
+            self.storage.save_global_canned(canned).await?;
+            self.storage.save_project_archive(&path, archive).await?;
+        }
+        Ok(())
+    }
+
     pub fn push_history(&mut self) {
         let entry = HistoryEntry {
             tab: self.active_tab,
@@ -397,6 +423,9 @@ impl App<'_> {
             self.storage.save_project_archive(&path, archive).await?;
             self.storage.save_global_snippets(snippets.clone()).await?;
             self.storage.save_global_canned(canned).await?;
+
+            // Clear last_copied for all when staging
+            self.clear_all_last_copied().await?;
 
             // Process text before copying
             let processed_text = contracts::Processor::process(&target.text, &snippets);
@@ -702,9 +731,47 @@ impl App<'_> {
             return Ok(());
         }
 
-        let target = &self.prompts[self.selected_index];
+        let target_id = self.prompts[self.selected_index].id;
         let snippets = self.storage.get_global_snippets().await?;
         
+        // 1. Clear all
+        self.clear_all_last_copied().await?;
+
+        // 2. Mark current as last_copied in its original list
+        let path = self.current_project_path();
+        match self.active_tab {
+            Tab::Prompts => {
+                let mut list = self.storage.get_project_prompts(&path).await?;
+                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
+                self.storage.save_project_prompts(&path, list).await?;
+            }
+            Tab::Notes => {
+                let mut list = self.storage.get_project_notes(&path).await?;
+                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
+                self.storage.save_project_notes(&path, list).await?;
+            }
+            Tab::Canned => {
+                let mut list = self.storage.get_global_canned().await?;
+                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
+                self.storage.save_global_canned(list).await?;
+            }
+            Tab::Snippets => {
+                let mut list = self.storage.get_global_snippets().await?;
+                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
+                self.storage.save_global_snippets(list).await?;
+            }
+            Tab::Archive => {
+                let mut list = self.storage.get_project_archive(&path).await?;
+                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
+                self.storage.save_project_archive(&path, list).await?;
+            }
+            _ => {}
+        }
+
+        // 3. Update in-memory state
+        self.load_prompts().await?;
+
+        let target = &self.prompts[self.selected_index];
         let processed_text = contracts::Processor::process(&target.text, &snippets);
         self.clipboard.copy(processed_text).await?;
         self.notify("Copied to clipboard!", ToastType::Success);

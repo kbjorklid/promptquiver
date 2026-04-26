@@ -25,6 +25,7 @@ pub struct Prompt {
     pub branch: Option<String>,
     pub name: Option<String>,
     pub staged: bool,
+    pub last_copied: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -44,6 +45,7 @@ impl Prompt {
             branch,
             name,
             staged: false,
+            last_copied: false,
             created_at: now,
             updated_at: now,
         }
