@@ -58,12 +58,14 @@ pub fn render(
             
             let style = if i == selected_index {
                 if mode == "Move" {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default().bg(Color::Indexed(236)).fg(Color::Yellow).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().bg(Color::Indexed(240)).fg(Color::White)
+                    Style::default().bg(Color::Indexed(240)).fg(Color::White).add_modifier(Modifier::BOLD)
                 }
+            } else if i % 2 == 0 {
+                Style::default().bg(Color::Indexed(234)).fg(Color::Gray)
             } else {
-                Style::default()
+                Style::default().fg(Color::Gray)
             };
 
             ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}")).style(style)
@@ -74,8 +76,12 @@ pub fn render(
         .block(Block::default().borders(Borders::ALL).title(title.clone()));
     
     if prompts.is_empty() {
-        let empty_msg = Paragraph::new("No items found.")
-            .block(Block::default().borders(Borders::ALL).title(title));
+        let block = Block::default().borders(Borders::ALL).title(title);
+        let msg = format!("\n\n\n\n       ╭─────────────────────────╮\n       │   No items found here   │\n       │    Press 'a' to add     │\n       ╰─────────────────────────╯");
+        let empty_msg = Paragraph::new(msg)
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(block);
         f.render_widget(empty_msg, area);
     } else {
         f.render_stateful_widget(list, area, list_state);
