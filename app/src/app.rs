@@ -50,6 +50,7 @@ pub struct App<'a> {
     pub global_search_query: String,
     pub last_notification_time: Option<std::time::Instant>,
     pub current_path: String,
+    pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
 }
 
 
@@ -105,6 +106,7 @@ impl App<'_> {
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
                 .to_string_lossy()
                 .into_owned(),
+            file_search_tx: None,
         }
     }
 
@@ -881,20 +883,11 @@ impl App<'_> {
                     self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 "@" => {
-                    let mut files = Vec::new();
-                    let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-                    self.walk_files(&current_dir, query, &mut files);
-                    
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = files
-                        .into_iter()
-                        .filter_map(|f| {
-                            let text = f.name.as_deref().unwrap_or(&f.text);
-                            matcher.fuzzy_match(text, query).map(|score| (score, f))
-                        })
-                        .collect();
-                    
-                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.suggestions = scored_suggestions.into_iter().map(|(_, f)| f).collect();
+                    if let Some(tx) = &self.file_search_tx {
+                        let _ = tx.try_send((self.current_path.clone(), query.to_string()));
+                    }
+                    // We don't update suggestions here; they will be updated when the result arrives
+                    return Ok(());
                 }
                 "/" => {
                     // Slash commands from settings
@@ -1057,31 +1050,5 @@ impl App<'_> {
         self.selected_index = 0;
         self.notify(format!("Global search found {} results", self.prompts.len()), ToastType::Info);
         Ok(())
-    }
-
-    fn walk_files(&self, dir: &std::path::Path, query: &str, results: &mut Vec<Prompt>) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if name == "target" || name == ".git" || name == "node_modules" {
-                            continue;
-                        }
-                    }
-                    self.walk_files(&path, query, results);
-                } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.contains(query) {
-                        results.push(Prompt::new(
-                            path.to_string_lossy().to_string(),
-                            PromptType::Note,
-                            None,
-                            Some(name.to_string()),
-                        ));
-                    }
-                }
-                if results.len() > 20 { break; }
-            }
-        }
     }
 }

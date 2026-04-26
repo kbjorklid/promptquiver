@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Shortcut {
     pub key: &'static str,
     pub desc: &'static str,

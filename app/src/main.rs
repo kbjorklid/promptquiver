@@ -43,6 +43,20 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Background File Searcher
+    let (file_search_tx, mut file_search_rx) = tokio::sync::mpsc::channel::<(String, String)>(10);
+    let (file_result_tx, mut file_result_rx) = tokio::sync::mpsc::channel::<Vec<contracts::Prompt>>(10);
+    app.file_search_tx = Some(file_search_tx);
+
+    tokio::spawn(async move {
+        while let Some((path, query)) = file_search_rx.recv().await {
+            let path_buf = std::path::PathBuf::from(path);
+            let mut results = Vec::new();
+            walk_files(&path_buf, &query, &mut results);
+            let _ = file_result_tx.send(results).await;
+        }
+    });
+
     // Terminal
     let backend = ratatui::backend::CrosstermBackend::new(io::stdout());
     let terminal = Terminal::new(backend)?;
@@ -61,6 +75,17 @@ async fn main() -> Result<()> {
         // Handle background updates
         if let Ok(branch) = branch_rx.try_recv() {
             app.current_branch = branch;
+        }
+
+        if let Ok(results) = file_result_rx.try_recv() {
+            if !results.is_empty() {
+                app.suggestions = results;
+                app.autocomplete_open = true;
+                app.suggestion_index = 0;
+            } else {
+                app.autocomplete_open = false;
+                app.suggestions.clear();
+            }
         }
 
         tui.terminal.draw(|f| {
@@ -353,4 +378,32 @@ async fn main() -> Result<()> {
     tui.exit()?;
 
     Ok(())
+}
+
+fn walk_files(dir: &std::path::Path, query: &str, results: &mut Vec<contracts::Prompt>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name == "target" || name == ".git" || name == "node_modules" {
+                        continue;
+                    }
+                }
+                walk_files(&path, query, results);
+            } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if name.contains(query) {
+                    results.push(contracts::Prompt::new(
+                        path.to_string_lossy().to_string(),
+                        contracts::PromptType::Note,
+                        None,
+                        Some(name.to_string()),
+                    ));
+                }
+            }
+            if results.len() > 20 {
+                break;
+            }
+        }
+    }
 }
