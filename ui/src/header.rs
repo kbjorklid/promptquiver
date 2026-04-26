@@ -1,5 +1,5 @@
 use contracts::Tab;
-use ratatui::widgets::{Block, Borders, Tabs, Paragraph};
+use ratatui::widgets::{Tabs, Paragraph};
 use ratatui::style::{Style, Color, Modifier};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Alignment, Layout, Constraint, Direction};
@@ -28,9 +28,9 @@ pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab) {
     let tab_titles = Tab::all().iter().map(|t| format!(" {t:?} ")).collect::<Vec<_>>();
     
     let tabs = Tabs::new(tab_titles)
-        .block(Block::default().borders(Borders::ALL))
+        .divider("|")
         .select(Tab::all().iter().position(|&t| t == active_tab).unwrap_or(0))
-        .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
         .style(Style::default().fg(Color::Gray));
     
     f.render_widget(tabs, area);

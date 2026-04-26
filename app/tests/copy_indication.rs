@@ -70,9 +70,9 @@ async fn test_copy_icon_rendering() {
 
     let buffer = terminal.backend().buffer();
     let mut row_text = String::new();
-    // Prompt list usually starts at y=3 (header is 3 lines)
+    // Prompt list usually starts at y=1 (header is 1 line)
     for x in 0..40 {
-        row_text.push_str(buffer[(x, 4)].symbol());
+        row_text.push_str(buffer[(x, 2)].symbol());
     }
     
     // Should contain the copy icon

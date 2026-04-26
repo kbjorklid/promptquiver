@@ -46,12 +46,12 @@ pub fn render(
 
     let is_searching = state.mode == "Search" || state.mode == "Global Search";
     
-    let mut available_for_main = f.area().height.saturating_sub(6); // 3 for header, 1 for statusline, 2 for footer
+    let mut available_for_main = f.area().height.saturating_sub(4); // 1 for header, 1 for statusline, 2 for footer
     if is_searching {
         available_for_main = available_for_main.saturating_sub(1);
     }
 
-    let mut constraints = vec![Constraint::Length(3)]; // Header
+    let mut constraints = vec![Constraint::Length(1)]; // Header
 
     let content_chunk;
     let mut preview_chunk = None;

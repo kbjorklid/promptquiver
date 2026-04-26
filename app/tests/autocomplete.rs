@@ -220,18 +220,18 @@ async fn test_autocomplete_positioning_below_cursor() {
     
     let buffer = terminal.backend().buffer();
     
-    // Header: y=0,1,2
-    // Editor Start: y=3
-    // line1: y=4
-    // line2/: y=5
-    // Popup Title: y=6
+    // Header: y=0
+    // Editor Start: y=1
+    // line1: y=2
+    // line2/: y=3
+    // Popup Title: y=4
     
     let mut found_popup_at_expected_y = false;
     for x in 0..80 {
         let mut title = String::new();
         for i in 0..12 {
             if x + i < 80 {
-                title.push_str(buffer[(x + i, 6)].symbol());
+                title.push_str(buffer[(x + i, 4)].symbol());
             }
         }
         if title.contains(" Commands ") {
@@ -240,7 +240,7 @@ async fn test_autocomplete_positioning_below_cursor() {
         }
     }
     
-    assert!(found_popup_at_expected_y, "Popup should be rendered at y=6 (below line 2)");
+    assert!(found_popup_at_expected_y, "Popup should be rendered at y=4 (below line 2)");
 }
 
 #[tokio::test]
