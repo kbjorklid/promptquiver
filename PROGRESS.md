@@ -110,3 +110,8 @@ Project is now fully spec-compliant. All missing features identified in the audi
 - [x] **Deletion:** Mapped 'd' key to delete the selected slash command.
 - [x] **Navigation:** Improved navigation within the settings view using j/k and arrow keys.
 - [x] **Add New:** Added a dedicated "Add New Slash Command" item at the end of the list.
+
+### Test Architecture Refactor (2026-04-26):
+- [x] **Modular E2E Tests:** Split the monolithic `app/tests/e2e.rs` into logical files: `navigation.rs`, `editing.rs`, `autocomplete.rs`, `settings.rs`, and `workflow.rs`.
+- [x] **Shared Test Utilities:** Created `app/tests/common/mod.rs` to deduplicate setup logic and constants.
+- [x] **Improved Scope Management:** Properly scoped trait imports across all new test crates.
