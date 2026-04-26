@@ -108,6 +108,7 @@ async fn main() -> Result<()> {
                     active_tab: app.active_tab,
                     prompts: &app.prompts,
                     selected_index: app.selected_index,
+                    list_state: &mut app.list_state,
                     mode: mode_str,
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,
@@ -187,6 +188,9 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Char('d') => {
                                     handle_error!(app, app.archive_selected().await);
+                                }
+                                KeyCode::Char('D') => {
+                                    handle_error!(app, app.duplicate_selected().await);
                                 }
                                 KeyCode::Char('r') => {
                                     handle_error!(app, app.restore_selected().await);

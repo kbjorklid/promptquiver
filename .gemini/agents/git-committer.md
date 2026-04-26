@@ -1,7 +1,7 @@
 ---
 name: git-committer
 description: A specialized agent that independently analyzes workspace changes and performs git commits with auto-generated messages.
-model: gemini-2.0-flash-lite-preview-02-05
+model: gemini-3-flash-preview
 tools:
   - run_shell_command
 ---

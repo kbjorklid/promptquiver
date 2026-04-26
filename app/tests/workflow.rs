@@ -6,7 +6,7 @@ use ratatui::backend::TestBackend;
 
 #[tokio::test]
 async fn test_basic_render() {
-    let (app, _, _, _) = setup_app();
+    let (mut app, _, _, _) = setup_app();
 
     let backend = TestBackend::new(40, 30);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -27,6 +27,7 @@ async fn test_basic_render() {
                     active_tab: app.active_tab,
                     prompts: &app.prompts,
                     selected_index: app.selected_index,
+                    list_state: &mut app.list_state,
                     mode: mode_str,
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,

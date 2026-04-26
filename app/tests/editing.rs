@@ -45,6 +45,7 @@ async fn test_editor_discard_confirmation_modal() {
                     active_tab: app.active_tab,
                     prompts: &app.prompts,
                     selected_index: app.selected_index,
+                    list_state: &mut app.list_state,
                     mode: "Confirm Discard",
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,

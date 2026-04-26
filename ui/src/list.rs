@@ -13,6 +13,7 @@ pub fn render(
     mode: &str,
     search_query: &str,
     settings: &contracts::Settings,
+    list_state: &mut ratatui::widgets::ListState,
 ) {
     let title = if search_query.is_empty() {
         format!(" {active_tab:?} ")
@@ -65,7 +66,7 @@ pub fn render(
             .block(Block::default().borders(Borders::ALL).title(title));
         f.render_widget(empty_msg, area);
     } else {
-        f.render_widget(list, area);
+        f.render_stateful_widget(list, area, list_state);
     }
 }
 

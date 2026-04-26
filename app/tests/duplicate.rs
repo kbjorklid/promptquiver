@@ -1,0 +1,32 @@
+mod common;
+use common::setup_app;
+use contracts::Storage;
+
+#[tokio::test]
+async fn test_duplicate_prompt() {
+    let (mut app, storage, _, _) = setup_app();
+    
+    let p1 = contracts::Prompt::new("Original Prompt".to_string(), contracts::PromptType::Prompt, None, Some("Name".to_string()));
+    storage.save_project_prompts(common::TEST_PATH, vec![p1.clone()]).await.unwrap();
+
+    app.load_prompts().await.unwrap();
+    assert_eq!(app.prompts.len(), 1);
+    assert_eq!(app.selected_index, 0);
+
+    // Call duplicate (this method doesn't exist yet, so it will fail to compile)
+    app.duplicate_selected().await.unwrap();
+
+    // Verify in-memory state
+    assert_eq!(app.prompts.len(), 2);
+    assert_eq!(app.selected_index, 1);
+    assert_eq!(app.prompts[0].text, "Original Prompt");
+    assert_eq!(app.prompts[1].text, "Original Prompt");
+    assert_eq!(app.prompts[1].name, Some("Name".to_string()));
+    assert_ne!(app.prompts[0].id, app.prompts[1].id);
+    assert!(!app.prompts[1].staged);
+    assert!(!app.prompts[1].last_copied);
+
+    // Verify persistence
+    let stored = storage.get_project_prompts(common::TEST_PATH).await.unwrap();
+    assert_eq!(stored.len(), 2);
+}

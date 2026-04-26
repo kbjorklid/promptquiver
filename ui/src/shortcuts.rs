@@ -20,7 +20,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("s", "Stage"),
                 Shortcut::new("a/i", "Add"),
                 Shortcut::new("e/Ent", "Edit"),
-                Shortcut::new("d", "Del"),
+                Shortcut::new("d/D", "Del/Dupe"),
                 Shortcut::new("m", "Move"),
                 Shortcut::new("u", "Undo"),
                 Shortcut::new("Ctrl+y", "Redo"),

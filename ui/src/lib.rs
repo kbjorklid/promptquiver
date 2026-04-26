@@ -15,11 +15,12 @@ pub mod settings;
 pub mod statusline;
 pub mod shortcuts;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct RenderState<'a, 'b> {
     pub active_tab: Tab,
     pub prompts: &'a [Prompt],
     pub selected_index: usize,
+    pub list_state: &'a mut ratatui::widgets::ListState,
     pub mode: &'a str,
     pub textarea: &'a TextArea<'b>,
     pub title_textarea: &'a TextArea<'b>,
@@ -128,7 +129,7 @@ pub fn render(
             } else {
                 state.global_search_query
             };
-            list::render(f, content_chunk, state.active_tab, state.prompts, state.selected_index, state.mode, display_query, state.settings);
+            list::render(f, content_chunk, state.active_tab, state.prompts, state.selected_index, state.mode, display_query, state.settings, state.list_state);
             
             if let Some(p_chunk) = preview_chunk {
                 let selected_prompt = state.prompts.get(state.selected_index);

@@ -30,6 +30,7 @@ pub struct App<'a> {
     pub active_tab: Tab,
     pub prompts: Vec<Prompt>,
     pub selected_index: usize,
+    pub list_state: ratatui::widgets::ListState,
     pub mode: Mode,
     pub textarea: TextArea<'a>,
     pub title_textarea: TextArea<'a>,
@@ -83,6 +84,7 @@ impl App<'_> {
             active_tab: Tab::Prompts,
             prompts: Vec::new(),
             selected_index: 0,
+            list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             mode: Mode::List,
             textarea: TextArea::default(),
             title_textarea: TextArea::default(),
@@ -138,15 +140,19 @@ impl App<'_> {
     pub fn next_tab(&mut self) {
         self.active_tab = self.active_tab.next();
         self.selected_index = 0;
+        self.list_state.select(Some(0));
     }
 
     pub fn prev_tab(&mut self) {
         self.active_tab = self.active_tab.prev();
         self.selected_index = 0;
+        self.list_state.select(Some(0));
     }
 
-    pub const fn set_tab(&mut self, tab: Tab) {
+    pub fn set_tab(&mut self, tab: Tab) {
         self.active_tab = tab;
+        self.selected_index = 0;
+        self.list_state.select(Some(0));
     }
 
     pub fn move_down(&mut self) {
@@ -156,20 +162,24 @@ impl App<'_> {
             let total_settings = tabs_len + slash_len + 3; // tabs + slash commands + Add New + 2 advanced
             if self.selected_index < total_settings - 1 {
                 self.selected_index += 1;
+                self.list_state.select(Some(self.selected_index));
             }
         } else if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
             self.selected_index += 1;
+            self.list_state.select(Some(self.selected_index));
         }
     }
 
-    pub const fn move_up(&mut self) {
+    pub fn move_up(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
+            self.list_state.select(Some(self.selected_index));
         }
     }
 
-    pub const fn move_to_top(&mut self) {
+    pub fn move_to_top(&mut self) {
         self.selected_index = 0;
+        self.list_state.select(Some(0));
     }
 
     pub fn move_to_bottom(&mut self) {
@@ -178,8 +188,10 @@ impl App<'_> {
             let slash_len = self.settings.slash_commands.len();
             let total_settings = tabs_len + slash_len + 3;
             self.selected_index = total_settings - 1;
+            self.list_state.select(Some(self.selected_index));
         } else if !self.prompts.is_empty() {
             self.selected_index = self.prompts.len() - 1;
+            self.list_state.select(Some(self.selected_index));
         }
     }
 
@@ -239,6 +251,7 @@ impl App<'_> {
         if self.selected_index >= self.prompts.len() && !self.prompts.is_empty() {
             self.selected_index = self.prompts.len() - 1;
         }
+        self.list_state.select(Some(self.selected_index));
         
         Ok(())
     }
@@ -725,6 +738,29 @@ impl App<'_> {
         }
 
         self.load_prompts().await?;
+        Ok(())
+    }
+
+    pub async fn duplicate_selected(&mut self) -> contracts::Result<()> {
+        if self.active_tab == Tab::Settings || self.prompts.is_empty() {
+            return Ok(());
+        }
+
+        self.push_history();
+        let mut target = self.prompts[self.selected_index].clone();
+        target.id = uuid::Uuid::new_v4();
+        target.staged = false;
+        target.last_copied = false;
+        let now = chrono::Utc::now();
+        target.created_at = now;
+        target.updated_at = now;
+
+        // Insert after the selected item
+        self.prompts.insert(self.selected_index + 1, target);
+        self.selected_index += 1;
+        
+        self.save_current_list().await?;
+        self.notify("Prompt duplicated", ToastType::Success);
         Ok(())
     }
 

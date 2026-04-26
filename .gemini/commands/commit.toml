@@ -1,0 +1,2 @@
+description = "Invokes the git-committer agent to analyze changes and perform a commit."
+prompt = "@git-committer"

@@ -11,7 +11,7 @@ async fn test_dynamic_shortcut_hints() {
     let mut terminal = Terminal::new(backend).unwrap();
 
     // Helper to render and get footer text
-    let mut get_footer = |app: &app::app::App<'_>| {
+    let mut get_footer = |app: &mut app::app::App<'_>| {
         terminal.draw(|f| {
             let mode_str = match app.mode {
                 app::app::Mode::List => "List",
@@ -27,6 +27,7 @@ async fn test_dynamic_shortcut_hints() {
                     active_tab: app.active_tab,
                     prompts: &app.prompts,
                     selected_index: app.selected_index,
+                    list_state: &mut app.list_state,
                     mode: mode_str,
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,
@@ -61,26 +62,27 @@ async fn test_dynamic_shortcut_hints() {
     };
 
     // 1. Test List Mode
-    let footer = get_footer(&app);
+    let footer = get_footer(&mut app);
     assert!(footer.contains("u: Undo"), "List mode should show 'u: Undo'");
     assert!(footer.contains("a/i: Add"), "List mode should show 'a/i: Add'");
+    assert!(footer.contains("d/D: Del/Dupe"), "List mode should show 'd/D: Del/Dupe'");
     assert!(footer.contains("Ctrl+f: Global Search"), "List mode should show 'Ctrl+f: Global Search'");
 
     // 2. Test Move Mode
     app.mode = app::app::Mode::Move;
-    let footer = get_footer(&app);
+    let footer = get_footer(&mut app);
     assert!(footer.contains("j/k: Move"), "Move mode should show 'j/k: Move'");
     assert!(footer.contains("Esc/m/Ent: Back"), "Move mode should show 'Esc/m/Ent: Back'");
 
     // 3. Test Editor Mode
     app.mode = app::app::Mode::Editor;
-    let footer = get_footer(&app);
+    let footer = get_footer(&mut app);
     assert!(footer.contains("Ctrl+s: Save"), "Editor mode should show 'Ctrl+s: Save'");
     assert!(footer.contains("Ctrl+g: Save & Stage"), "Editor mode should show 'Ctrl+g: Save & Stage'");
 
     // 4. Test Archive Tab (List Mode)
     app.mode = app::app::Mode::List;
     app.active_tab = contracts::Tab::Archive;
-    let footer = get_footer(&app);
+    let footer = get_footer(&mut app);
     assert!(footer.contains("r: Restore"), "Archive tab should show 'r: Restore'");
 }

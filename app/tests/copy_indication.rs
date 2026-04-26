@@ -52,6 +52,7 @@ async fn test_copy_icon_rendering() {
             active_tab: app.active_tab,
             prompts: &app.prompts,
             selected_index: app.selected_index,
+            list_state: &mut app.list_state,
             mode: "List",
             textarea: &app.textarea,
             title_textarea: &app.title_textarea,
