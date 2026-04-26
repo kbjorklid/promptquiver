@@ -841,10 +841,24 @@ impl App<'_> {
 
         for trigger in triggers {
             if let Some(pos) = before_cursor.rfind(trigger) {
-                if best_trigger.is_none() || pos > best_pos {
-                    if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
-                        continue;
+                // Check if it's a valid trigger position
+                let is_valid = match trigger {
+                    "/" => {
+                        // Slash is only a trigger if it's at the start or preceded by space
+                        pos == 0 || before_cursor.as_bytes()[pos - 1] == b' '
                     }
+                    _ => true,
+                };
+
+                if !is_valid {
+                    continue;
+                }
+
+                if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
+                    continue;
+                }
+
+                if best_trigger.is_none() || pos > best_pos {
                     best_trigger = Some(trigger);
                     best_pos = pos;
                 }
@@ -994,16 +1008,29 @@ impl App<'_> {
 
             for trigger in triggers {
                 if let Some(pos) = before_cursor.rfind(trigger) {
-                    if best_trigger.is_none() || pos > best_pos {
-                        if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
-                            continue;
+                    // Check if it's a valid trigger position
+                    let is_valid = match trigger {
+                        "/" => {
+                            // Slash is only a trigger if it's at the start or preceded by space
+                            pos == 0 || before_cursor.as_bytes()[pos - 1] == b' '
                         }
+                        _ => true,
+                    };
+
+                    if !is_valid {
+                        continue;
+                    }
+
+                    if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
+                        continue;
+                    }
+
+                    if best_trigger.is_none() || pos > best_pos {
                         best_trigger = Some(trigger);
                         best_pos = pos;
                     }
                 }
             }
-
             if let Some(trigger) = best_trigger {
                 let replacement = match trigger {
                     "$$" => format!("$${name}"),
@@ -1095,5 +1122,68 @@ impl App<'_> {
         self.selected_index = 0;
         self.notify(format!("Global search found {} results", self.prompts.len()), ToastType::Info);
         Ok(())
+    }
+}
+
+pub fn walk_files(base_dir: &std::path::Path, current_dir: &std::path::Path, query: &str, results: &mut Vec<contracts::Prompt>) {
+    if results.len() >= 100 { // Increased limit for fuzzy matching
+        return;
+    }
+    
+    let matcher = SkimMatcherV2::default();
+    let query_normalized = query.replace('\\', "/").to_lowercase();
+
+    fn walk_recursive(base_dir: &std::path::Path, current_dir: &std::path::Path, query: &str, query_normalized: &str, matcher: &SkimMatcherV2, results: &mut Vec<(i64, contracts::Prompt)>) {
+        if results.len() >= 1000 { // Internal limit to avoid excessive recursion/matching
+            return;
+        }
+        if let Ok(entries) = std::fs::read_dir(current_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') {
+                            continue;
+                        }
+                    }
+                    walk_recursive(base_dir, &path, query, query_normalized, matcher, results);
+                } else {
+                    let relative_path = path.strip_prefix(base_dir)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .to_string();
+                    
+                    let path_normalized = relative_path.replace('\\', "/");
+                    let path_lower = path_normalized.to_lowercase();
+                    
+                    // Fuzzy match against the normalized relative path
+                    if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
+                        let mut final_score = score;
+                        
+                        // Bonus for exact back-to-back match (case-insensitive)
+                        if path_lower.contains(query_normalized) {
+                            final_score += 100;
+                        }
+                        
+                        results.push((final_score, contracts::Prompt::new(
+                            path.to_string_lossy().to_string(),
+                            contracts::PromptType::Note,
+                            None,
+                            Some(relative_path),
+                        )));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut scored_results = Vec::new();
+    walk_recursive(base_dir, current_dir, query, &query_normalized, &matcher, &mut scored_results);
+    
+    // Sort by score descending
+    scored_results.sort_by_key(|b| std::cmp::Reverse(b.0));
+    
+    for (_, p) in scored_results.into_iter().take(20) {
+        results.push(p);
     }
 }

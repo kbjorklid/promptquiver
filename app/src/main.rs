@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         while let Some((path, query)) = file_search_rx.recv().await {
             let path_buf = std::path::PathBuf::from(path);
             let mut results = Vec::new();
-            walk_files(&path_buf, &query, &mut results);
+            app::app::walk_files(&path_buf, &path_buf, &query, &mut results);
             let _ = file_result_tx.send((query, results)).await;
         }
     });
@@ -395,35 +395,4 @@ async fn main() -> Result<()> {
     tui.exit()?;
 
     Ok(())
-}
-
-fn walk_files(dir: &std::path::Path, query: &str, results: &mut Vec<contracts::Prompt>) {
-    if results.len() >= 20 {
-        return;
-    }
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') {
-                        continue;
-                    }
-                }
-                walk_files(&path, query, results);
-            } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.to_lowercase().contains(&query.to_lowercase()) {
-                    results.push(contracts::Prompt::new(
-                        path.to_string_lossy().to_string(),
-                        contracts::PromptType::Note,
-                        None,
-                        Some(name.to_string()),
-                    ));
-                }
-            }
-            if results.len() >= 20 {
-                break;
-            }
-        }
-    }
 }
