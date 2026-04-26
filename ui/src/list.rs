@@ -110,13 +110,26 @@ pub fn render_preview(
     area: Rect,
     prompt: Option<&Prompt>,
 ) {
+    let (color, title_prefix) = if let Some(p) = prompt {
+        match p.r#type {
+            contracts::PromptType::Prompt => (Color::Green, " Preview (Prompt) "),
+            contracts::PromptType::Snippet => (Color::Magenta, " Preview (Snippet) "),
+            contracts::PromptType::Note => (Color::Cyan, " Preview (Note) "),
+        }
+    } else {
+        (Color::Gray, " Preview ")
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" Preview ");
+        .border_style(Style::default().fg(color))
+        .title(title_prefix);
 
     if let Some(prompt) = prompt {
         let lines = crate::utils::highlight_text(&prompt.text);
-        let paragraph = Paragraph::new(lines).block(block);
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(paragraph, area);
     } else {
         let empty = Paragraph::new("No selection").block(block);
