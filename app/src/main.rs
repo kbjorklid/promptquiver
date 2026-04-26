@@ -302,9 +302,11 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Char(c) => {
                                     app.global_search_query.push(c);
+                                    handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
                                 KeyCode::Backspace => {
                                     app.global_search_query.pop();
+                                    handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
                                 _ => {}
                             }
@@ -322,8 +324,19 @@ async fn main() -> Result<()> {
                                     } else {
                                         let current_text = app.textarea.lines().join("\n");
                                         let current_title = app.title_textarea.lines().join("");
-                                        // Simple original check for now (mostly for text)
-                                        if current_text == app.original_text && (app.active_tab != contracts::Tab::Snippets || current_title.is_empty() || app.editing_id.is_some()) {
+                                        
+                                        let title_changed = if app.active_tab == contracts::Tab::Snippets {
+                                            if let Some(id) = app.editing_id {
+                                                let original_title = app.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default();
+                                                current_title != original_title
+                                            } else {
+                                                !current_title.is_empty()
+                                            }
+                                        } else {
+                                            false
+                                        };
+
+                                        if current_text == app.original_text && !title_changed {
                                             app.exit_editor();
                                         } else {
                                             app.mode = app::app::Mode::ConfirmDiscard;

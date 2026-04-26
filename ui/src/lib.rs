@@ -44,11 +44,18 @@ pub fn render(
         && state.mode != "Confirm Discard" 
         && state.active_tab != Tab::Settings;
 
-    let available_for_main = f.area().height.saturating_sub(6); // 3 for header, 1 for statusline, 2 for footer
+    let is_searching = state.mode == "Search" || state.mode == "Global Search";
+    
+    let mut available_for_main = f.area().height.saturating_sub(6); // 3 for header, 1 for statusline, 2 for footer
+    if is_searching {
+        available_for_main = available_for_main.saturating_sub(1);
+    }
+
     let mut constraints = vec![Constraint::Length(3)]; // Header
 
     let content_chunk;
     let mut preview_chunk = None;
+    let mut search_chunk = None;
     let statusline_chunk;
     let footer_chunk;
     let header_chunk;
@@ -61,6 +68,9 @@ pub fn render(
         };
         constraints.push(Constraint::Min(5));
         constraints.push(Constraint::Length(preview_h));
+        if is_searching {
+            constraints.push(Constraint::Length(1));
+        }
         constraints.push(Constraint::Length(2)); // Footer (max 2 lines)
         constraints.push(Constraint::Length(1)); // Statusline
 
@@ -72,10 +82,19 @@ pub fn render(
         header_chunk = chunks[0];
         content_chunk = chunks[1];
         preview_chunk = Some(chunks[2]);
-        footer_chunk = chunks[3];
-        statusline_chunk = chunks[4];
+        if is_searching {
+            search_chunk = Some(chunks[3]);
+            footer_chunk = chunks[4];
+            statusline_chunk = chunks[5];
+        } else {
+            footer_chunk = chunks[3];
+            statusline_chunk = chunks[4];
+        }
     } else {
         constraints.push(Constraint::Min(5));
+        if is_searching {
+            constraints.push(Constraint::Length(1));
+        }
         constraints.push(Constraint::Length(2)); // Footer
         constraints.push(Constraint::Length(1)); // Statusline
 
@@ -86,11 +105,25 @@ pub fn render(
 
         header_chunk = chunks[0];
         content_chunk = chunks[1];
-        footer_chunk = chunks[2];
-        statusline_chunk = chunks[3];
+        if is_searching {
+            search_chunk = Some(chunks[2]);
+            footer_chunk = chunks[3];
+            statusline_chunk = chunks[4];
+        } else {
+            footer_chunk = chunks[2];
+            statusline_chunk = chunks[3];
+        }
     }
 
     header::render(f, header_chunk, state.active_tab);
+
+    if let Some(s_chunk) = search_chunk {
+        let query = if state.mode == "Global Search" { state.global_search_query } else { state.search_query };
+        let prefix = if state.mode == "Global Search" { "Global Search: /" } else { "Search: /" };
+        let text = format!("{}{}", prefix, query);
+        let paragraph = Paragraph::new(text).style(Style::default().fg(Color::Yellow));
+        f.render_widget(paragraph, s_chunk);
+    }
 
 
     if state.mode == "Editor" || state.mode == "Confirm Discard" {

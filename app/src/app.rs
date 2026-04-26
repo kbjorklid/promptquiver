@@ -474,6 +474,8 @@ impl App<'_> {
     }
 
     pub fn enter_editor(&mut self, text: String, id: Option<uuid::Uuid>) {
+        self.search_query.clear();
+        self.global_search_query.clear();
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
         
@@ -495,6 +497,8 @@ impl App<'_> {
     }
 
     pub fn enter_editor_before(&mut self, text: String, index: usize) {
+        self.search_query.clear();
+        self.global_search_query.clear();
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
         
