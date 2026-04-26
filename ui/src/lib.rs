@@ -58,8 +58,8 @@ pub fn render(
         };
         constraints.push(Constraint::Min(5));
         constraints.push(Constraint::Length(preview_h));
-        constraints.push(Constraint::Length(1)); // Statusline
         constraints.push(Constraint::Length(1)); // Footer
+        constraints.push(Constraint::Length(1)); // Statusline
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -69,12 +69,12 @@ pub fn render(
         header_chunk = chunks[0];
         content_chunk = chunks[1];
         preview_chunk = Some(chunks[2]);
-        statusline_chunk = chunks[3];
-        footer_chunk = chunks[4];
+        footer_chunk = chunks[3];
+        statusline_chunk = chunks[4];
     } else {
         constraints.push(Constraint::Min(5));
-        constraints.push(Constraint::Length(1)); // Statusline
         constraints.push(Constraint::Length(1)); // Footer
+        constraints.push(Constraint::Length(1)); // Statusline
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -83,8 +83,8 @@ pub fn render(
 
         header_chunk = chunks[0];
         content_chunk = chunks[1];
-        statusline_chunk = chunks[2];
-        footer_chunk = chunks[3];
+        footer_chunk = chunks[2];
+        statusline_chunk = chunks[3];
     }
 
     header::render(f, header_chunk, state.active_tab);

@@ -21,38 +21,26 @@ pub fn render(
         Span::styled(format!(" [{}] Items ", prompts_count), Style::default().fg(Color::Gray)),
     ]);
 
-    let paragraph = Paragraph::new(line).style(Style::default().bg(Color::Indexed(234))); // Dark gray background
+    let paragraph = Paragraph::new(line).style(Style::default());
     f.render_widget(paragraph, area);
 }
 
 fn format_path(path_str: &str) -> String {
     let path = Path::new(path_str);
-    let components: Vec<_> = path.components().collect();
-    
-    if components.len() <= 2 {
+    let normal_components: Vec<_> = path
+        .components()
+        .filter(|c| matches!(c, std::path::Component::Normal(_)))
+        .collect();
+
+    if normal_components.len() <= 2 {
         return path_str.replace('\\', "/");
     }
 
-    let last_two: Vec<_> = components.iter().rev().take(2).rev().collect();
-    let drive = components.first().and_then(|c| {
-        if let std::path::Component::Prefix(p) = c {
-            Some(p.as_os_str().to_string_lossy().replace('\\', "/"))
-        } else {
-            None
-        }
-    });
-
-    let mut result = String::new();
-    if let Some(d) = drive {
-        result.push_str(&d);
-        result.push_str("/.../");
-    } else {
-        result.push_str(".../");
-    }
-
+    let last_two = &normal_components[normal_components.len() - 2..];
+    let mut result = String::from(".../");
     for (i, comp) in last_two.iter().enumerate() {
         result.push_str(&comp.as_os_str().to_string_lossy().replace('\\', "/"));
-        if i < last_two.len() - 1 {
+        if i < 1 {
             result.push('/');
         }
     }
