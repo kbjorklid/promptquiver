@@ -1,5 +1,5 @@
 use contracts::{Prompt, Tab};
-use ratatui::widgets::{Block, Borders, List, ListItem, Clear};
+use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::{Style, Color};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
@@ -60,6 +60,23 @@ pub fn render(
             .border_style(if !title_focused || !is_snippet { Style::default().fg(Color::Cyan) } else { Style::default() }),
     );
     f.render_widget(&textarea, editor_area);
+
+    // Render scrollbar for the text area
+    let lines_count = textarea.lines().len();
+    let cursor_y = textarea.cursor().0;
+    
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+    let mut scrollbar_state = ScrollbarState::new(lines_count).position(cursor_y);
+    f.render_stateful_widget(
+        scrollbar,
+        editor_area.inner(ratatui::layout::Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut scrollbar_state,
+    );
 
     // Autocomplete popup
     if !suggestions.is_empty() {
