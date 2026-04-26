@@ -322,6 +322,7 @@ impl App<'_> {
         if is_staged {
             // Un-stage
             self.prompts[target_idx].staged = false;
+            self.save_current_list().await?;
             self.notify("Prompt un-staged", ToastType::Info);
         } else {
             // Stage

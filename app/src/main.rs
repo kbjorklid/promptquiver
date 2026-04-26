@@ -83,6 +83,7 @@ async fn main() -> Result<()> {
                     title_textarea: &app.title_textarea,
                     title_focused: app.title_focused,
                     current_branch: app.current_branch.as_deref(),
+                    current_path: &app.current_path,
                     suggestions: &app.suggestions,
                     suggestion_index: app.suggestion_index,
                     search_query: &app.search_query,

@@ -12,6 +12,7 @@ pub mod footer;
 pub mod editor;
 pub mod utils;
 pub mod settings;
+pub mod statusline;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RenderState<'a, 'b> {
@@ -23,6 +24,7 @@ pub struct RenderState<'a, 'b> {
     pub title_textarea: &'a TextArea<'b>,
     pub title_focused: bool,
     pub current_branch: Option<&'a str>,
+    pub current_path: &'a str,
     pub suggestions: &'a [Prompt],
     pub suggestion_index: usize,
     pub search_query: &'a str,
@@ -39,11 +41,12 @@ pub fn render(
         && state.mode != "Confirm Discard" 
         && state.active_tab != Tab::Settings;
 
-    let available_for_main = f.area().height.saturating_sub(4); // 3 for header, 1 for footer
+    let available_for_main = f.area().height.saturating_sub(5); // 3 for header, 1 for statusline, 1 for footer
     let mut constraints = vec![Constraint::Length(3)]; // Header
 
     let content_chunk;
     let mut preview_chunk = None;
+    let statusline_chunk;
     let footer_chunk;
     let header_chunk;
 
@@ -55,7 +58,8 @@ pub fn render(
         };
         constraints.push(Constraint::Min(5));
         constraints.push(Constraint::Length(preview_h));
-        constraints.push(Constraint::Length(1));
+        constraints.push(Constraint::Length(1)); // Statusline
+        constraints.push(Constraint::Length(1)); // Footer
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -65,10 +69,12 @@ pub fn render(
         header_chunk = chunks[0];
         content_chunk = chunks[1];
         preview_chunk = Some(chunks[2]);
-        footer_chunk = chunks[3];
+        statusline_chunk = chunks[3];
+        footer_chunk = chunks[4];
     } else {
         constraints.push(Constraint::Min(5));
-        constraints.push(Constraint::Length(1));
+        constraints.push(Constraint::Length(1)); // Statusline
+        constraints.push(Constraint::Length(1)); // Footer
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -77,10 +83,12 @@ pub fn render(
 
         header_chunk = chunks[0];
         content_chunk = chunks[1];
-        footer_chunk = chunks[2];
+        statusline_chunk = chunks[2];
+        footer_chunk = chunks[3];
     }
 
-    header::render(f, header_chunk, state.active_tab, state.current_branch);
+    header::render(f, header_chunk, state.active_tab);
+
 
     if state.mode == "Editor" || state.mode == "Confirm Discard" {
         if state.active_tab == Tab::Settings {
@@ -127,6 +135,14 @@ pub fn render(
             }
         }
     }
+
+    statusline::render(
+        f,
+        statusline_chunk,
+        state.current_path,
+        state.current_branch,
+        state.prompts.len(),
+    );
 
     footer::render(
         f,

@@ -8,20 +8,18 @@ This project follows a strict **Clean Architecture** and **Modular Monolith** ap
 
 ## 1. Documentation Map
 
-Before writing any code, you MUST review the following specifications in order:
+The following specifications are available in the `docs/` directory. Review them as needed based on the context of your task to ensure alignment with project standards:
 
-1.  **[FUNCTIONAL_SPEC.md](./FUNCTIONAL_SPEC.md)**: The core logic, data model (TOML), and algorithms (staging, snippets, comments).
-2.  **[UI_SPEC.md](./UI_SPEC.md)**: The visual design, color palette, and component behaviors.
-3.  **[TECHNICAL_DIRECTIVES.md](./TECHNICAL_DIRECTIVES.md)**: The architectural rules, crate choices, and the **E2E-First** testing philosophy.
-4.  **[TEST_SCENARIOS.md](./TEST_SCENARIOS.md)**: The specific user journeys you must verify via integration tests.
-5.  **[DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)**: Practical guidance on terminal lifecycle, logging, and Git integration.
-6.  **[PROGRESS.md](./PROGRESS.md)**: The source of truth for the current project state, completed tasks, and next steps.
+1.  **[FUNCTIONAL_SPEC.md](./docs/FUNCTIONAL_SPEC.md)**: The core logic, data model (TOML), and algorithms (staging, snippets, comments).
+2.  **[UI_SPEC.md](./docs/UI_SPEC.md)**: The visual design, color palette, and component behaviors.
+3.  **[TECHNICAL_DIRECTIVES.md](./docs/TECHNICAL_DIRECTIVES.md)**: The architectural rules, crate choices, and the **E2E-First** testing philosophy.
+4.  **[TEST_SCENARIOS.md](./docs/TEST_SCENARIOS.md)**: The specific user journeys you must verify via integration tests.
+5.  **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)**: Practical guidance on terminal lifecycle, logging, and Git integration.
 
 ---
 
 ## 2. Core Mandates
 
-- **State Management:** You MUST update `PROGRESS.md` after every significant task completion or milestone. This file is the primary reference for maintaining context between sessions.
 - **Language:** Rust (Stable).
 - **Architecture:** Cargo Workspace with hard boundaries between modules. Use the "Contracts" pattern (Traits) for dependency inversion.
 - **Testing:** Prioritize End-to-End (E2E) tests using `ratatui::backend::TestBackend`. Unit tests are only for isolated, complex logic.
@@ -59,5 +57,5 @@ You **MUST** write and execute a failing test **BEFORE** making any changes to t
 - **User Profile:** The user is an experienced software developer but is new to Rust, its ecosystem, and Ratatui. Provide clear explanations for Rust-specific idioms and crate choices when appropriate.
 - **Shell:** You are working in a Windows PowerShell environment. Use `;` instead of `&&` for command chaining.
 - Use `tail -f debug.log` in your mind (and suggest it to the user) to monitor your file-based logging.
-- When implementating UI, refer to `UI_SPEC.md` for specific color constants (Yellow for prompts, Cyan for notes, etc.).
+- When implementating UI, refer to `./docs/UI_SPEC.md` for specific color constants (Yellow for prompts, Cyan for notes, etc.).
 - **Installation:** When the user says 'install', 'install locally', or similar, you MUST run the `.\install.ps1` script for them.

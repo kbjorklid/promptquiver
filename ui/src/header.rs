@@ -11,7 +11,7 @@ pub fn render_branding(f: &mut Frame<'_>, area: Rect) {
     f.render_widget(branding, area);
 }
 
-pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, current_branch: Option<&str>) {
+pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -21,15 +21,14 @@ pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, current_branch: Op
         .split(area);
 
     render_branding(f, chunks[0]);
-    render_tabs(f, chunks[1], active_tab, current_branch);
+    render_tabs(f, chunks[1], active_tab);
 }
 
-pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, current_branch: Option<&str>) {
+pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab) {
     let tab_titles = Tab::all().iter().map(|t| format!(" {t:?} ")).collect::<Vec<_>>();
-    let branch_str = current_branch.map(|b| format!(" [b: {b}] ")).unwrap_or_default();
     
     let tabs = Tabs::new(tab_titles)
-        .block(Block::default().title(branch_str).borders(Borders::ALL))
+        .block(Block::default().borders(Borders::ALL))
         .select(Tab::all().iter().position(|&t| t == active_tab).unwrap_or(0))
         .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .style(Style::default().fg(Color::Gray));

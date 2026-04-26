@@ -60,6 +60,7 @@ async fn test_autocomplete_slash_command_title() {
                     title_textarea: &app.title_textarea,
                     title_focused: app.title_focused,
                     current_branch: None,
+                    current_path: "",
                     suggestions: &app.suggestions,
                     suggestion_index: app.suggestion_index,
                     search_query: "",

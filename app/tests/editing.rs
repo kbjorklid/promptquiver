@@ -50,6 +50,7 @@ async fn test_editor_discard_confirmation_modal() {
                     title_textarea: &app.title_textarea,
                     title_focused: app.title_focused,
                     current_branch: None,
+                    current_path: "",
                     suggestions: &[],
                     suggestion_index: 0,
                     search_query: "",

@@ -32,6 +32,7 @@ async fn test_basic_render() {
                     title_textarea: &app.title_textarea,
                     title_focused: app.title_focused,
                     current_branch: app.current_branch.as_deref(),
+                    current_path: &app.current_path,
                     suggestions: &app.suggestions,
                     suggestion_index: app.suggestion_index,
                     search_query: &app.search_query,
@@ -98,6 +99,26 @@ async fn test_staging() {
     let archive = storage.get_project_archive(common::TEST_PATH).await.unwrap();
     assert_eq!(archive.len(), 1);
     assert_eq!(archive[0].text, "P1");
+}
+
+#[tokio::test]
+async fn test_unstaging() {
+    let (mut app, storage, _, _) = setup_app();
+    
+    let mut p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, None, None);
+    p1.staged = true;
+    storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
+
+    app.load_prompts().await.unwrap();
+    assert!(app.prompts[0].staged);
+
+    // Unstage
+    app.stage_selected().await.unwrap();
+    assert!(!app.prompts[0].staged, "Should be unstaged in memory");
+
+    // Verify persistence
+    let stored = storage.get_project_prompts(common::TEST_PATH).await.unwrap();
+    assert!(!stored[0].staged, "Should be unstaged in storage");
 }
 
 #[tokio::test]
