@@ -80,6 +80,8 @@ async fn main() -> Result<()> {
                     selected_index: app.selected_index,
                     mode: mode_str,
                     textarea: &app.textarea,
+                    title_textarea: &app.title_textarea,
+                    title_focused: app.title_focused,
                     current_branch: app.current_branch.as_deref(),
                     suggestions: &app.suggestions,
                     suggestion_index: app.suggestion_index,
@@ -265,12 +267,19 @@ async fn main() -> Result<()> {
                         }
                         app::app::Mode::Editor => {
                             match key.code {
+                                KeyCode::Tab if app.active_tab == contracts::Tab::Snippets => {
+                                    app.title_focused = !app.title_focused;
+                                }
                                 KeyCode::Esc => {
                                     if app.autocomplete_open {
                                         app.autocomplete_open = false;
+                                    } else if app.active_tab == contracts::Tab::Settings {
+                                        app.exit_editor();
                                     } else {
                                         let current_text = app.textarea.lines().join("\n");
-                                        if current_text == app.original_text {
+                                        let current_title = app.title_textarea.lines().join("");
+                                        // Simple original check for now (mostly for text)
+                                        if current_text == app.original_text && (app.active_tab != contracts::Tab::Snippets || current_title.is_empty() || app.editing_id.is_some()) {
                                             app.exit_editor();
                                         } else {
                                             app.mode = app::app::Mode::ConfirmDiscard;
@@ -292,9 +301,24 @@ async fn main() -> Result<()> {
                                 KeyCode::Enter if app.autocomplete_open => {
                                     app.select_suggestion();
                                 }
+                                KeyCode::Enter if app.active_tab == contracts::Tab::Settings => {
+                                    handle_error!(app, app.save_editor().await);
+                                }
                                 _ => {
-                                    app.textarea.input(event);
-                                    handle_error!(app, app.update_autocomplete().await);
+                                    if app.title_focused && app.active_tab == contracts::Tab::Snippets {
+                                        app.title_textarea.input(event);
+                                    } else {
+                                        if app.active_tab == contracts::Tab::Settings {
+                                            // Only allow one line for slash commands
+                                            if key.code != KeyCode::Enter {
+                                                app.textarea.input(event);
+                                                handle_error!(app, app.update_autocomplete().await);
+                                            }
+                                        } else {
+                                            app.textarea.input(event);
+                                            handle_error!(app, app.update_autocomplete().await);
+                                        }
+                                    }
                                 }
                             }
                         }

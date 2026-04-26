@@ -6,8 +6,8 @@ This document tracks the implementation status of every item in `FUNCTIONAL_SPEC
 ---
 
 ## 1. Core Philosophy
-- [x] Contextual Isolation (Project-specific storage).
-- [x] Global Utility (Canned prompts & Snippets).
+- [x] Contextual Isolation (Project-specific storage - Prompts, Notes, Archive).
+- [x] Global Utility (Global storage - Canned prompts, Snippets, Settings).
 - [x] High-Speed Workflow (Vim-inspired keybindings).
 - [x] Performance (Async I/O, Clean Architecture).
 
@@ -100,3 +100,13 @@ Project is now fully spec-compliant. All missing features identified in the audi
 1.  [x] **Syntax Highlighting:** Refined TOML-like preview in `ui/src/list.rs` and `ui/src/utils.rs`.
 2.  [x] **Fuzzy Search:** Integrated `fuzzy-matcher` crate for better fuzzy matching in autocomplete.
 3.  [x] **Error Handling:** Enhanced error reporting in UI with `handle_error!` macro in `app/src/main.rs`.
+
+### Settings Refactor (2026-04-26):
+- [x] **Slash Command List:** Refactored slash commands in Settings from a single text area to an interactive list.
+- [x] **Individual Editing:** Enabled Enter key to edit specific slash commands in-line.
+- [x] **Validation:** Implemented regex validation `[a-zA-Z0-9_-]+` for slash command names.
+- [x] **One-Liners:** Enforced one-line editing for slash commands in Settings.
+- [x] **Case-Insensitive Suggestions:** Updated autocomplete to ignore case for slash commands.
+- [x] **Deletion:** Mapped 'd' key to delete the selected slash command.
+- [x] **Navigation:** Improved navigation within the settings view using j/k and arrow keys.
+- [x] **Add New:** Added a dedicated "Add New Slash Command" item at the end of the list.

@@ -1,28 +1,62 @@
-use contracts::Prompt;
+use contracts::{Prompt, Tab};
 use ratatui::widgets::{Block, Borders, List, ListItem, Clear};
 use ratatui::style::{Style, Color};
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Rect, Layout, Constraint, Direction};
 use ratatui_textarea::TextArea;
 
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
     textarea: &TextArea<'_>,
+    title_textarea: &TextArea<'_>,
+    title_focused: bool,
+    active_tab: Tab,
     suggestions: &[Prompt],
     suggestion_index: usize,
 ) {
+    let is_snippet = active_tab == Tab::Snippets;
+    
+    let main_title = if is_snippet {
+        " Edit Snippet (Tab to switch, Ctrl+S to save, Esc to cancel) "
+    } else {
+        " Edit Prompt (Ctrl+S to save, Esc to cancel) "
+    };
+
     let mut textarea = textarea.clone();
     textarea.set_block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
-            .title(" Edit Prompt (Ctrl+S to save, Esc to cancel) ")
-            .border_style(Style::default().fg(Color::Cyan)),
+            .title(main_title)
+            .border_style(if !title_focused || !is_snippet { Style::default().fg(Color::Cyan) } else { Style::default() }),
     );
 
     f.render_widget(Clear, area);
-    f.render_widget(&textarea, area);
+
+    if is_snippet {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Title field
+                Constraint::Min(3),    // Content field
+            ])
+            .split(area);
+
+        let mut title_textarea = title_textarea.clone();
+        title_textarea.set_block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(ratatui::widgets::BorderType::Rounded)
+                .title(" Snippet Name ([a-zA-Z0-9_-]+) ")
+                .border_style(if title_focused { Style::default().fg(Color::Cyan) } else { Style::default() }),
+        );
+
+        f.render_widget(&title_textarea, chunks[0]);
+        f.render_widget(&textarea, chunks[1]);
+    } else {
+        f.render_widget(&textarea, area);
+    }
 
     // Autocomplete popup
     if !suggestions.is_empty() {

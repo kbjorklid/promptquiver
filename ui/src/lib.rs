@@ -20,6 +20,8 @@ pub struct RenderState<'a, 'b> {
     pub selected_index: usize,
     pub mode: &'a str,
     pub textarea: &'a TextArea<'b>,
+    pub title_textarea: &'a TextArea<'b>,
+    pub title_focused: bool,
     pub current_branch: Option<&'a str>,
     pub suggestions: &'a [Prompt],
     pub suggestion_index: usize,
@@ -84,7 +86,16 @@ pub fn render(
         if state.active_tab == Tab::Settings {
             settings::render(f, content_chunk, state.settings, state.selected_index, Some(state.textarea));
         } else {
-            editor::render(f, content_chunk, state.textarea, state.suggestions, state.suggestion_index);
+            editor::render(
+                f,
+                content_chunk,
+                state.textarea,
+                state.title_textarea,
+                state.title_focused,
+                state.active_tab,
+                state.suggestions,
+                state.suggestion_index,
+            );
 
             if state.mode == "Confirm Discard" {
                 let area = utils::centered_rect(60, 25, f.area());

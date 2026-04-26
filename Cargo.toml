@@ -26,6 +26,7 @@ directories = "6.0"
 ratatui-textarea = "0.9"
 ratatui-toaster = "0.1.2"
 tui-popup = "0.7.2"
+tempfile = "3.17.1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

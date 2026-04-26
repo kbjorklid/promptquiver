@@ -18,8 +18,6 @@ pub enum Mode {
 
 #[derive(Debug, Clone)]
 pub struct HistoryEntry {
-// ...
-
     pub tab: Tab,
     pub prompts: Vec<Prompt>,
 }
@@ -34,6 +32,8 @@ pub struct App<'a> {
     pub selected_index: usize,
     pub mode: Mode,
     pub textarea: TextArea<'a>,
+    pub title_textarea: TextArea<'a>,
+    pub title_focused: bool,
     pub editing_id: Option<uuid::Uuid>,
     pub insert_index: Option<usize>,
     pub current_branch: Option<String>,
@@ -48,6 +48,8 @@ pub struct App<'a> {
     pub search_query: String,
     pub original_text: String,
     pub global_search_query: String,
+    pub last_notification_time: Option<std::time::Instant>,
+    pub current_path: String,
 }
 
 
@@ -82,6 +84,8 @@ impl App<'_> {
             selected_index: 0,
             mode: Mode::List,
             textarea: TextArea::default(),
+            title_textarea: TextArea::default(),
+            title_focused: false,
             editing_id: None,
             insert_index: None,
             current_branch: None,
@@ -96,11 +100,23 @@ impl App<'_> {
             search_query: String::new(),
             original_text: String::new(),
             global_search_query: String::new(),
+            last_notification_time: None,
+            current_path: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .to_string_lossy()
+                .into_owned(),
         }
     }
 
-    pub const fn tick(&mut self) {
-        // Handle background tasks or state updates
+    pub fn tick(&mut self) {
+        if let Some(last_time) = self.last_notification_time {
+            if last_time.elapsed() >= std::time::Duration::from_secs(3) {
+                if let Some(ref mut toaster) = self.toaster {
+                    toaster.hide_toast();
+                }
+                self.last_notification_time = None;
+            }
+        }
     }
 
     pub fn notify(&mut self, message: impl Into<String>, kind: ToastType) {
@@ -109,6 +125,7 @@ impl App<'_> {
                 .toast_type(kind)
                 .position(ToastPosition::BottomRight);
             toaster.show_toast(toast);
+            self.last_notification_time = Some(std::time::Instant::now());
         }
     }
 
@@ -132,7 +149,9 @@ impl App<'_> {
 
     pub fn move_down(&mut self) {
         if self.active_tab == Tab::Settings {
-            let total_settings = Tab::all().len() + 2; // tabs + slash + advanced
+            let tabs_len = Tab::all().len();
+            let slash_len = self.settings.slash_commands.len();
+            let total_settings = tabs_len + slash_len + 2; // tabs + slash commands + Add New + advanced
             if self.selected_index < total_settings - 1 {
                 self.selected_index += 1;
             }
@@ -153,7 +172,9 @@ impl App<'_> {
 
     pub fn move_to_bottom(&mut self) {
         if self.active_tab == Tab::Settings {
-            let total_settings = Tab::all().len() + 2;
+            let tabs_len = Tab::all().len();
+            let slash_len = self.settings.slash_commands.len();
+            let total_settings = tabs_len + slash_len + 2;
             self.selected_index = total_settings - 1;
         } else if !self.prompts.is_empty() {
             self.selected_index = self.prompts.len() - 1;
@@ -221,10 +242,7 @@ impl App<'_> {
     }
 
     fn current_project_path(&self) -> String {
-        std::env::current_dir()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned()
+        self.current_path.clone()
     }
 
     pub fn push_history(&mut self) {
@@ -289,6 +307,9 @@ impl App<'_> {
     }
 
     pub async fn stage_selected(&mut self) -> contracts::Result<()> {
+        if self.active_tab == Tab::Settings {
+            return Ok(());
+        }
         if self.prompts.is_empty() {
             return Ok(());
         }
@@ -391,6 +412,19 @@ impl App<'_> {
     pub fn enter_editor(&mut self, text: String, id: Option<uuid::Uuid>) {
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
+        
+        let title = if self.active_tab == Tab::Snippets {
+            if let Some(id) = id {
+                self.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        self.title_textarea = TextArea::new(vec![title]);
+        self.title_focused = self.active_tab == Tab::Snippets;
+        
         self.editing_id = id;
         self.insert_index = None;
         self.original_text = text;
@@ -399,6 +433,11 @@ impl App<'_> {
     pub fn enter_editor_before(&mut self, text: String, index: usize) {
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
+        
+        let title = String::new();
+        self.title_textarea = TextArea::new(vec![title]);
+        self.title_focused = self.active_tab == Tab::Snippets;
+
         self.editing_id = None;
         self.insert_index = Some(index);
         self.original_text = text;
@@ -410,21 +449,35 @@ impl App<'_> {
         self.insert_index = None;
         self.autocomplete_open = false;
         self.suggestions.clear();
+        self.title_textarea = TextArea::default();
+        self.title_focused = false;
     }
 
     pub fn edit_setting(&mut self) {
         if self.active_tab != Tab::Settings {
             return;
         }
-        let tabs = Tab::all();
-        if self.selected_index == tabs.len() {
-            // Edit Slash Commands
-            let text = self.settings.slash_commands.join(", ");
+        let tabs_len = Tab::all().len();
+        let slash_len = self.settings.slash_commands.len();
+
+        if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
+            // Edit existing Slash Command
+            let idx = self.selected_index - tabs_len;
+            let text = self.settings.slash_commands[idx].clone();
             self.mode = Mode::Editor;
-            self.textarea = TextArea::new(text.lines().map(String::from).collect());
-            self.editing_id = None;
-            self.insert_index = None;
+            self.textarea = TextArea::new(vec![text.clone()]);
+            self.title_textarea = TextArea::default();
+            self.title_focused = false;
+            self.editing_id = None; // We'll use selected_index to know which one
             self.original_text = text;
+        } else if self.selected_index == tabs_len + slash_len {
+            // Add New Slash Command
+            self.mode = Mode::Editor;
+            self.textarea = TextArea::default();
+            self.title_textarea = TextArea::default();
+            self.title_focused = false;
+            self.editing_id = None;
+            self.original_text = String::new();
         }
     }
 
@@ -433,25 +486,49 @@ impl App<'_> {
         let path = self.current_project_path();
 
         if self.active_tab == Tab::Settings {
-            let tabs = Tab::all();
-            if self.selected_index == tabs.len() {
-                self.settings.slash_commands = text.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
+            let tabs_len = Tab::all().len();
+            let slash_len = self.settings.slash_commands.len();
+
+            let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
+            let trimmed = text.trim();
+            if !trimmed.is_empty() && !re.is_match(trimmed) {
+                self.notify("Slash command must match [a-zA-Z0-9_-]+", ToastType::Error);
+                return Ok(());
+            }
+
+            if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
+                // Update existing
+                let idx = self.selected_index - tabs_len;
+                self.settings.slash_commands[idx] = trimmed.to_string();
                 self.storage.save_settings(self.settings.clone()).await?;
+            } else if self.selected_index == tabs_len + slash_len {
+                // Add new
+                let new_cmd = trimmed.to_string();
+                if !new_cmd.is_empty() {
+                    self.settings.slash_commands.push(new_cmd);
+                    self.storage.save_settings(self.settings.clone()).await?;
+                }
             }
             self.exit_editor();
             self.notify("Settings saved!", ToastType::Success);
             return Ok(());
         }
 
+        let title = if self.active_tab == Tab::Snippets {
+            let t = self.title_textarea.lines().join("");
+            let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
+            if !re.is_match(&t) {
+                self.notify("Snippet name must match [a-zA-Z0-9_-]+", ToastType::Error);
+                return Ok(());
+            }
+            Some(t)
+        } else {
+            contracts::Processor::extract_title(&text).0
+        };
+
         self.push_history();
 
         if let Some(id) = self.editing_id {
-            // ... (Edit existing logic - remains same)
-            let (title, _) = contracts::Processor::extract_title(&text);
-            
             match self.active_tab {
                 Tab::Prompts => {
                     let mut list = self.storage.get_project_prompts(&path).await?;
@@ -481,10 +558,6 @@ impl App<'_> {
                     self.storage.save_global_canned(list).await?;
                 }
                 Tab::Snippets => {
-                    if title.is_none() {
-                        self.notify("Snippets MUST have a title (-- Title)", ToastType::Error);
-                        return Ok(());
-                    }
                     let mut list = self.storage.get_global_snippets().await?;
                     if let Some(p) = list.iter_mut().find(|p| p.id == id) {
                         p.text = text;
@@ -503,12 +576,6 @@ impl App<'_> {
                 _ => PromptType::Prompt,
             };
             
-            let (title, _) = contracts::Processor::extract_title(&text);
-            if r#type == PromptType::Snippet && title.is_none() {
-                self.notify("Snippets MUST have a title (-- Title)", ToastType::Error);
-                return Ok(());
-            }
-
             let current_branch = self.git.get_current_branch(&path).await.unwrap_or_default();
             let prompt = Prompt::new(text, r#type, current_branch, title);
             
@@ -560,6 +627,21 @@ impl App<'_> {
     }
 
     pub async fn archive_selected(&mut self) -> contracts::Result<()> {
+        if self.active_tab == Tab::Settings {
+            let tabs_len = Tab::all().len();
+            let slash_len = self.settings.slash_commands.len();
+            if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
+                let idx = self.selected_index - tabs_len;
+                self.settings.slash_commands.remove(idx);
+                self.storage.save_settings(self.settings.clone()).await?;
+                self.notify("Slash command deleted", ToastType::Warning);
+                if self.selected_index > 0 {
+                    self.selected_index -= 1;
+                }
+            }
+            return Ok(());
+        }
+
         if self.prompts.is_empty() {
             return Ok(());
         }
@@ -576,7 +658,7 @@ impl App<'_> {
             self.notify("Prompt deleted permanently", ToastType::Warning);
         } else {
             // Move to archive
-            // 1. Remove from current list
+            // 1. Remove from original list
             match self.active_tab {
                 Tab::Prompts => {
                     let mut list = self.storage.get_project_prompts(&path).await?;
@@ -717,11 +799,13 @@ impl App<'_> {
             match trigger {
                 "$" | "$$" => {
                     let snippets = self.storage.get_global_snippets().await?;
+                    let query_lower = query.to_lowercase();
                     let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
                         .into_iter()
                         .filter_map(|s| {
                             let text = s.name.as_deref().unwrap_or(&s.text);
-                            matcher.fuzzy_match(text, query).map(|score| (score, s))
+                            // Ignore case for snippet suggestions
+                            matcher.fuzzy_match(&text.to_lowercase(), &query_lower).map(|score| (score, s))
                         })
                         .collect();
                     
@@ -746,10 +830,11 @@ impl App<'_> {
                 }
                 "/" => {
                     // Slash commands from settings
+                    let query_lower = query.to_lowercase();
                     let mut scored_suggestions: Vec<(i64, Prompt)> = self.settings.slash_commands
                         .iter()
                         .filter_map(|cmd| {
-                            matcher.fuzzy_match(cmd, query).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone()))))
+                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone()))))
                         })
                         .collect();
                         
@@ -853,9 +938,9 @@ impl App<'_> {
             self.settings.tab_visibility.insert(tab, !current);
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Toggled visibility for {tab:?}"), ToastType::Info);
-        } else if self.selected_index == tabs.len() {
+        } else if self.selected_index >= tabs.len() && self.selected_index < tabs.len() + self.settings.slash_commands.len() + 1 {
              // Slash commands - maybe edit?
-        } else if self.selected_index == tabs.len() + 1 {
+        } else if self.selected_index == tabs.len() + self.settings.slash_commands.len() + 1 {
             self.settings.enable_claude_commands = !self.settings.enable_claude_commands;
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Claude commands: {}", if self.settings.enable_claude_commands { "ON" } else { "OFF" }), ToastType::Info);
@@ -871,7 +956,6 @@ impl App<'_> {
     }
 
     pub async fn search_all(&mut self, query: String) -> contracts::Result<()> {
-        // ... (implementation remains same as above)
         let path = self.current_project_path();
         let query_lower = query.to_lowercase();
         
