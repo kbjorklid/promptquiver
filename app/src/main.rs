@@ -6,7 +6,7 @@ use infra::{FileSystemStorage, RealClipboard, RealGit};
 use ratatui::Terminal;
 use ratatui_toaster::{ToastEngineBuilder, ToastType};
 use std::{io, sync::Arc, time::Duration};
-use crossterm::event::{Event, KeyCode, KeyEventKind};
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyEvent};
 
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
 
     // Background File Searcher
     let (file_search_tx, mut file_search_rx) = tokio::sync::mpsc::channel::<(String, String)>(10);
-    let (file_result_tx, mut file_result_rx) = tokio::sync::mpsc::channel::<Vec<contracts::Prompt>>(10);
+    let (file_result_tx, mut file_result_rx) = tokio::sync::mpsc::channel::<(String, Vec<contracts::Prompt>)>(10);
     app.file_search_tx = Some(file_search_tx);
 
     tokio::spawn(async move {
@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
             let path_buf = std::path::PathBuf::from(path);
             let mut results = Vec::new();
             walk_files(&path_buf, &query, &mut results);
-            let _ = file_result_tx.send(results).await;
+            let _ = file_result_tx.send((query, results)).await;
         }
     });
 
@@ -77,14 +77,19 @@ async fn main() -> Result<()> {
             app.current_branch = branch;
         }
 
-        if let Ok(results) = file_result_rx.try_recv() {
-            if !results.is_empty() {
-                app.suggestions = results;
-                app.autocomplete_open = true;
-                app.suggestion_index = 0;
-            } else {
-                app.autocomplete_open = false;
-                app.suggestions.clear();
+        while let Ok((query, results)) = file_result_rx.try_recv() {
+            // Only update if the query matches current cursor state
+            if let Some((trigger, current_query)) = app.get_current_autocomplete_query() {
+                if trigger == "@" && current_query == query {
+                    if !results.is_empty() {
+                        app.suggestions = results;
+                        app.autocomplete_open = true;
+                        app.suggestion_index = 0;
+                    } else {
+                        app.autocomplete_open = false;
+                        app.suggestions.clear();
+                    }
+                }
             }
         }
 
@@ -122,7 +127,7 @@ async fn main() -> Result<()> {
 
         if let Some(event) = tui::next_event(Duration::from_millis(16))? {
             if let Event::Key(key) = event {
-                if key.kind == KeyEventKind::Press {
+                if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
                     match app.mode {
                         app::app::Mode::List => {
                             match key.code {
@@ -340,16 +345,28 @@ async fn main() -> Result<()> {
                                 }
                                 _ => {
                                     if app.title_focused && app.active_tab == contracts::Tab::Snippets {
-                                        app.title_textarea.input(event);
+                                        if !app.title_textarea.input(event) {
+                                            if let KeyCode::Char(c) = key.code {
+                                                app.title_textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                            }
+                                        }
                                     } else {
                                         if app.active_tab == contracts::Tab::Settings {
                                             // Only allow one line for slash commands
                                             if key.code != KeyCode::Enter {
-                                                app.textarea.input(event);
+                                                if !app.textarea.input(event) {
+                                                    if let KeyCode::Char(c) = key.code {
+                                                        app.textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                                    }
+                                                }
                                                 handle_error!(app, app.update_autocomplete().await);
                                             }
                                         } else {
-                                            app.textarea.input(event);
+                                            if !app.textarea.input(event) {
+                                                if let KeyCode::Char(c) = key.code {
+                                                    app.textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                                }
+                                            }
                                             handle_error!(app, app.update_autocomplete().await);
                                         }
                                     }
@@ -381,18 +398,21 @@ async fn main() -> Result<()> {
 }
 
 fn walk_files(dir: &std::path::Path, query: &str, results: &mut Vec<contracts::Prompt>) {
+    if results.len() >= 20 {
+        return;
+    }
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name == "target" || name == ".git" || name == "node_modules" {
+                    if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') {
                         continue;
                     }
                 }
                 walk_files(&path, query, results);
             } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.contains(query) {
+                if name.to_lowercase().contains(&query.to_lowercase()) {
                     results.push(contracts::Prompt::new(
                         path.to_string_lossy().to_string(),
                         contracts::PromptType::Note,
@@ -401,7 +421,7 @@ fn walk_files(dir: &std::path::Path, query: &str, results: &mut Vec<contracts::P
                     ));
                 }
             }
-            if results.len() > 20 {
+            if results.len() >= 20 {
                 break;
             }
         }

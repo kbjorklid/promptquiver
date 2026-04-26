@@ -819,6 +819,48 @@ impl App<'_> {
         Ok(())
     }
 
+    pub fn get_current_autocomplete_query(&self) -> Option<(String, String)> {
+        let cursor = self.textarea.cursor();
+        let row = cursor.0;
+        let col = cursor.1;
+        
+        if row >= self.textarea.lines().len() {
+            return None;
+        }
+        
+        let line = &self.textarea.lines()[row];
+        if col > line.len() {
+            return None;
+        }
+        
+        let before_cursor = &line[..col];
+
+        let triggers = ["$$", "$", "@", "/"];
+        let mut best_trigger = None;
+        let mut best_pos = 0;
+
+        for trigger in triggers {
+            if let Some(pos) = before_cursor.rfind(trigger) {
+                if best_trigger.is_none() || pos > best_pos {
+                    if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
+                        continue;
+                    }
+                    best_trigger = Some(trigger);
+                    best_pos = pos;
+                }
+            }
+        }
+
+        if let Some(trigger) = best_trigger {
+            let query = &before_cursor[best_pos + trigger.len()..];
+            if query.contains(' ') {
+                return None;
+            }
+            return Some((trigger.to_string(), query.to_string()));
+        }
+        None
+    }
+
     pub async fn update_autocomplete(&mut self) -> contracts::Result<()> {
         let cursor = self.textarea.cursor();
         let row = cursor.0;
@@ -883,10 +925,12 @@ impl App<'_> {
                     self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 "@" => {
+                    self.suggestions.clear();
+                    self.autocomplete_open = false;
                     if let Some(tx) = &self.file_search_tx {
+                        // self.notify(format!("Searching files for: '{}'", query), contracts::ToastType::Info);
                         let _ = tx.try_send((self.current_path.clone(), query.to_string()));
                     }
-                    // We don't update suggestions here; they will be updated when the result arrives
                     return Ok(());
                 }
                 "/" => {
