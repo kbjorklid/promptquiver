@@ -13,6 +13,7 @@ pub mod editor;
 pub mod utils;
 pub mod settings;
 pub mod statusline;
+pub mod shortcuts;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RenderState<'a, 'b> {
@@ -41,7 +42,7 @@ pub fn render(
         && state.mode != "Confirm Discard" 
         && state.active_tab != Tab::Settings;
 
-    let available_for_main = f.area().height.saturating_sub(5); // 3 for header, 1 for statusline, 1 for footer
+    let available_for_main = f.area().height.saturating_sub(6); // 3 for header, 1 for statusline, 2 for footer
     let mut constraints = vec![Constraint::Length(3)]; // Header
 
     let content_chunk;
@@ -58,7 +59,7 @@ pub fn render(
         };
         constraints.push(Constraint::Min(5));
         constraints.push(Constraint::Length(preview_h));
-        constraints.push(Constraint::Length(1)); // Footer
+        constraints.push(Constraint::Length(2)); // Footer (max 2 lines)
         constraints.push(Constraint::Length(1)); // Statusline
 
         let chunks = Layout::default()
@@ -73,7 +74,7 @@ pub fn render(
         statusline_chunk = chunks[4];
     } else {
         constraints.push(Constraint::Min(5));
-        constraints.push(Constraint::Length(1)); // Footer
+        constraints.push(Constraint::Length(2)); // Footer
         constraints.push(Constraint::Length(1)); // Statusline
 
         let chunks = Layout::default()
@@ -148,6 +149,7 @@ pub fn render(
         f,
         footer_chunk,
         state.mode,
+        state.active_tab,
         state.prompts.len(),
         state.selected_index,
         !state.suggestions.is_empty(),
