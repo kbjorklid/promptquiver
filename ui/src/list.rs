@@ -12,6 +12,7 @@ pub fn render(
     selected_index: usize,
     mode: &str,
     search_query: &str,
+    settings: &contracts::Settings,
 ) {
     let title = if search_query.is_empty() {
         format!(" {active_tab:?} ")
@@ -27,8 +28,16 @@ pub fn render(
 
         .map(|(i, p)| {
             let prefix = if i == selected_index { "> " } else { "  " };
-            let staged_icon = if p.staged { "🎯 " } else { "" };
-            let copy_icon = if p.last_copied && !p.staged { "📋 " } else { "" };
+            let staged_icon = if p.staged {
+                if settings.use_nerd_font { "󰓎 " } else { "🎯 " }
+            } else {
+                ""
+            };
+            let copy_icon = if p.last_copied && !p.staged {
+                if settings.use_nerd_font { "󰆏 " } else { "📋 " }
+            } else {
+                ""
+            };
             
             let display_name = p.name.as_ref().map_or_else(
                 || {

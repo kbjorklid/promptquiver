@@ -1,5 +1,5 @@
 use contracts::{Settings, Tab};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Clear};
+use ratatui::widgets::{Block, Borders, List, ListItem, Clear};
 use ratatui::style::{Style, Color, Modifier};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
@@ -17,7 +17,7 @@ pub fn render(
         .constraints([
             Constraint::Length(8), // Tab Visibility
             Constraint::Min(5),    // Slash Commands
-            Constraint::Length(3),  // Advanced
+            Constraint::Length(4),  // Advanced
         ])
         .split(area);
 
@@ -100,14 +100,23 @@ pub fn render(
 
     // Advanced
     let advanced_idx = tabs_len + slash_len + 1;
-    let advanced_style = if selected_index == advanced_idx {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
+    let is_advanced_focused = selected_index >= advanced_idx;
+    
+    let advanced_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Advanced (Space to toggle) ")
+        .border_style(if is_advanced_focused { Style::default().fg(Color::Yellow) } else { Style::default() });
+
     let claude_status = if settings.enable_claude_commands { "[ON]" } else { "[OFF]" };
-    let claude_p = Paragraph::new(format!(" Enable Claude Commands: {claude_status}"))
-        .block(Block::default().borders(Borders::ALL).title(" Advanced (Space to toggle) ")
-        .border_style(advanced_style));
-    f.render_widget(claude_p, chunks[2]);
+    let nerd_status = if settings.use_nerd_font { "[ON]" } else { "[OFF]" };
+
+    let advanced_items = vec![
+        ListItem::new(format!("{} Enable Claude Commands: {}", if selected_index == advanced_idx { ">" } else { " " }, claude_status))
+            .style(if selected_index == advanced_idx { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default() }),
+        ListItem::new(format!("{} Use Nerd Font Icons: {}", if selected_index == advanced_idx + 1 { ">" } else { " " }, nerd_status))
+            .style(if selected_index == advanced_idx + 1 { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default() }),
+    ];
+
+    let advanced_list = List::new(advanced_items).block(advanced_block);
+    f.render_widget(advanced_list, chunks[2]);
 }

@@ -128,7 +128,7 @@ pub fn render(
             } else {
                 state.global_search_query
             };
-            list::render(f, content_chunk, state.active_tab, state.prompts, state.selected_index, state.mode, display_query);
+            list::render(f, content_chunk, state.active_tab, state.prompts, state.selected_index, state.mode, display_query, state.settings);
             
             if let Some(p_chunk) = preview_chunk {
                 let selected_prompt = state.prompts.get(state.selected_index);

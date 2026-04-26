@@ -57,6 +57,7 @@ pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,
     pub slash_commands: Vec<String>,
     pub enable_claude_commands: bool,
+    pub use_nerd_font: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -113,20 +113,28 @@ async fn main() -> Result<()> {
                                 KeyCode::Tab
                                     if app.active_tab == contracts::Tab::Settings => {
                                         let tabs_len = contracts::Tab::all().len();
-                                        match app.selected_index.cmp(&tabs_len) {
-                                            std::cmp::Ordering::Less => app.selected_index = tabs_len, // Jump to Slash Commands
-                                            std::cmp::Ordering::Equal => app.selected_index = tabs_len + 1, // Jump to Advanced
-                                            std::cmp::Ordering::Greater => app.selected_index = 0, // Jump back to Tab Visibility
+                                        let slash_len = app.settings.slash_commands.len();
+                                        let advanced_idx = tabs_len + slash_len + 1;
+
+                                        if app.selected_index < tabs_len {
+                                            app.selected_index = tabs_len; // Jump to Slash Commands
+                                        } else if app.selected_index < advanced_idx {
+                                            app.selected_index = advanced_idx; // Jump to Advanced
+                                        } else {
+                                            app.selected_index = 0; // Jump back to Tab Visibility
                                         }
                                     }
                                 KeyCode::BackTab
                                     if app.active_tab == contracts::Tab::Settings => {
                                         let tabs_len = contracts::Tab::all().len();
+                                        let slash_len = app.settings.slash_commands.len();
+                                        let advanced_idx = tabs_len + slash_len + 1;
+
                                         if app.selected_index == 0 {
-                                            app.selected_index = tabs_len + 1;
-                                        } else if app.selected_index <= tabs_len {
+                                            app.selected_index = advanced_idx;
+                                        } else if app.selected_index < advanced_idx && app.selected_index >= tabs_len {
                                             app.selected_index = 0;
-                                        } else {
+                                        } else if app.selected_index >= advanced_idx {
                                             app.selected_index = tabs_len;
                                         }
                                     }

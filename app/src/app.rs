@@ -151,7 +151,7 @@ impl App<'_> {
         if self.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 2; // tabs + slash commands + Add New + advanced
+            let total_settings = tabs_len + slash_len + 3; // tabs + slash commands + Add New + 2 advanced
             if self.selected_index < total_settings - 1 {
                 self.selected_index += 1;
             }
@@ -174,7 +174,7 @@ impl App<'_> {
         if self.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 2;
+            let total_settings = tabs_len + slash_len + 3;
             self.selected_index = total_settings - 1;
         } else if !self.prompts.is_empty() {
             self.selected_index = self.prompts.len() - 1;
@@ -1012,6 +1012,10 @@ impl App<'_> {
             self.settings.enable_claude_commands = !self.settings.enable_claude_commands;
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Claude commands: {}", if self.settings.enable_claude_commands { "ON" } else { "OFF" }), ToastType::Info);
+        } else if self.selected_index == tabs.len() + self.settings.slash_commands.len() + 2 {
+            self.settings.use_nerd_font = !self.settings.use_nerd_font;
+            self.storage.save_settings(self.settings.clone()).await?;
+            self.notify(format!("Use Nerd Font Icons: {}", if self.settings.use_nerd_font { "ON" } else { "OFF" }), ToastType::Info);
         }
 
         Ok(())

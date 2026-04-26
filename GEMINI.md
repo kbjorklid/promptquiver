@@ -15,6 +15,7 @@ The following specifications are available in the `docs/` directory. Review them
 3.  **[TECHNICAL_DIRECTIVES.md](./docs/TECHNICAL_DIRECTIVES.md)**: The architectural rules, crate choices, and the **E2E-First** testing philosophy.
 4.  **[TEST_SCENARIOS.md](./docs/TEST_SCENARIOS.md)**: The specific user journeys you must verify via integration tests.
 5.  **[DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)**: Practical guidance on terminal lifecycle, logging, and Git integration.
+6.  **[WIDGETS.md](./docs/WIDGETS.md)**: Catalog of core and community Ratatui widgets for TUI development.
 
 ---
 
