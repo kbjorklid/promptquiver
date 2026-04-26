@@ -1,5 +1,5 @@
 use contracts::{Settings, Tab};
-use ratatui::widgets::{Block, Borders, List, ListItem, Clear};
+use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::{Style, Color, Modifier};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
@@ -11,6 +11,7 @@ pub fn render(
     settings: &Settings,
     selected_index: usize,
     textarea: Option<&TextArea<'_>>,
+    slash_list_state: &mut ratatui::widgets::ListState,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -80,21 +81,49 @@ pub fn render(
     }
 
     let slash_list = List::new(slash_items).block(slash_block);
-    f.render_widget(slash_list, chunks[1]);
+    f.render_stateful_widget(slash_list, chunks[1], slash_list_state);
+
+    // Render scrollbar for slash commands
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+    
+    let mut scrollbar_state = ScrollbarState::new(slash_len + 1);
+    if is_slash_focused {
+        scrollbar_state = scrollbar_state.position(selected_index - tabs_len);
+    }
+        
+    f.render_stateful_widget(
+        scrollbar,
+        chunks[1].inner(ratatui::layout::Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut scrollbar_state,
+    );
 
     // Render TextArea in-line
     if let Some(ta) = textarea {
         if selected_index >= tabs_len && selected_index <= tabs_len + slash_len {
-            let offset = (selected_index - tabs_len) as u16;
-            let area = Rect {
-                x: chunks[1].x + 5,
-                y: chunks[1].y + 1 + offset,
-                width: chunks[1].width.saturating_sub(7),
-                height: 1,
-            };
-            // Clear the area first to avoid overlap if textarea is smaller than item
-            f.render_widget(Clear, area);
-            f.render_widget(ta, area);
+            // Find the visual position of the item in the list area
+            // List widget offset is managed by ListState
+            let offset = slash_list_state.offset();
+            let relative_idx = selected_index - tabs_len;
+            
+            if relative_idx >= offset {
+                let y_offset = (relative_idx - offset) as u16;
+                // Only render if it's within the visible part of the chunk
+                if y_offset < chunks[1].height.saturating_sub(2) {
+                    let area = Rect {
+                        x: chunks[1].x + 5,
+                        y: chunks[1].y + 1 + y_offset,
+                        width: chunks[1].width.saturating_sub(7),
+                        height: 1,
+                    };
+                    f.render_widget(Clear, area);
+                    f.render_widget(ta, area);
+                }
+            }
         }
     }
 

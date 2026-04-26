@@ -21,6 +21,7 @@ pub struct RenderState<'a, 'b> {
     pub prompts: &'a [Prompt],
     pub selected_index: usize,
     pub list_state: &'a mut ratatui::widgets::ListState,
+    pub settings_slash_list_state: &'a mut ratatui::widgets::ListState,
     pub mode: &'a str,
     pub textarea: &'a TextArea<'b>,
     pub title_textarea: &'a TextArea<'b>,
@@ -94,7 +95,7 @@ pub fn render(
 
     if state.mode == "Editor" || state.mode == "Confirm Discard" {
         if state.active_tab == Tab::Settings {
-            settings::render(f, content_chunk, state.settings, state.selected_index, Some(state.textarea));
+            settings::render(f, content_chunk, state.settings, state.selected_index, Some(state.textarea), state.settings_slash_list_state);
         } else {
             editor::render(
                 f,
@@ -122,7 +123,7 @@ pub fn render(
         }
     } else {
         if state.active_tab == Tab::Settings {
-            settings::render(f, content_chunk, state.settings, state.selected_index, None);
+            settings::render(f, content_chunk, state.settings, state.selected_index, None, state.settings_slash_list_state);
         } else {
             let display_query = if state.global_search_query.is_empty() {
                 state.search_query

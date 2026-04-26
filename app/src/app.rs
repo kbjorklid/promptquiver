@@ -31,6 +31,7 @@ pub struct App<'a> {
     pub prompts: Vec<Prompt>,
     pub selected_index: usize,
     pub list_state: ratatui::widgets::ListState,
+    pub settings_slash_list_state: ratatui::widgets::ListState,
     pub mode: Mode,
     pub textarea: TextArea<'a>,
     pub title_textarea: TextArea<'a>,
@@ -85,6 +86,7 @@ impl App<'_> {
             prompts: Vec::new(),
             selected_index: 0,
             list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+            settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             mode: Mode::List,
             textarea: TextArea::default(),
             title_textarea: TextArea::default(),
@@ -163,6 +165,13 @@ impl App<'_> {
             if self.selected_index < total_settings - 1 {
                 self.selected_index += 1;
                 self.list_state.select(Some(self.selected_index));
+                
+                // Update slash list state
+                if self.selected_index >= tabs_len && self.selected_index <= tabs_len + slash_len {
+                    self.settings_slash_list_state.select(Some(self.selected_index - tabs_len));
+                } else {
+                    self.settings_slash_list_state.select(None);
+                }
             }
         } else if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
             self.selected_index += 1;
@@ -174,6 +183,16 @@ impl App<'_> {
         if self.selected_index > 0 {
             self.selected_index -= 1;
             self.list_state.select(Some(self.selected_index));
+
+            if self.active_tab == Tab::Settings {
+                let tabs_len = Tab::all().len();
+                let slash_len = self.settings.slash_commands.len();
+                if self.selected_index >= tabs_len && self.selected_index <= tabs_len + slash_len {
+                    self.settings_slash_list_state.select(Some(self.selected_index - tabs_len));
+                } else {
+                    self.settings_slash_list_state.select(None);
+                }
+            }
         }
     }
 

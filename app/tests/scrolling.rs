@@ -40,6 +40,7 @@ async fn test_list_scrolling() {
                     prompts: &app.prompts,
                     selected_index: app.selected_index,
                     list_state: &mut app.list_state,
+                    settings_slash_list_state: &mut app.settings_slash_list_state,
                     mode: "List",
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,

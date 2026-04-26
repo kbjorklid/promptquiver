@@ -1,5 +1,5 @@
 use contracts::{Prompt, Tab};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::{Style, Color};
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -67,6 +67,23 @@ pub fn render(
         f.render_widget(empty_msg, area);
     } else {
         f.render_stateful_widget(list, area, list_state);
+
+        // Render scrollbar
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        
+        let mut scrollbar_state = ScrollbarState::new(prompts.len())
+            .position(selected_index);
+            
+        f.render_stateful_widget(
+            scrollbar,
+            area.inner(ratatui::layout::Margin {
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut scrollbar_state,
+        );
     }
 }
 

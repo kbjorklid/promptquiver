@@ -109,6 +109,7 @@ async fn main() -> Result<()> {
                     prompts: &app.prompts,
                     selected_index: app.selected_index,
                     list_state: &mut app.list_state,
+                    settings_slash_list_state: &mut app.settings_slash_list_state,
                     mode: mode_str,
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,
