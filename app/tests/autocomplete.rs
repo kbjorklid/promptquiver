@@ -120,6 +120,7 @@ async fn test_autocomplete_slash_command_title() {
                     search_query: "",
                     global_search_query: "",
                     settings: &app.settings,
+                    throbber_state: &mut app.throbber_state,
                 },
                 &mut None,
             );
@@ -215,6 +216,7 @@ async fn test_autocomplete_positioning_below_cursor() {
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
+                    throbber_state: &mut app.throbber_state,
         }, &mut None);
     }).unwrap();
     
@@ -292,6 +294,7 @@ async fn test_autocomplete_positioning_above_cursor() {
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
+                    throbber_state: &mut app.throbber_state,
         }, &mut None);
     }).unwrap();
     
