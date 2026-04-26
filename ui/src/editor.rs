@@ -50,6 +50,8 @@ pub fn render(
     };
 
     let mut textarea = textarea.clone();
+    textarea.set_line_number_style(Style::default().fg(Color::DarkGray));
+    textarea.set_cursor_line_style(Style::default().bg(Color::Indexed(236)));
     textarea.set_block(
         Block::default()
             .borders(Borders::ALL)
