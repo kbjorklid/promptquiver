@@ -361,12 +361,21 @@ async fn main() -> Result<()> {
                                 KeyCode::Enter if app.active_tab == contracts::Tab::Settings => {
                                     handle_error!(app, app.save_editor().await);
                                 }
+                                KeyCode::Enter if app.title_focused && app.active_tab == contracts::Tab::Snippets => {
+                                    app.title_focused = false;
+                                }
                                 _ => {
                                     if app.title_focused && app.active_tab == contracts::Tab::Snippets {
                                         if !app.title_textarea.input(event) {
                                             if let KeyCode::Char(c) = key.code {
                                                 app.title_textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
                                             }
+                                        }
+                                        // Ensure it stays single line (e.g. after paste)
+                                        if app.title_textarea.lines().len() > 1 {
+                                            let joined = app.title_textarea.lines().join("");
+                                            app.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
+                                            app.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
                                         }
                                     } else {
                                         if app.active_tab == contracts::Tab::Settings {

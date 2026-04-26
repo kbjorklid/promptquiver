@@ -1,6 +1,6 @@
 use contracts::{Prompt, Tab};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
-use ratatui::style::{Style, Color};
+use ratatui::style::{Style, Color, Modifier};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
@@ -28,7 +28,15 @@ pub fn render(
         .enumerate()
 
         .map(|(i, p)| {
-            let prefix = if i == selected_index { "> " } else { "  " };
+            let prefix = if i == selected_index {
+                if mode == "Move" {
+                    if settings.use_nerd_font { "󰹹 " } else { "↕ " }
+                } else {
+                    "> "
+                }
+            } else {
+                "  "
+            };
             let staged_icon = if p.staged {
                 if settings.use_nerd_font { "󰓎 " } else { "🎯 " }
             } else {
@@ -49,7 +57,11 @@ pub fn render(
             );
             
             let style = if i == selected_index {
-                Style::default().bg(Color::Indexed(240)).fg(Color::White)
+                if mode == "Move" {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().bg(Color::Indexed(240)).fg(Color::White)
+                }
             } else {
                 Style::default()
             };
