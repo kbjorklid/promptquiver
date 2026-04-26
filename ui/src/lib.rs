@@ -33,23 +33,58 @@ pub fn render(
     state: RenderState<'_, '_>,
     toaster: &mut Option<ToastEngine<ToastMessage>>,
 ) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(10),   // Content
-            Constraint::Length(10), // Preview
-            Constraint::Length(3), // Footer
-        ])
-        .split(f.area());
+    let show_preview = state.mode != "Editor" 
+        && state.mode != "Confirm Discard" 
+        && state.active_tab != Tab::Settings;
 
-    header::render(f, chunks[0], state.active_tab, state.current_branch);
+    let available_for_main = f.area().height.saturating_sub(4); // 3 for header, 1 for footer
+    let mut constraints = vec![Constraint::Length(3)]; // Header
+
+    let content_chunk;
+    let mut preview_chunk = None;
+    let footer_chunk;
+    let header_chunk;
+
+    if show_preview && available_for_main >= 10 {
+        let preview_h = if available_for_main > 15 {
+            10
+        } else {
+            available_for_main - 5
+        };
+        constraints.push(Constraint::Min(5));
+        constraints.push(Constraint::Length(preview_h));
+        constraints.push(Constraint::Length(1));
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(f.area());
+
+        header_chunk = chunks[0];
+        content_chunk = chunks[1];
+        preview_chunk = Some(chunks[2]);
+        footer_chunk = chunks[3];
+    } else {
+        constraints.push(Constraint::Min(5));
+        constraints.push(Constraint::Length(1));
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(f.area());
+
+        header_chunk = chunks[0];
+        content_chunk = chunks[1];
+        footer_chunk = chunks[2];
+    }
+
+    header::render(f, header_chunk, state.active_tab, state.current_branch);
 
     if state.mode == "Editor" || state.mode == "Confirm Discard" {
         if state.active_tab == Tab::Settings {
-            settings::render(f, chunks[1], state.settings, state.selected_index, Some(state.textarea));
+            settings::render(f, content_chunk, state.settings, state.selected_index, Some(state.textarea));
         } else {
-            editor::render(f, chunks[1], state.textarea, state.suggestions, state.suggestion_index);
+            editor::render(f, content_chunk, state.textarea, state.suggestions, state.suggestion_index);
 
             if state.mode == "Confirm Discard" {
                 let area = utils::centered_rect(60, 25, f.area());
@@ -66,23 +101,25 @@ pub fn render(
         }
     } else {
         if state.active_tab == Tab::Settings {
-            settings::render(f, chunks[1], state.settings, state.selected_index, None);
+            settings::render(f, content_chunk, state.settings, state.selected_index, None);
         } else {
             let display_query = if state.global_search_query.is_empty() {
                 state.search_query
             } else {
                 state.global_search_query
             };
-            list::render(f, chunks[1], state.active_tab, state.prompts, state.selected_index, state.mode, display_query);
+            list::render(f, content_chunk, state.active_tab, state.prompts, state.selected_index, state.mode, display_query);
             
-            let selected_prompt = state.prompts.get(state.selected_index);
-            list::render_preview(f, chunks[2], selected_prompt);
+            if let Some(p_chunk) = preview_chunk {
+                let selected_prompt = state.prompts.get(state.selected_index);
+                list::render_preview(f, p_chunk, selected_prompt);
+            }
         }
     }
 
     footer::render(
         f,
-        chunks[3],
+        footer_chunk,
         state.mode,
         state.prompts.len(),
         state.selected_index,
@@ -90,6 +127,7 @@ pub fn render(
     );
 
     if let Some(ref mut toaster) = toaster {
+        toaster.set_area(f.area());
         f.render_widget(&*toaster, f.area());
     }
 }

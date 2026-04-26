@@ -26,7 +26,12 @@ pub fn render(
 
     // Autocomplete popup
     if !suggestions.is_empty() {
-        let popup_area = Rect::new(area.x + 2, area.y + 2, 30, (suggestions.len() as u16 + 2).min(10));
+        let mut popup_area = area;
+        popup_area.x = popup_area.x.saturating_add(2).min(area.right());
+        popup_area.y = popup_area.y.saturating_add(2).min(area.bottom());
+        popup_area.width = 30.min(area.right().saturating_sub(popup_area.x));
+        popup_area.height = ((suggestions.len() as u16 + 2).min(10)).min(area.bottom().saturating_sub(popup_area.y));
+        
         f.render_widget(Clear, popup_area);
         
         let items: Vec<ListItem<'_>> = suggestions

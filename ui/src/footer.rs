@@ -1,4 +1,4 @@
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
@@ -25,7 +25,6 @@ pub fn render(
             prompts_len
         )
     };
-    let footer = Paragraph::new(footer_text)
-        .block(Block::default().borders(Borders::ALL));
+    let footer = Paragraph::new(footer_text);
     f.render_widget(footer, area);
 }

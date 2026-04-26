@@ -60,3 +60,4 @@ You **MUST** write and execute a failing test **BEFORE** making any changes to t
 - **Shell:** You are working in a Windows PowerShell environment. Use `;` instead of `&&` for command chaining.
 - Use `tail -f debug.log` in your mind (and suggest it to the user) to monitor your file-based logging.
 - When implementating UI, refer to `UI_SPEC.md` for specific color constants (Yellow for prompts, Cyan for notes, etc.).
+- **Installation:** When the user says 'install', 'install locally', or similar, you MUST run the `.\install.ps1` script for them.
