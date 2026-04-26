@@ -143,16 +143,12 @@ pub fn render(
             );
 
             if state.mode == "Confirm Discard" {
-                let area = utils::centered_rect(60, 25, f.area());
-                f.render_widget(Clear, area);
-                let block = Block::default()
+                let text = ratatui::text::Text::from("\n  Are you sure you want to discard changes?  \n\n            (y) Yes, (n) No            ");
+                let popup = tui_popup::Popup::new(text)
                     .title(" Discard Changes? ")
-                    .borders(Borders::ALL)
+                    .style(Style::default().bg(Color::Indexed(236)))
                     .border_style(Style::default().fg(Color::Yellow));
-                let text = Paragraph::new("\nAre you sure you want to discard changes?\n\n(y) Yes, (n) No")
-                    .alignment(ratatui::layout::Alignment::Center)
-                    .block(block);
-                f.render_widget(text, area);
+                f.render_widget(&popup, f.area());
             }
         }
     } else {
