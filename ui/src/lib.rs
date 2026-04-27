@@ -1,7 +1,7 @@
 use contracts::{Prompt, Tab};
 use ratatui::layout::{Layout, Constraint, Direction};
 use ratatui::widgets::Paragraph;
-use ratatui::style::{Style, Color};
+use ratatui::style::Style;
 use ratatui::Frame;
 use ratatui_textarea::TextArea;
 use ratatui_toaster::{ToastEngine, ToastMessage};
@@ -22,6 +22,7 @@ pub struct RenderState<'a, 'b> {
     pub selected_index: usize,
     pub list_state: &'a mut ratatui::widgets::ListState,
     pub settings_slash_list_state: &'a mut ratatui::widgets::ListState,
+    pub theme_list_state: &'a mut ratatui::widgets::ListState,
     pub mode: &'a str,
     pub textarea: &'a TextArea<'b>,
     pub title_textarea: &'a TextArea<'b>,
@@ -118,18 +119,29 @@ pub fn render(
 
     header::render(f, header_chunk, state.active_tab, state.settings);
 
+    let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
+
     if let Some(s_chunk) = search_chunk {
         let query = if state.mode == "Global Search" { state.global_search_query } else { state.search_query };
         let prefix = if state.mode == "Global Search" { "Global Search: /" } else { "Search: /" };
         let text = format!("{}{}", prefix, query);
-        let paragraph = Paragraph::new(text).style(Style::default().fg(Color::Yellow));
+        let paragraph = Paragraph::new(text).style(Style::default().fg(palette.accent));
         f.render_widget(paragraph, s_chunk);
     }
 
 
-    if state.mode == "Editor" || state.mode == "Confirm Discard" {
+    if state.mode == "Editor" || state.mode == "Confirm Discard" || state.mode == "Theme Picker" {
         if state.active_tab == Tab::Settings {
-            settings::render(f, content_chunk, state.settings, state.selected_index, Some(state.textarea), state.settings_slash_list_state);
+            settings::render(
+                f, 
+                content_chunk, 
+                state.settings, 
+                state.selected_index, 
+                if state.mode == "Editor" { Some(state.textarea) } else { None }, 
+                state.settings_slash_list_state,
+                state.theme_list_state,
+                state.mode == "Theme Picker"
+            );
         } else {
             editor::render(
                 f,
@@ -140,20 +152,21 @@ pub fn render(
                 state.active_tab,
                 state.suggestions,
                 state.suggestion_index,
+                state.settings,
             );
 
             if state.mode == "Confirm Discard" {
                 let text = ratatui::text::Text::from("\n  Are you sure you want to discard changes?  \n\n            (y) Yes, (n) No            ");
                 let popup = tui_popup::Popup::new(text)
                     .title(" Discard Changes? ")
-                    .style(Style::default().bg(Color::Indexed(236)))
-                    .border_style(Style::default().fg(Color::Yellow));
+                    .style(Style::default().bg(palette.accent).fg(palette.bg))
+                    .border_style(Style::default().fg(palette.accent));
                 f.render_widget(&popup, f.area());
             }
         }
     } else {
         if state.active_tab == Tab::Settings {
-            settings::render(f, content_chunk, state.settings, state.selected_index, None, state.settings_slash_list_state);
+            settings::render(f, content_chunk, state.settings, state.selected_index, None, state.settings_slash_list_state, state.theme_list_state, false);
         } else {
             let display_query = if state.global_search_query.is_empty() {
                 state.search_query
@@ -164,7 +177,7 @@ pub fn render(
             
             if let Some(p_chunk) = preview_chunk {
                 let selected_prompt = state.prompts.get(state.selected_index);
-                list::render_preview(f, p_chunk, selected_prompt);
+                list::render_preview(f, p_chunk, selected_prompt, state.settings);
             }
         }
     }
@@ -176,6 +189,7 @@ pub fn render(
         state.current_branch,
         state.prompts.len(),
         state.throbber_state,
+        state.settings,
     );
 
     footer::render(
@@ -186,6 +200,7 @@ pub fn render(
         state.prompts.len(),
         state.selected_index,
         !state.suggestions.is_empty(),
+        state.settings,
     );
 
     if let Some(ref mut toaster) = toaster {

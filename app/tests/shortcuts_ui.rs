@@ -20,6 +20,7 @@ async fn test_dynamic_shortcut_hints() {
                 app::app::Mode::Search => "Search",
                 app::app::Mode::GlobalSearch => "Global Search",
                 app::app::Mode::ConfirmDiscard => "Confirm Discard",
+                app::app::Mode::ThemePicker => "Theme Picker",
             };
             ui::render(
                 f,
@@ -29,6 +30,7 @@ async fn test_dynamic_shortcut_hints() {
                     selected_index: app.selected_index,
                     list_state: &mut app.list_state,
                     settings_slash_list_state: &mut app.settings_slash_list_state,
+                    theme_list_state: &mut app.theme_list_state,
                     mode: mode_str,
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,

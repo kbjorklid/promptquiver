@@ -26,6 +26,7 @@ async fn test_editor_scrollbar_render() {
                     selected_index: app.selected_index,
                     list_state: &mut app.list_state,
                     settings_slash_list_state: &mut app.settings_slash_list_state,
+                    theme_list_state: &mut app.theme_list_state,
                     mode: "Editor",
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,

@@ -1,17 +1,19 @@
 use contracts::Tab;
 use ratatui::widgets::{Tabs, Paragraph};
-use ratatui::style::{Style, Color, Modifier};
+use ratatui::style::{Style, Modifier};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Alignment, Layout, Constraint, Direction};
+use crate::utils::get_palette;
 
-pub fn render_branding(f: &mut Frame<'_>, area: Rect) {
+pub fn render_branding(f: &mut Frame<'_>, area: Rect, palette: &ratatui_themes::ThemePalette) {
     let branding = Paragraph::new(" PROMPT QUIVER ")
-        .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(palette.accent).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center);
     f.render_widget(branding, area);
 }
 
 pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings) {
+    let palette = get_palette(settings.theme_name.as_deref());
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -20,11 +22,11 @@ pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contrac
         ])
         .split(area);
 
-    render_branding(f, chunks[0]);
-    render_tabs(f, chunks[1], active_tab, settings);
+    render_branding(f, chunks[0], &palette);
+    render_tabs(f, chunks[1], active_tab, settings, &palette);
 }
 
-pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings) {
+pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings, palette: &ratatui_themes::ThemePalette) {
     let tab_titles = Tab::all().iter().map(|t| {
         let icon = if settings.use_nerd_font {
             match t {
@@ -51,8 +53,8 @@ pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &co
     let tabs = Tabs::new(tab_titles)
         .divider("|")
         .select(Tab::all().iter().position(|&t| t == active_tab).unwrap_or(0))
-        .highlight_style(Style::default().bg(Color::Cyan).fg(Color::Black).add_modifier(Modifier::BOLD))
-        .style(Style::default().fg(Color::Gray));
+        .highlight_style(Style::default().bg(palette.info).fg(palette.bg).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(palette.fg));
     
     f.render_widget(tabs, area);
 }

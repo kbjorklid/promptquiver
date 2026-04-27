@@ -54,6 +54,7 @@ async fn test_copy_icon_rendering() {
             selected_index: app.selected_index,
             list_state: &mut app.list_state,
             settings_slash_list_state: &mut app.settings_slash_list_state,
+            theme_list_state: &mut app.theme_list_state,
             mode: "List",
             textarea: &app.textarea,
             title_textarea: &app.title_textarea,

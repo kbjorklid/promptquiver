@@ -109,6 +109,7 @@ async fn test_autocomplete_slash_command_title() {
                     selected_index: app.selected_index,
                     list_state: &mut app.list_state,
                     settings_slash_list_state: &mut app.settings_slash_list_state,
+                    theme_list_state: &mut app.theme_list_state,
                     mode: "Editor",
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,
@@ -205,8 +206,8 @@ async fn test_autocomplete_positioning_below_cursor() {
             selected_index: app.selected_index,
             list_state: &mut app.list_state,
             settings_slash_list_state: &mut app.settings_slash_list_state,
-            mode: "Editor",
-            textarea: &app.textarea,
+            theme_list_state: &mut app.theme_list_state,
+            mode: "Editor",            textarea: &app.textarea,
             title_textarea: &app.title_textarea,
             title_focused: app.title_focused,
             current_branch: None,
@@ -216,7 +217,7 @@ async fn test_autocomplete_positioning_below_cursor() {
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
-                    throbber_state: &mut app.throbber_state,
+            throbber_state: &mut app.throbber_state,
         }, &mut None);
     }).unwrap();
     
@@ -283,8 +284,8 @@ async fn test_autocomplete_positioning_above_cursor() {
             selected_index: app.selected_index,
             list_state: &mut app.list_state,
             settings_slash_list_state: &mut app.settings_slash_list_state,
-            mode: "Editor",
-            textarea: &app.textarea,
+            theme_list_state: &mut app.theme_list_state,
+            mode: "Editor",            textarea: &app.textarea,
             title_textarea: &app.title_textarea,
             title_focused: app.title_focused,
             current_branch: None,
@@ -294,7 +295,7 @@ async fn test_autocomplete_positioning_above_cursor() {
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
-                    throbber_state: &mut app.throbber_state,
+            throbber_state: &mut app.throbber_state,
         }, &mut None);
     }).unwrap();
     

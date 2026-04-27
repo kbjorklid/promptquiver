@@ -1,6 +1,6 @@
 use contracts::{Prompt, Tab};
 use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
-use ratatui::style::{Style, Color};
+use ratatui::style::Style;
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
 use ratatui_textarea::TextArea;
@@ -14,7 +14,9 @@ pub fn render(
     active_tab: Tab,
     suggestions: &[Prompt],
     suggestion_index: usize,
+    settings: &contracts::Settings,
 ) {
+    let palette = crate::utils::get_palette(settings.theme_name.as_deref());
     let is_snippet = active_tab == Tab::Snippets;
     
     let main_title = if is_snippet {
@@ -38,8 +40,9 @@ pub fn render(
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
                 .title(" Snippet Name ([a-zA-Z0-9_-]+) ")
-                .border_style(if title_focused { Style::default().fg(Color::Cyan) } else { Style::default() }),
+                .border_style(if title_focused { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) }),
         );
+        title_textarea.set_style(Style::default().bg(palette.bg).fg(palette.fg));
 
         f.render_widget(Clear, area);
         f.render_widget(&title_textarea, chunks[0]);
@@ -50,14 +53,15 @@ pub fn render(
     };
 
     let mut textarea = textarea.clone();
-    textarea.set_line_number_style(Style::default().fg(Color::DarkGray));
-    textarea.set_cursor_line_style(Style::default().bg(Color::Indexed(236)));
+    textarea.set_line_number_style(Style::default().fg(palette.muted));
+    textarea.set_cursor_line_style(Style::default().bg(palette.accent).fg(palette.bg));
+    textarea.set_style(Style::default().bg(palette.bg).fg(palette.fg));
     textarea.set_block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
             .title(main_title)
-            .border_style(if !title_focused || !is_snippet { Style::default().fg(Color::Cyan) } else { Style::default() }),
+            .border_style(if !title_focused || !is_snippet { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) }),
     );
     f.render_widget(&textarea, editor_area);
 
@@ -67,7 +71,8 @@ pub fn render(
     
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
-        .end_symbol(Some("↓"));
+        .end_symbol(Some("↓"))
+        .style(Style::default().fg(palette.fg));
     let mut scrollbar_state = ScrollbarState::new(lines_count).position(cursor_y);
     f.render_stateful_widget(
         scrollbar,
@@ -128,9 +133,9 @@ pub fn render(
             .map(|(i, s)| {
                 let name = s.name.as_deref().unwrap_or(&s.text);
                 let style = if i == suggestion_index {
-                    Style::default().bg(Color::Yellow).fg(Color::Black)
+                    Style::default().bg(palette.accent).fg(palette.bg)
                 } else {
-                    Style::default()
+                    Style::default().fg(palette.fg)
                 };
                 ListItem::new(name).style(style)
             })
@@ -143,7 +148,8 @@ pub fn render(
         };
 
         let list = List::new(items)
-            .block(Block::default().title(title).borders(Borders::ALL));
+            .style(Style::default().bg(palette.bg))
+            .block(Block::default().title(title).borders(Borders::ALL).border_style(Style::default().fg(palette.accent)));
         f.render_widget(list, popup_area);
     }
 }

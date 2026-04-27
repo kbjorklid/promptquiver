@@ -1,6 +1,15 @@
 use ratatui::layout::{Layout, Constraint, Direction, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::style::{Style, Color};
+use ratatui_themes::{Theme, ThemeName, ThemePalette};
+
+pub fn get_palette(theme_name: Option<&str>) -> ThemePalette {
+    let name = theme_name.and_then(|n| {
+        ThemeName::all().iter().find(|t| format!("{:?}", t) == n)
+    }).copied().unwrap_or(ThemeName::Dracula);
+    
+    Theme::new(name).palette()
+}
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()

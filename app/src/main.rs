@@ -101,6 +101,7 @@ async fn main() -> Result<()> {
                 app::app::Mode::Search => "Search",
                 app::app::Mode::GlobalSearch => "Global Search",
                 app::app::Mode::ConfirmDiscard => "Confirm Discard",
+                app::app::Mode::ThemePicker => "Theme Picker",
             };
             ui::render(
                 f,
@@ -110,6 +111,7 @@ async fn main() -> Result<()> {
                     selected_index: app.selected_index,
                     list_state: &mut app.list_state,
                     settings_slash_list_state: &mut app.settings_slash_list_state,
+                    theme_list_state: &mut app.theme_list_state,
                     mode: mode_str,
                     textarea: &app.textarea,
                     title_textarea: &app.title_textarea,
@@ -232,7 +234,14 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Char('e') | KeyCode::Enter => {
                                     if app.active_tab == contracts::Tab::Settings {
-                                        app.edit_setting();
+                                        let tabs_len = contracts::Tab::all().len();
+                                        let slash_len = app.settings.slash_commands.len();
+                                        let advanced_idx = tabs_len + slash_len + 1;
+                                        if app.selected_index == advanced_idx + 2 {
+                                            app.mode = app::app::Mode::ThemePicker;
+                                        } else {
+                                            app.edit_setting();
+                                        }
                                     } else if !app.prompts.is_empty() {
                                         let p = &app.prompts[app.selected_index];
                                         app.enter_editor(p.text.clone(), Some(p.id));
@@ -247,10 +256,47 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Char(' ')
                                     if app.active_tab == contracts::Tab::Settings => {
-                                        handle_error!(app, app.toggle_setting().await);
+                                        let tabs_len = contracts::Tab::all().len();
+                                        let slash_len = app.settings.slash_commands.len();
+                                        let advanced_idx = tabs_len + slash_len + 1;
+                                        if app.selected_index == advanced_idx + 2 {
+                                            app.mode = app::app::Mode::ThemePicker;
+                                        } else {
+                                            handle_error!(app, app.toggle_setting().await);
+                                        }
                                     }
                                 KeyCode::Char('y' | 'c') => {
                                     handle_error!(app, app.copy_selected().await);
+                                }
+                                _ => {}
+                            }
+                        }
+                        app::app::Mode::ThemePicker => {
+                            match key.code {
+                                KeyCode::Esc => {
+                                    app.mode = app::app::Mode::List;
+                                }
+                                KeyCode::Char('j') | KeyCode::Down => {
+                                    let themes = ratatui_themes::ThemeName::all();
+                                    let current = app.theme_list_state.selected().unwrap_or(0);
+                                    if current < themes.len() - 1 {
+                                        app.theme_list_state.select(Some(current + 1));
+                                    }
+                                }
+                                KeyCode::Char('k') | KeyCode::Up => {
+                                    let current = app.theme_list_state.selected().unwrap_or(0);
+                                    if current > 0 {
+                                        app.theme_list_state.select(Some(current - 1));
+                                    }
+                                }
+                                KeyCode::Enter | KeyCode::Char(' ') => {
+                                    let themes = ratatui_themes::ThemeName::all();
+                                    let selected = app.theme_list_state.selected().unwrap_or(0);
+                                    let theme_name = format!("{:?}", themes[selected]);
+                                    app.settings.theme_name = Some(theme_name);
+                                    handle_error!(app, app.storage.save_settings(app.settings.clone()).await);
+                                    app.mode = app::app::Mode::List;
+                                    app.notify("Theme updated!", ToastType::Success);
                                 }
                                 _ => {}
                             }

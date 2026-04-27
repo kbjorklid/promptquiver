@@ -14,6 +14,7 @@ pub enum Mode {
     Search,
     GlobalSearch,
     ConfirmDiscard,
+    ThemePicker,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +33,7 @@ pub struct App<'a> {
     pub selected_index: usize,
     pub list_state: ratatui::widgets::ListState,
     pub settings_slash_list_state: ratatui::widgets::ListState,
+    pub theme_list_state: ratatui::widgets::ListState,
     pub mode: Mode,
     pub textarea: TextArea<'a>,
     pub title_textarea: TextArea<'a>,
@@ -88,6 +90,7 @@ impl App<'_> {
             selected_index: 0,
             list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+            theme_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             mode: Mode::List,
             textarea: TextArea::default(),
             title_textarea: TextArea::default(),
@@ -164,7 +167,7 @@ impl App<'_> {
         if self.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 3; // tabs + slash commands + Add New + 2 advanced
+            let total_settings = tabs_len + slash_len + 4; // tabs + slash commands + Add New + 3 advanced
             if self.selected_index < total_settings - 1 {
                 self.selected_index += 1;
                 self.list_state.select(Some(self.selected_index));
@@ -208,7 +211,7 @@ impl App<'_> {
         if self.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 3;
+            let total_settings = tabs_len + slash_len + 4;
             self.selected_index = total_settings - 1;
             self.list_state.select(Some(self.selected_index));
         } else if !self.prompts.is_empty() {
@@ -1143,6 +1146,8 @@ impl App<'_> {
             self.settings.use_nerd_font = !self.settings.use_nerd_font;
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Use Nerd Font Icons: {}", if self.settings.use_nerd_font { "ON" } else { "OFF" }), ToastType::Info);
+        } else if self.selected_index == tabs.len() + self.settings.slash_commands.len() + 3 {
+            self.mode = Mode::ThemePicker;
         }
 
         Ok(())

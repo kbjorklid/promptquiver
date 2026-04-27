@@ -2,7 +2,8 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Span, Line};
-use ratatui::style::{Style, Color, Modifier};
+use ratatui::style::{Style, Modifier};
+use ratatui::prelude::Stylize;
 use contracts::Tab;
 use crate::shortcuts;
 
@@ -14,7 +15,9 @@ pub fn render(
     _prompts_len: usize,
     _selected_index: usize,
     has_suggestions: bool,
+    settings: &contracts::Settings,
 ) {
+    let palette = crate::utils::get_palette(settings.theme_name.as_deref());
     let tab_name = match tab {
         Tab::Prompts => "Prompts",
         Tab::Canned => "Canned",
@@ -30,19 +33,18 @@ pub fn render(
     let mut current_line = Vec::new();
     let mut current_width = 0;
     let max_width = area.width as usize;
-    // println!("DEBUG: max_width = {}", max_width);
 
     for (i, shortcut) in all_shortcuts.iter().enumerate() {
         let key_span = Span::styled(
             shortcut.key,
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default().fg(palette.accent).add_modifier(Modifier::BOLD),
         );
         let desc_span = Span::styled(
             format!(": {}", shortcut.desc),
-            Style::default().fg(Color::White),
+            Style::default().fg(palette.fg),
         );
         let separator = if i < all_shortcuts.len() - 1 { " | " } else { "" };
-        let sep_span = Span::styled(separator, Style::default().fg(Color::DarkGray));
+        let sep_span = Span::styled(separator, Style::default().fg(palette.muted));
 
         let shortcut_width = shortcut.key.len() + 2 + shortcut.desc.len() + separator.len();
 
@@ -68,6 +70,6 @@ pub fn render(
         lines.push(Line::from(current_line));
     }
 
-    let footer = Paragraph::new(lines);
+    let footer = Paragraph::new(lines).bg(palette.bg);
     f.render_widget(footer, area);
 }

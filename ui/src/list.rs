@@ -1,8 +1,10 @@
 use contracts::{Prompt, Tab};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
-use ratatui::style::{Style, Color, Modifier};
+use ratatui::style::{Style, Modifier};
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::prelude::Stylize;
+use crate::utils::get_palette;
 
 pub fn render(
     f: &mut Frame<'_>,
@@ -15,6 +17,8 @@ pub fn render(
     settings: &contracts::Settings,
     list_state: &mut ratatui::widgets::ListState,
 ) {
+    let palette = get_palette(settings.theme_name.as_deref());
+    
     let title = if search_query.is_empty() {
         format!(" {active_tab:?} ")
     } else if mode == "Global Search" {
@@ -58,14 +62,14 @@ pub fn render(
             
             let style = if i == selected_index {
                 if mode == "Move" {
-                    Style::default().bg(Color::Indexed(236)).fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default().bg(palette.accent).fg(palette.warning).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().bg(Color::Indexed(240)).fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default().bg(palette.accent).fg(palette.fg).add_modifier(Modifier::BOLD)
                 }
             } else if i % 2 == 0 {
-                Style::default().bg(Color::Indexed(234)).fg(Color::Gray)
+                Style::default().bg(palette.muted).fg(palette.fg)
             } else {
-                Style::default().fg(Color::Gray)
+                Style::default().bg(palette.bg).fg(palette.fg)
             };
 
             ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}")).style(style)
@@ -73,13 +77,15 @@ pub fn render(
         .collect();
 
     let list = List::new(list_items)
-        .block(Block::default().borders(Borders::ALL).title(title.clone()));
+        .block(Block::default().borders(Borders::ALL).title(title.clone()))
+        .style(Style::default().bg(palette.bg).fg(palette.fg));
     
     if prompts.is_empty() {
-        let block = Block::default().borders(Borders::ALL).title(title);
+        let block = Block::default().borders(Borders::ALL).title(title)
+            .style(Style::default().bg(palette.bg).fg(palette.fg));
         let msg = format!("\n\n\n\n       ╭─────────────────────────╮\n       │   No items found here   │\n       │    Press 'a' to add     │\n       ╰─────────────────────────╯");
         let empty_msg = Paragraph::new(msg)
-            .style(Style::default().fg(Color::DarkGray))
+            .style(Style::default().fg(palette.muted))
             .alignment(ratatui::layout::Alignment::Center)
             .block(block);
         f.render_widget(empty_msg, area);
@@ -89,7 +95,8 @@ pub fn render(
         // Render scrollbar
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"));
+            .end_symbol(Some("↓"))
+            .style(Style::default().fg(palette.fg));
         
         let mut scrollbar_state = ScrollbarState::new(prompts.len())
             .position(selected_index);
@@ -109,20 +116,24 @@ pub fn render_preview(
     f: &mut Frame<'_>,
     area: Rect,
     prompt: Option<&Prompt>,
+    settings: &contracts::Settings,
 ) {
+    let palette = get_palette(settings.theme_name.as_deref()); 
+
     let (color, title_prefix) = if let Some(p) = prompt {
         match p.r#type {
-            contracts::PromptType::Prompt => (Color::Green, " Preview (Prompt) "),
-            contracts::PromptType::Snippet => (Color::Magenta, " Preview (Snippet) "),
-            contracts::PromptType::Note => (Color::Cyan, " Preview (Note) "),
+            contracts::PromptType::Prompt => (palette.success, " Preview (Prompt) "),
+            contracts::PromptType::Snippet => (palette.secondary, " Preview (Snippet) "),
+            contracts::PromptType::Note => (palette.info, " Preview (Note) "),
         }
     } else {
-        (Color::Gray, " Preview ")
+        (palette.muted, " Preview ")
     };
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
+        .bg(palette.bg)
         .title(title_prefix);
 
     if let Some(prompt) = prompt {

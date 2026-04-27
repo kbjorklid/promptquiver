@@ -58,6 +58,7 @@ pub struct Settings {
     pub slash_commands: Vec<String>,
     pub enable_claude_commands: bool,
     pub use_nerd_font: bool,
+    pub theme_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
