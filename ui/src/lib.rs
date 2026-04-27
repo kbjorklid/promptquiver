@@ -1,6 +1,6 @@
 use contracts::{Prompt, Tab};
 use ratatui::layout::{Layout, Constraint, Direction};
-use ratatui::widgets::{Block, Borders, Paragraph, Clear};
+use ratatui::widgets::Paragraph;
 use ratatui::style::{Style, Color};
 use ratatui::Frame;
 use ratatui_textarea::TextArea;
