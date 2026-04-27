@@ -116,7 +116,7 @@ pub fn render(
         }
     }
 
-    header::render(f, header_chunk, state.active_tab);
+    header::render(f, header_chunk, state.active_tab, state.settings);
 
     if let Some(s_chunk) = search_chunk {
         let query = if state.mode == "Global Search" { state.global_search_query } else { state.search_query };

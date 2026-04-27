@@ -11,7 +11,7 @@ pub fn render_branding(f: &mut Frame<'_>, area: Rect) {
     f.render_widget(branding, area);
 }
 
-pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab) {
+pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -21,11 +21,32 @@ pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab) {
         .split(area);
 
     render_branding(f, chunks[0]);
-    render_tabs(f, chunks[1], active_tab);
+    render_tabs(f, chunks[1], active_tab, settings);
 }
 
-pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab) {
-    let tab_titles = Tab::all().iter().map(|t| format!(" {t:?} ")).collect::<Vec<_>>();
+pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings) {
+    let tab_titles = Tab::all().iter().map(|t| {
+        let icon = if settings.use_nerd_font {
+            match t {
+                Tab::Prompts => "󰈚 ",
+                Tab::Canned => "󰏪 ",
+                Tab::Notes => "󰎚 ",
+                Tab::Snippets => "󰘦 ",
+                Tab::Archive => "󰗄 ",
+                Tab::Settings => "󰒓 ",
+            }
+        } else {
+            match t {
+                Tab::Prompts => "📝 ",
+                Tab::Canned => "📦 ",
+                Tab::Notes => "📒 ",
+                Tab::Snippets => "✂️ ",
+                Tab::Archive => "📁 ",
+                Tab::Settings => "⚙️ ",
+            }
+        };
+        format!(" {}{} ", icon, format!("{:?}", t))
+    }).collect::<Vec<_>>();
     
     let tabs = Tabs::new(tab_titles)
         .divider("|")
