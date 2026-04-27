@@ -11,16 +11,16 @@ async fn test_dynamic_shortcut_hints() {
     let mut terminal = Terminal::new(backend).unwrap();
 
     // Helper to render and get footer text
-    let mut get_footer = |app: &mut app::app::App<'_>| {
+    let mut get_footer = |app: &mut promptquiver::app::App<'_>| {
         terminal.draw(|f| {
             let mode_str = match app.mode {
-                app::app::Mode::List => "List",
-                app::app::Mode::Editor => "Editor",
-                app::app::Mode::Move => "Move",
-                app::app::Mode::Search => "Search",
-                app::app::Mode::GlobalSearch => "Global Search",
-                app::app::Mode::ConfirmDiscard => "Confirm Discard",
-                app::app::Mode::ThemePicker => "Theme Picker",
+                promptquiver::app::Mode::List => "List",
+                promptquiver::app::Mode::Editor => "Editor",
+                promptquiver::app::Mode::Move => "Move",
+                promptquiver::app::Mode::Search => "Search",
+                promptquiver::app::Mode::GlobalSearch => "Global Search",
+                promptquiver::app::Mode::ConfirmDiscard => "Confirm Discard",
+                promptquiver::app::Mode::ThemePicker => "Theme Picker",
             };
             ui::render(
                 f,
@@ -73,19 +73,19 @@ async fn test_dynamic_shortcut_hints() {
     assert!(footer.contains("Ctrl+f: Global Search"), "List mode should show 'Ctrl+f: Global Search'");
 
     // 2. Test Move Mode
-    app.mode = app::app::Mode::Move;
+    app.mode = promptquiver::app::Mode::Move;
     let footer = get_footer(&mut app);
     assert!(footer.contains("j/k: Move"), "Move mode should show 'j/k: Move'");
     assert!(footer.contains("Esc/m/Ent: Back"), "Move mode should show 'Esc/m/Ent: Back'");
 
     // 3. Test Editor Mode
-    app.mode = app::app::Mode::Editor;
+    app.mode = promptquiver::app::Mode::Editor;
     let footer = get_footer(&mut app);
     assert!(footer.contains("Ctrl+s: Save"), "Editor mode should show 'Ctrl+s: Save'");
     assert!(footer.contains("Ctrl+g: Save & Stage"), "Editor mode should show 'Ctrl+g: Save & Stage'");
 
     // 4. Test Archive Tab (List Mode)
-    app.mode = app::app::Mode::List;
+    app.mode = promptquiver::app::Mode::List;
     app.active_tab = contracts::Tab::Archive;
     let footer = get_footer(&mut app);
     assert!(footer.contains("r: Restore"), "Archive tab should show 'r: Restore'");

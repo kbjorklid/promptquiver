@@ -29,10 +29,10 @@ async fn test_editor_discard_confirmation_modal() {
     
     let current_text = app.textarea.lines().join("\n");
     if current_text != app.original_text {
-        app.mode = app::app::Mode::ConfirmDiscard;
+        app.mode = promptquiver::app::Mode::ConfirmDiscard;
     }
 
-    assert_eq!(app.mode, app::app::Mode::ConfirmDiscard);
+    assert_eq!(app.mode, promptquiver::app::Mode::ConfirmDiscard);
 
     let backend = TestBackend::new(80, 30);
     let mut terminal = Terminal::new(backend).unwrap();

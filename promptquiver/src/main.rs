@@ -1,6 +1,6 @@
 use anyhow::Result;
-use app::app::App;
-use app::tui::{self, Tui};
+use promptquiver::app::App;
+use promptquiver::tui::{self, Tui};
 use contracts::{Clipboard, Git, Storage};
 use infra::{FileSystemStorage, RealClipboard, RealGit};
 use ratatui::Terminal;
@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         while let Some((path, query)) = file_search_rx.recv().await {
             let path_buf = std::path::PathBuf::from(path);
             let mut results = Vec::new();
-            app::app::walk_files(&path_buf, &path_buf, &query, &mut results);
+            promptquiver::app::walk_files(&path_buf, &path_buf, &query, &mut results);
             let _ = file_result_tx.send((query, results)).await;
         }
     });
@@ -95,13 +95,13 @@ async fn main() -> Result<()> {
 
         tui.terminal.draw(|f| {
             let mode_str = match app.mode {
-                app::app::Mode::List => "List",
-                app::app::Mode::Editor => "Editor",
-                app::app::Mode::Move => "Move",
-                app::app::Mode::Search => "Search",
-                app::app::Mode::GlobalSearch => "Global Search",
-                app::app::Mode::ConfirmDiscard => "Confirm Discard",
-                app::app::Mode::ThemePicker => "Theme Picker",
+                promptquiver::app::Mode::List => "List",
+                promptquiver::app::Mode::Editor => "Editor",
+                promptquiver::app::Mode::Move => "Move",
+                promptquiver::app::Mode::Search => "Search",
+                promptquiver::app::Mode::GlobalSearch => "Global Search",
+                promptquiver::app::Mode::ConfirmDiscard => "Confirm Discard",
+                promptquiver::app::Mode::ThemePicker => "Theme Picker",
             };
             ui::render(
                 f,
@@ -134,7 +134,7 @@ async fn main() -> Result<()> {
             if let Event::Key(key) = event {
                 if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
                     match app.mode {
-                        app::app::Mode::List => {
+                        promptquiver::app::Mode::List => {
                             match key.code {
                                 KeyCode::Char('q') => app.quit(),
                                 KeyCode::Right | KeyCode::Char('l') => {
@@ -215,11 +215,11 @@ async fn main() -> Result<()> {
                                     app.notify(format!("Branch filter: {}", if app.branch_filter { "ON" } else { "OFF" }), ToastType::Info);
                                 }
                                 KeyCode::Char('/') => {
-                                    app.mode = app::app::Mode::Search;
+                                    app.mode = promptquiver::app::Mode::Search;
                                     app.search_query.clear();
                                 }
                                 KeyCode::Char('f') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                                    app.mode = app::app::Mode::GlobalSearch;
+                                    app.mode = promptquiver::app::Mode::GlobalSearch;
                                     app.global_search_query.clear();
                                 }
                                 KeyCode::Char('G') => {
@@ -239,7 +239,7 @@ async fn main() -> Result<()> {
                                         let advanced_idx = tabs_len + slash_len + 1;
                                         if app.selected_index == advanced_idx + 2 {
                                             app.original_theme = app.settings.theme_name.clone();
-                                            app.mode = app::app::Mode::ThemePicker;
+                                            app.mode = promptquiver::app::Mode::ThemePicker;
                                         } else {
                                             app.edit_setting();
                                         }
@@ -249,10 +249,10 @@ async fn main() -> Result<()> {
                                     }
                                 }
                                 KeyCode::Char('m') => {
-                                    app.mode = if app.mode == app::app::Mode::Move {
-                                        app::app::Mode::List
+                                    app.mode = if app.mode == promptquiver::app::Mode::Move {
+                                        promptquiver::app::Mode::List
                                     } else {
-                                        app::app::Mode::Move
+                                        promptquiver::app::Mode::Move
                                     };
                                 }
                                 KeyCode::Char(' ')
@@ -262,7 +262,7 @@ async fn main() -> Result<()> {
                                         let advanced_idx = tabs_len + slash_len + 1;
                                         if app.selected_index == advanced_idx + 2 {
                                             app.original_theme = app.settings.theme_name.clone();
-                                            app.mode = app::app::Mode::ThemePicker;
+                                            app.mode = promptquiver::app::Mode::ThemePicker;
                                         } else {
                                             handle_error!(app, app.toggle_setting().await);
                                         }
@@ -273,11 +273,11 @@ async fn main() -> Result<()> {
                                 _ => {}
                             }
                         }
-                        app::app::Mode::ThemePicker => {
+                        promptquiver::app::Mode::ThemePicker => {
                             match key.code {
                                 KeyCode::Esc => {
                                     app.settings.theme_name = app.original_theme.take();
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                 }
                                 KeyCode::Char('j') | KeyCode::Down => {
                                     let themes = ratatui_themes::ThemeName::all();
@@ -306,16 +306,16 @@ async fn main() -> Result<()> {
                                     app.settings.theme_name = Some(theme_name);
                                     app.original_theme = None;
                                     handle_error!(app, app.storage.save_settings(app.settings.clone()).await);
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                     app.notify("Theme updated!", ToastType::Success);
                                 }
                                 _ => {}
                             }
                         }
-                        app::app::Mode::Move => {
+                        promptquiver::app::Mode::Move => {
                             match key.code {
                                 KeyCode::Esc | KeyCode::Char('m') | KeyCode::Enter => {
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                 }
                                 KeyCode::Char('j') | KeyCode::Down => {
                                     handle_error!(app, app.move_item_down().await);
@@ -326,15 +326,15 @@ async fn main() -> Result<()> {
                                 _ => {}
                             }
                         }
-                        app::app::Mode::Search => {
+                        promptquiver::app::Mode::Search => {
                             match key.code {
                                 KeyCode::Esc => {
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                     app.search_query.clear();
                                     handle_error!(app, app.load_prompts().await);
                                 }
                                 KeyCode::Enter => {
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                 }
                                 KeyCode::Char(c) => {
                                     app.search_query.push(c);
@@ -347,15 +347,15 @@ async fn main() -> Result<()> {
                                 _ => {}
                             }
                         }
-                        app::app::Mode::GlobalSearch => {
+                        promptquiver::app::Mode::GlobalSearch => {
                             match key.code {
                                 KeyCode::Esc => {
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                     app.global_search_query.clear();
                                     handle_error!(app, app.load_prompts().await);
                                 }
                                 KeyCode::Enter => {
-                                    app.mode = app::app::Mode::List;
+                                    app.mode = promptquiver::app::Mode::List;
                                     handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
                                 KeyCode::Char(c) => {
@@ -369,7 +369,7 @@ async fn main() -> Result<()> {
                                 _ => {}
                             }
                         }
-                        app::app::Mode::Editor => {
+                        promptquiver::app::Mode::Editor => {
                             match key.code {
                                 KeyCode::Tab if app.active_tab == contracts::Tab::Snippets => {
                                     app.title_focused = !app.title_focused;
@@ -397,7 +397,7 @@ async fn main() -> Result<()> {
                                         if current_text == app.original_text && !title_changed {
                                             app.exit_editor();
                                         } else {
-                                            app.mode = app::app::Mode::ConfirmDiscard;
+                                            app.mode = promptquiver::app::Mode::ConfirmDiscard;
                                         }
                                     }
                                 }
@@ -458,13 +458,13 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
-                        app::app::Mode::ConfirmDiscard => {
+                        promptquiver::app::Mode::ConfirmDiscard => {
                             match key.code {
                                 KeyCode::Char('y' | 'Y') | KeyCode::Enter => {
                                     app.exit_editor();
                                 }
                                 KeyCode::Char('n' | 'N') | KeyCode::Esc => {
-                                    app.mode = app::app::Mode::Editor;
+                                    app.mode = promptquiver::app::Mode::Editor;
                                 }
                                 _ => {}
                             }

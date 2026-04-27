@@ -36,13 +36,13 @@ async fn test_edit_slash_commands_inline() {
     app.selected_index = tabs_len; // First Slash Command ("test")
 
     app.edit_setting();
-    assert_eq!(app.mode, app::app::Mode::Editor);
+    assert_eq!(app.mode, promptquiver::app::Mode::Editor);
     assert_eq!(app.textarea.lines().join("\n"), "test");
 
     app.textarea = ratatui_textarea::TextArea::from(vec!["updated".to_string()]);
     app.save_editor().await.unwrap();
 
-    assert_eq!(app.mode, app::app::Mode::List);
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
     let updated_settings = storage.get_settings().await.unwrap();
     assert_eq!(updated_settings.slash_commands, vec!["updated".to_string()]);
 
@@ -73,5 +73,5 @@ async fn test_settings_auto_discard_on_esc() {
         app.exit_editor();
     }
 
-    assert_eq!(app.mode, app::app::Mode::List);
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
 }

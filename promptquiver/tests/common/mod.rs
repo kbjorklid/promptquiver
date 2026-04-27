@@ -1,4 +1,4 @@
-use app::app::App;
+use promptquiver::app::App;
 use infra::{InMemoryStorage, MockClipboard, MockGit};
 use std::sync::Arc;
 

@@ -1,4 +1,4 @@
-use app::app::{App, Mode};
+use promptquiver::app::{App, Mode};
 use contracts::Tab;
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
