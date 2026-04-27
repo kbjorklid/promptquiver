@@ -896,11 +896,8 @@ impl App<'_> {
         }
         
         let line = &self.textarea.lines()[row];
-        if col > line.len() {
-            return None;
-        }
-        
-        let before_cursor = &line[..col];
+        let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
+        let before_cursor = &line[..byte_col];
 
         let triggers = ["$$", "$", "@", "/"];
         let mut best_trigger = None;
@@ -912,16 +909,15 @@ impl App<'_> {
                 let is_valid = match trigger {
                     "/" => {
                         // Slash is only a trigger if it's at the start or preceded by space
-                        pos == 0 || before_cursor.as_bytes()[pos - 1] == b' '
+                        pos == 0 || (pos > 0 && before_cursor.as_bytes()[pos - 1] == b' ')
                     }
                     _ => true,
                 };
-
                 if !is_valid {
                     continue;
                 }
 
-                if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
+                if trigger == "$" && pos > 0 && before_cursor.as_bytes()[pos - 1] == b'$' {
                     continue;
                 }
 
@@ -952,11 +948,8 @@ impl App<'_> {
         }
         
         let line = &self.textarea.lines()[row];
-        if col > line.len() {
-            return Ok(());
-        }
-        
-        let before_cursor = &line[..col];
+        let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
+        let before_cursor = &line[..byte_col];
 
         // Find the last trigger before cursor
         let triggers = ["$$", "$", "@", "/"];
@@ -968,7 +961,7 @@ impl App<'_> {
                 // Check if it's the latest trigger
                 if best_trigger.is_none() || pos > best_pos {
                     // Special case for $$ vs $
-                    if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
+                    if trigger == "$" && pos > 0 && before_cursor.as_bytes()[pos - 1] == b'$' {
                         continue;
                     }
                     best_trigger = Some(trigger);
@@ -1067,7 +1060,8 @@ impl App<'_> {
             let row = cursor.0;
             let col = cursor.1;
             let line = self.textarea.lines()[row].clone();
-            let before_cursor = &line[..col];
+            let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
+            let before_cursor = &line[..byte_col];
             
             let triggers = ["$$", "$", "@", "/"];
             let mut best_trigger = None;
@@ -1079,7 +1073,7 @@ impl App<'_> {
                     let is_valid = match trigger {
                         "/" => {
                             // Slash is only a trigger if it's at the start or preceded by space
-                            pos == 0 || before_cursor.as_bytes()[pos - 1] == b' '
+                            pos == 0 || (pos > 0 && before_cursor.as_bytes()[pos - 1] == b' ')
                         }
                         _ => true,
                     };
@@ -1088,7 +1082,7 @@ impl App<'_> {
                         continue;
                     }
 
-                    if trigger == "$" && pos > 0 && &before_cursor[(pos - 1)..=pos] == "$$" {
+                    if trigger == "$" && pos > 0 && before_cursor.as_bytes()[pos - 1] == b'$' {
                         continue;
                     }
 
@@ -1109,9 +1103,9 @@ impl App<'_> {
 
                 let mut new_line = line[..best_pos].to_string();
                 new_line.push_str(&replacement);
-                new_line.push_str(&line[col..]);
+                new_line.push_str(&line[byte_col..]);
                 
-                let new_col = best_pos + replacement.len();
+                let new_col = line[..best_pos].chars().count() + replacement.chars().count();
                 
                 // This is a bit hacky with ratatui-textarea but works for simple cases
                 self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, 0));

@@ -54,11 +54,13 @@ pub fn highlight_text(text: &str) -> Vec<Line<'_>> {
                     // Find end of snippet name (alphanumeric, _, -)
                     let start_name = absolute_pos + 2;
                     let mut end_name = start_name;
-                    for c in line[start_name..].chars() {
-                        if c.is_alphanumeric() || c == '_' || c == '-' {
-                            end_name += c.len_utf8();
-                        } else {
-                            break;
+                    if start_name <= line.len() {
+                        for c in line[start_name..].chars() {
+                            if c.is_alphanumeric() || c == '_' || c == '-' {
+                                end_name += c.len_utf8();
+                            } else {
+                                break;
+                            }
                         }
                     }
                     

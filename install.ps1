@@ -8,7 +8,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$exePath = "target\release\app.exe"
+$exePath = "target\release\promptquiver.exe"
 if (-Not (Test-Path $exePath)) {
     Write-Error "Executable not found at $exePath"
     exit 1
