@@ -238,6 +238,7 @@ async fn main() -> Result<()> {
                                         let slash_len = app.settings.slash_commands.len();
                                         let advanced_idx = tabs_len + slash_len + 1;
                                         if app.selected_index == advanced_idx + 2 {
+                                            app.original_theme = app.settings.theme_name.clone();
                                             app.mode = app::app::Mode::ThemePicker;
                                         } else {
                                             app.edit_setting();
@@ -260,6 +261,7 @@ async fn main() -> Result<()> {
                                         let slash_len = app.settings.slash_commands.len();
                                         let advanced_idx = tabs_len + slash_len + 1;
                                         if app.selected_index == advanced_idx + 2 {
+                                            app.original_theme = app.settings.theme_name.clone();
                                             app.mode = app::app::Mode::ThemePicker;
                                         } else {
                                             handle_error!(app, app.toggle_setting().await);
@@ -274,19 +276,27 @@ async fn main() -> Result<()> {
                         app::app::Mode::ThemePicker => {
                             match key.code {
                                 KeyCode::Esc => {
+                                    app.settings.theme_name = app.original_theme.take();
                                     app.mode = app::app::Mode::List;
                                 }
                                 KeyCode::Char('j') | KeyCode::Down => {
                                     let themes = ratatui_themes::ThemeName::all();
                                     let current = app.theme_list_state.selected().unwrap_or(0);
                                     if current < themes.len() - 1 {
-                                        app.theme_list_state.select(Some(current + 1));
+                                        let new_idx = current + 1;
+                                        app.theme_list_state.select(Some(new_idx));
+                                        let theme_name = format!("{:?}", themes[new_idx]);
+                                        app.settings.theme_name = Some(theme_name);
                                     }
                                 }
                                 KeyCode::Char('k') | KeyCode::Up => {
+                                    let themes = ratatui_themes::ThemeName::all();
                                     let current = app.theme_list_state.selected().unwrap_or(0);
                                     if current > 0 {
-                                        app.theme_list_state.select(Some(current - 1));
+                                        let new_idx = current - 1;
+                                        app.theme_list_state.select(Some(new_idx));
+                                        let theme_name = format!("{:?}", themes[new_idx]);
+                                        app.settings.theme_name = Some(theme_name);
                                     }
                                 }
                                 KeyCode::Enter | KeyCode::Char(' ') => {
@@ -294,6 +304,7 @@ async fn main() -> Result<()> {
                                     let selected = app.theme_list_state.selected().unwrap_or(0);
                                     let theme_name = format!("{:?}", themes[selected]);
                                     app.settings.theme_name = Some(theme_name);
+                                    app.original_theme = None;
                                     handle_error!(app, app.storage.save_settings(app.settings.clone()).await);
                                     app.mode = app::app::Mode::List;
                                     app.notify("Theme updated!", ToastType::Success);

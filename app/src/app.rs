@@ -56,6 +56,7 @@ pub struct App<'a> {
     pub current_path: String,
     pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
     pub throbber_state: throbber_widgets_tui::ThrobberState,
+    pub original_theme: Option<String>,
 }
 
 
@@ -116,6 +117,7 @@ impl App<'_> {
                 .into_owned(),
             file_search_tx: None,
             throbber_state: throbber_widgets_tui::ThrobberState::default(),
+            original_theme: None,
         }
     }
 
