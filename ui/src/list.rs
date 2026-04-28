@@ -4,7 +4,7 @@ use ratatui::style::{Style, Modifier};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::Stylize;
-use crate::utils::get_palette;
+use crate::utils::{get_palette, get_zebra_color};
 
 pub fn render(
     f: &mut Frame<'_>,
@@ -18,6 +18,7 @@ pub fn render(
     list_state: &mut ratatui::widgets::ListState,
 ) {
     let palette = get_palette(settings.theme_name.as_deref());
+    let zebra_bg = get_zebra_color(palette.bg);
     
     let title = if search_query.is_empty() {
         format!(" {active_tab:?} ")
@@ -61,13 +62,9 @@ pub fn render(
             );
             
             let style = if i == selected_index {
-                if mode == "Move" {
-                    Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-                }
+                Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
             } else if i % 2 == 0 {
-                Style::default().bg(palette.muted).fg(palette.fg)
+                Style::default().bg(zebra_bg).fg(palette.fg)
             } else {
                 Style::default().bg(palette.bg).fg(palette.fg)
             };

@@ -11,6 +11,25 @@ pub fn get_palette(theme_name: Option<&str>) -> ThemePalette {
     Theme::new(name).palette()
 }
 
+pub fn get_zebra_color(color: Color) -> Color {
+    match color {
+        Color::Rgb(r, g, b) => {
+            let luminance = 0.2126 * f32::from(r) + 0.7152 * f32::from(g) + 0.0722 * f32::from(b);
+            if luminance < 40.0 {
+                // Very dark - lighten more
+                Color::Rgb(r.saturating_add(15), g.saturating_add(15), b.saturating_add(15))
+            } else if luminance < 128.0 {
+                // Dark - lighten slightly
+                Color::Rgb(r.saturating_add(10), g.saturating_add(10), b.saturating_add(10))
+            } else {
+                // Light - darken slightly
+                Color::Rgb(r.saturating_sub(10), g.saturating_sub(10), b.saturating_sub(10))
+            }
+        }
+        _ => color,
+    }
+}
+
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
