@@ -6,7 +6,7 @@ use infra::{FileSystemStorage, RealClipboard, RealGit};
 use ratatui::Terminal;
 use ratatui_toaster::{ToastEngineBuilder, ToastType};
 use std::{io, sync::Arc, time::Duration};
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEventKind};
 
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
@@ -338,10 +338,14 @@ async fn main() -> Result<()> {
                                     app.mode = promptquiver::app::Mode::List;
                                 }
                                 KeyCode::Char('\u{7f}') => {
-                                    if let Some(pos) = app.search_query.trim_end().rfind(' ') {
-                                        app.search_query.truncate(pos + 1);
+                                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                                        if let Some(pos) = app.search_query.trim_end().rfind(' ') {
+                                            app.search_query.truncate(pos + 1);
+                                        } else {
+                                            app.search_query.clear();
+                                        }
                                     } else {
-                                        app.search_query.clear();
+                                        app.search_query.pop();
                                     }
                                     handle_error!(app, app.load_prompts().await);
                                 }
@@ -376,10 +380,14 @@ async fn main() -> Result<()> {
                                     handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
                                 KeyCode::Char('\u{7f}') => {
-                                    if let Some(pos) = app.global_search_query.trim_end().rfind(' ') {
-                                        app.global_search_query.truncate(pos + 1);
+                                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                                        if let Some(pos) = app.global_search_query.trim_end().rfind(' ') {
+                                            app.global_search_query.truncate(pos + 1);
+                                        } else {
+                                            app.global_search_query.clear();
+                                        }
                                     } else {
-                                        app.global_search_query.clear();
+                                        app.global_search_query.pop();
                                     }
                                     handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
@@ -456,20 +464,27 @@ async fn main() -> Result<()> {
                                     }
                                 }
                                 KeyCode::Char('\u{7f}') => {
-                                    if app.title_focused && app.active_tab == contracts::Tab::Snippets {
-                                        app.title_textarea.delete_word();
+                                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                                        if app.title_focused && app.active_tab == contracts::Tab::Snippets {
+                                            app.title_textarea.delete_word();
+                                        } else {
+                                            app.textarea.delete_word();
+                                            handle_error!(app, app.update_autocomplete().await);
+                                        }
                                     } else {
-                                        app.textarea.delete_word();
-                                        handle_error!(app, app.update_autocomplete().await);
+                                        let mut bs_key = key;
+                                        bs_key.code = KeyCode::Backspace;
+                                        if app.title_focused && app.active_tab == contracts::Tab::Snippets {
+                                            app.title_textarea.input(bs_key);
+                                        } else {
+                                            app.textarea.input(bs_key);
+                                            handle_error!(app, app.update_autocomplete().await);
+                                        }
                                     }
                                 }
                                 _ => {
                                     if app.title_focused && app.active_tab == contracts::Tab::Snippets {
-                                        if !app.title_textarea.input(event) {
-                                            if let KeyCode::Char(c) = key.code {
-                                                app.title_textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
-                                            }
-                                        }
+                                        app.title_textarea.input(event);
                                         // Ensure it stays single line (e.g. after paste)
                                         if app.title_textarea.lines().len() > 1 {
                                             let joined = app.title_textarea.lines().join("");
@@ -480,19 +495,11 @@ async fn main() -> Result<()> {
                                         if app.active_tab == contracts::Tab::Settings {
                                             // Only allow one line for slash commands
                                             if key.code != KeyCode::Enter {
-                                                if !app.textarea.input(event) {
-                                                    if let KeyCode::Char(c) = key.code {
-                                                        app.textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
-                                                    }
-                                                }
+                                                app.textarea.input(event);
                                                 handle_error!(app, app.update_autocomplete().await);
                                             }
                                         } else {
-                                            if !app.textarea.input(event) {
-                                                if let KeyCode::Char(c) = key.code {
-                                                    app.textarea.input(KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
-                                                }
-                                            }
+                                            app.textarea.input(event);
                                             handle_error!(app, app.update_autocomplete().await);
                                         }
                                     }
