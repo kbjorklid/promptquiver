@@ -62,9 +62,9 @@ pub fn render(
             
             let style = if i == selected_index {
                 if mode == "Move" {
-                    Style::default().bg(palette.accent).fg(palette.warning).add_modifier(Modifier::BOLD)
+                    Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().bg(palette.accent).fg(palette.fg).add_modifier(Modifier::BOLD)
+                    Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
                 }
             } else if i % 2 == 0 {
                 Style::default().bg(palette.muted).fg(palette.fg)

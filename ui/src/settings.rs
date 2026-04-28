@@ -165,7 +165,7 @@ pub fn render(
         let list = List::new(items)
             .block(Block::default().borders(Borders::ALL).title(" Select Theme "))
             .style(Style::default().bg(palette.bg).fg(palette.fg))
-            .highlight_style(Style::default().bg(palette.accent).fg(palette.fg).add_modifier(Modifier::BOLD))
+            .highlight_style(Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD))
             .highlight_symbol("> ");
 
         let area = crate::utils::centered_rect(60, 60, f.area());

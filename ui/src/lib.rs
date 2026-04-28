@@ -1,8 +1,9 @@
 use contracts::{Prompt, Tab};
 use ratatui::layout::{Layout, Constraint, Direction};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Block};
 use ratatui::style::Style;
 use ratatui::Frame;
+use ratatui::prelude::Stylize;
 use ratatui_textarea::TextArea;
 use ratatui_toaster::{ToastEngine, ToastMessage};
 
@@ -42,6 +43,11 @@ pub fn render(
     state: RenderState<'_, '_>,
     toaster: &mut Option<ToastEngine<ToastMessage>>,
 ) {
+    let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
+    
+    // Render global background to ensure theme background covers everything
+    f.render_widget(Block::default().bg(palette.bg), f.area());
+
     let show_preview = state.mode != "Editor" 
         && state.mode != "Confirm Discard" 
         && state.active_tab != Tab::Settings;

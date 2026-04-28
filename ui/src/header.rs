@@ -3,17 +3,22 @@ use ratatui::widgets::{Tabs, Paragraph};
 use ratatui::style::{Style, Modifier};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Alignment, Layout, Constraint, Direction};
+use ratatui::prelude::Stylize;
 use crate::utils::get_palette;
 
 pub fn render_branding(f: &mut Frame<'_>, area: Rect, palette: &ratatui_themes::ThemePalette) {
     let branding = Paragraph::new(" PROMPT QUIVER ")
-        .style(Style::default().fg(palette.accent).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(palette.accent).bg(palette.bg).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center);
     f.render_widget(branding, area);
 }
 
 pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings) {
     let palette = get_palette(settings.theme_name.as_deref());
+    
+    // Ensure the whole header area has the theme background
+    f.render_widget(ratatui::widgets::Block::default().bg(palette.bg), area);
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -54,7 +59,7 @@ pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &co
         .divider("|")
         .select(Tab::all().iter().position(|&t| t == active_tab).unwrap_or(0))
         .highlight_style(Style::default().bg(palette.info).fg(palette.bg).add_modifier(Modifier::BOLD))
-        .style(Style::default().fg(palette.fg));
+        .style(Style::default().fg(palette.fg).bg(palette.bg));
     
     f.render_widget(tabs, area);
 }
