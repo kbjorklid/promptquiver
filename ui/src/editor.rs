@@ -55,7 +55,7 @@ pub fn render(
     let mut textarea = textarea.clone();
     textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
     textarea.set_line_number_style(Style::default().fg(palette.muted));
-    textarea.set_cursor_line_style(Style::default().bg(palette.accent).fg(palette.bg));
+    textarea.set_cursor_line_style(Style::default());
     textarea.set_style(Style::default().bg(palette.bg).fg(palette.fg));
     textarea.set_block(
         Block::default()
