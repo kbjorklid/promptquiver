@@ -13,6 +13,8 @@
 - [x] Ensure icon is cleared on staging or new copy.
 - [x] Verified with E2E and rendering tests.
 - [x] Create comprehensive `docs/WIDGETS.md` cataloging core and community Ratatui widgets.
+- [x] Implement discarding of autocomplete popup on `Esc` key.
+- [x] Improved autocomplete popup positioning and reliability.
 
 ## Current Tasks
 - [x] Implementation completed and verified.
