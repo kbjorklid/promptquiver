@@ -381,6 +381,11 @@ impl App<'_> {
             return Ok(());
         }
 
+        // Alias for Notes and Snippets: they cannot be staged anymore
+        if self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets {
+            return self.copy_selected().await;
+        }
+
         self.push_history();
         let path = self.current_project_path();
         let target_idx = self.selected_index;
@@ -393,10 +398,8 @@ impl App<'_> {
             self.notify("Prompt un-staged", ToastType::Info);
         } else {
             // Stage
-            // 1. Un-stage and Archive others
+            // 1. Un-stage and Archive others (Prompts only now)
             let mut prompts = self.storage.get_project_prompts(&path).await?;
-            let mut notes = self.storage.get_project_notes(&path).await?;
-            let mut snippets = self.storage.get_global_snippets().await?;
             let mut archive = self.storage.get_project_archive(&path).await?;
             let mut canned = self.storage.get_global_canned().await?;
 
@@ -408,18 +411,7 @@ impl App<'_> {
                     to_archive.push(p.clone());
                 }
             }
-            for p in &mut notes {
-                if p.staged {
-                    p.staged = false;
-                    to_archive.push(p.clone());
-                }
-            }
-            for p in &mut snippets {
-                if p.staged {
-                    p.staged = false;
-                    to_archive.push(p.clone());
-                }
-            }
+            
             for p in &mut canned {
                 if p.staged {
                     p.staged = false;
@@ -428,8 +420,6 @@ impl App<'_> {
 
             // Remove archived items from their original lists
             prompts.retain(|p| !to_archive.iter().any(|a| a.id == p.id));
-            notes.retain(|p| !to_archive.iter().any(|a| a.id == p.id));
-            snippets.retain(|p| !to_archive.iter().any(|a| a.id == p.id));
 
             // Add to archive (to the top)
             for mut p in to_archive {
@@ -446,29 +436,22 @@ impl App<'_> {
                 Tab::Prompts => {
                     prompts.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
                 }
-                Tab::Notes => {
-                    for p in notes.iter_mut() { if p.id == target.id { p.staged = true; } }
-                }
-                Tab::Snippets => {
-                    snippets.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
-                }
                 Tab::Canned => {
                     canned.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
                 }
                 _ => {}
             }
 
-            // Save all lists
+            // Save affected lists
             self.storage.save_project_prompts(&path, prompts).await?;
-            self.storage.save_project_notes(&path, notes).await?;
             self.storage.save_project_archive(&path, archive).await?;
-            self.storage.save_global_snippets(snippets.clone()).await?;
             self.storage.save_global_canned(canned).await?;
 
             // Clear last_copied for all when staging
             self.clear_all_last_copied().await?;
 
             // Process text before copying
+            let snippets = self.storage.get_global_snippets().await?;
             let processed_text = contracts::Processor::process(&target.text, &snippets);
             self.clipboard.copy(processed_text).await?;
             self.notify("Prompt staged and copied to clipboard!", ToastType::Success);

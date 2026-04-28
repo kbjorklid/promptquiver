@@ -42,7 +42,7 @@ pub fn render(
             } else {
                 "  "
             };
-            let staged_icon = if p.staged {
+            let staged_icon = if p.staged && active_tab != Tab::Notes && active_tab != Tab::Snippets {
                 if settings.use_nerd_font { "󰓎 " } else { "🎯 " }
             } else {
                 ""

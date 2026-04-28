@@ -17,7 +17,13 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("q", "Quit"),
                 Shortcut::new("1-6/Tab/hl", "Tabs"),
                 Shortcut::new("j/k/g/G", "Nav"),
-                Shortcut::new("s", "Stage"),
+            ];
+            
+            if tab_name != "Notes" && tab_name != "Snippets" {
+                shortcuts.push(Shortcut::new("s", "Stage"));
+            }
+
+            shortcuts.extend(vec![
                 Shortcut::new("a/i", "Add"),
                 Shortcut::new("e/Ent", "Edit"),
                 Shortcut::new("d/D", "Del/Dupe"),
@@ -28,7 +34,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("Ctrl+f", "Global Search"),
                 Shortcut::new("y/c", "Copy"),
                 Shortcut::new("b", "Branch Filter"),
-            ];
+            ]);
             if tab_name == "Archive" {
                 shortcuts.push(Shortcut::new("r", "Restore"));
             }
@@ -49,11 +55,14 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                     Shortcut::new("Esc", "Close"),
                 ]
             } else {
-                vec![
+                let mut shortcuts = vec![
                     Shortcut::new("Ctrl+s", "Save"),
-                    Shortcut::new("Ctrl+g", "Save & Stage"),
-                    Shortcut::new("Esc", "Cancel"),
-                ]
+                ];
+                if tab_name != "Notes" && tab_name != "Snippets" {
+                    shortcuts.push(Shortcut::new("Ctrl+g", "Save & Stage"));
+                }
+                shortcuts.push(Shortcut::new("Esc", "Cancel"));
+                shortcuts
             }
         }
         "Search" | "Global Search" => vec![
