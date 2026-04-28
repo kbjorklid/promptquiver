@@ -32,6 +32,7 @@ pub struct RenderState<'a, 'b> {
     pub current_path: &'a str,
     pub suggestions: &'a [Prompt],
     pub suggestion_index: usize,
+    pub autocomplete_list_state: &'a mut ratatui::widgets::ListState,
     pub search_query: &'a str,
     pub global_search_query: &'a str,
     pub settings: &'a contracts::Settings,
@@ -158,6 +159,7 @@ pub fn render(
                 state.active_tab,
                 state.suggestions,
                 state.suggestion_index,
+                state.autocomplete_list_state,
                 state.settings,
             );
 

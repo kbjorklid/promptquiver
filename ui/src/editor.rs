@@ -14,6 +14,7 @@ pub fn render(
     active_tab: Tab,
     suggestions: &[Prompt],
     suggestion_index: usize,
+    autocomplete_list_state: &mut ratatui::widgets::ListState,
     settings: &contracts::Settings,
 ) {
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
@@ -88,7 +89,7 @@ pub fn render(
         let row = cursor.0;
         let col = cursor.1;
         
-        let popup_width = 30;
+        let popup_width = 60;
         let popup_height = (suggestions.len() as u16 + 2).min(10);
         
         // Heuristic: position relative to cursor
@@ -149,6 +150,8 @@ pub fn render(
         let list = List::new(items)
             .style(Style::default().bg(palette.bg))
             .block(Block::default().title(title).borders(Borders::ALL).border_style(Style::default().fg(palette.accent)));
-        f.render_widget(list, popup_area);
+        
+        autocomplete_list_state.select(Some(suggestion_index));
+        f.render_stateful_widget(list, popup_area, autocomplete_list_state);
     }
 }

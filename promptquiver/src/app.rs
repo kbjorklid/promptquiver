@@ -44,6 +44,7 @@ pub struct App<'a> {
     pub autocomplete_open: bool,
     pub suggestions: Vec<Prompt>,
     pub suggestion_index: usize,
+    pub autocomplete_list_state: ratatui::widgets::ListState,
     pub toaster: Option<ToastEngine<ToastMessage>>,
     pub settings: contracts::Settings,
     pub undo_stack: Vec<HistoryEntry>,
@@ -102,6 +103,7 @@ impl App<'_> {
             autocomplete_open: false,
             suggestions: Vec::new(),
             suggestion_index: 0,
+            autocomplete_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             toaster: None,
             settings: contracts::Settings::default(),
             undo_stack: Vec::new(),
@@ -942,50 +944,10 @@ impl App<'_> {
     }
 
     pub async fn update_autocomplete(&mut self) -> contracts::Result<()> {
-        let cursor = self.textarea.cursor();
-        let row = cursor.0;
-        let col = cursor.1;
-        
-        if row >= self.textarea.lines().len() {
-            return Ok(());
-        }
-        
-        let line = &self.textarea.lines()[row];
-        let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
-        let before_cursor = &line[..byte_col];
-
-        // Find the last trigger before cursor
-        let triggers = ["$$", "$", "@", "/"];
-        let mut best_trigger = None;
-        let mut best_pos = 0;
-
-        for trigger in triggers {
-            if let Some(pos) = before_cursor.rfind(trigger) {
-                // Check if it's the latest trigger
-                if best_trigger.is_none() || pos > best_pos {
-                    // Special case for $$ vs $
-                    if trigger == "$" && pos > 0 && before_cursor.as_bytes()[pos - 1] == b'$' {
-                        continue;
-                    }
-                    best_trigger = Some(trigger);
-                    best_pos = pos;
-                }
-            }
-        }
-
-        if let Some(trigger) = best_trigger {
-            let query = &before_cursor[best_pos + trigger.len()..];
-            
-            // If there's a space after the trigger, we abort autocomplete.
-            if query.contains(' ') {
-                self.autocomplete_open = false;
-                self.suggestions.clear();
-                return Ok(());
-            }
-
+        if let Some((trigger, query)) = self.get_current_autocomplete_query() {
             let matcher = SkimMatcherV2::default();
             
-            match trigger {
+            match trigger.as_str() {
                 "$" | "$$" => {
                     let snippets = self.storage.get_global_snippets().await?;
                     let query_lower = query.to_lowercase();

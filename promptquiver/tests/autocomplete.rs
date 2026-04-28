@@ -118,6 +118,7 @@ async fn test_autocomplete_slash_command_title() {
                     current_path: "",
                     suggestions: &app.suggestions,
                     suggestion_index: app.suggestion_index,
+                    autocomplete_list_state: &mut app.autocomplete_list_state,
                     search_query: "",
                     global_search_query: "",
                     settings: &app.settings,
@@ -189,7 +190,11 @@ async fn test_autocomplete_positioning_below_cursor() {
     app.textarea.move_cursor(ratatui_textarea::CursorMove::Down);
     app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     
-    // Type /
+    // Type space then /
+    app.textarea.input(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Char(' '),
+        crossterm::event::KeyModifiers::empty(),
+    ));
     app.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
@@ -215,8 +220,8 @@ async fn test_autocomplete_positioning_below_cursor() {
             current_path: "",
             suggestions: &app.suggestions,
             suggestion_index: app.suggestion_index,
-            search_query: "",
-            global_search_query: "",
+            autocomplete_list_state: &mut app.autocomplete_list_state,
+            search_query: "",            global_search_query: "",
             settings: &app.settings,
             throbber_state: &mut app.throbber_state,
         }, &mut None);
@@ -268,7 +273,11 @@ async fn test_autocomplete_positioning_above_cursor() {
     }
     app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     
-    // Type /
+    // Type space then /
+    app.textarea.input(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Char(' '),
+        crossterm::event::KeyModifiers::empty(),
+    ));
     app.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
@@ -294,8 +303,8 @@ async fn test_autocomplete_positioning_above_cursor() {
             current_path: "",
             suggestions: &app.suggestions,
             suggestion_index: app.suggestion_index,
-            search_query: "",
-            global_search_query: "",
+            autocomplete_list_state: &mut app.autocomplete_list_state,
+            search_query: "",            global_search_query: "",
             settings: &app.settings,
             throbber_state: &mut app.throbber_state,
         }, &mut None);
@@ -310,11 +319,11 @@ async fn test_autocomplete_positioning_above_cursor() {
         for x in 0..15 {
             line.push_str(buffer[(x, y)].symbol());
         }
-        if line.contains("line24/") {
+        if line.contains("line24 /") {
             cursor_y = y;
         }
     }
-    assert!(cursor_y > 0, "Could not find cursor at line24/");
+    assert!(cursor_y > 0, "Could not find cursor at line24 /");
 
     // Popup should be ABOVE cursor_y
     let mut found_popup_above = false;

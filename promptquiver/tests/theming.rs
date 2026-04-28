@@ -80,6 +80,7 @@ fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'st
         current_path: &app.current_path,
         suggestions: &app.suggestions,
         suggestion_index: app.suggestion_index,
+        autocomplete_list_state: &mut app.autocomplete_list_state,
         search_query: &app.search_query,
         global_search_query: &app.global_search_query,
         settings: &app.settings,
