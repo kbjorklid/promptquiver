@@ -486,6 +486,7 @@ impl App<'_> {
         self.global_search_query.clear();
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
+        self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
         
         let title = if self.active_tab == Tab::Snippets {
             if let Some(id) = id {
@@ -509,9 +510,9 @@ impl App<'_> {
         self.global_search_query.clear();
         self.mode = Mode::Editor;
         self.textarea = TextArea::new(text.lines().map(String::from).collect());
-        
-        let title = String::new();
-        self.title_textarea = TextArea::new(vec![title]);
+        self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
+
+        let title = String::new();        self.title_textarea = TextArea::new(vec![title]);
         self.title_focused = self.active_tab == Tab::Snippets;
 
         self.editing_id = None;
@@ -542,6 +543,7 @@ impl App<'_> {
             let text = self.settings.slash_commands[idx].clone();
             self.mode = Mode::Editor;
             self.textarea = TextArea::new(vec![text.clone()]);
+            self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
             self.title_textarea = TextArea::default();
             self.title_focused = false;
             self.editing_id = None; // We'll use selected_index to know which one
@@ -550,6 +552,7 @@ impl App<'_> {
             // Add New Slash Command
             self.mode = Mode::Editor;
             self.textarea = TextArea::default();
+            self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
             self.title_textarea = TextArea::default();
             self.title_focused = false;
             self.editing_id = None;

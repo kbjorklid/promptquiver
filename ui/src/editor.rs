@@ -8,8 +8,8 @@ use ratatui_textarea::TextArea;
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
-    textarea: &TextArea<'_>,
-    title_textarea: &TextArea<'_>,
+    textarea: &mut TextArea<'_>,
+    title_textarea: &mut TextArea<'_>,
     title_focused: bool,
     active_tab: Tab,
     suggestions: &[Prompt],
@@ -34,7 +34,6 @@ pub fn render(
             ])
             .split(area);
 
-        let mut title_textarea = title_textarea.clone();
         title_textarea.set_block(
             Block::default()
                 .borders(Borders::ALL)
@@ -45,14 +44,13 @@ pub fn render(
         title_textarea.set_style(Style::default().bg(palette.bg).fg(palette.fg));
 
         f.render_widget(Clear, area);
-        f.render_widget(&title_textarea, chunks[0]);
+        f.render_widget(&*title_textarea, chunks[0]);
         chunks[1]
     } else {
         f.render_widget(Clear, area);
         area
     };
 
-    let mut textarea = textarea.clone();
     textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
     textarea.set_line_number_style(Style::default().fg(palette.muted));
     textarea.set_cursor_line_style(Style::default());
@@ -64,7 +62,7 @@ pub fn render(
             .title(main_title)
             .border_style(if !title_focused || !is_snippet { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) }),
     );
-    f.render_widget(&textarea, editor_area);
+    f.render_widget(&*textarea, editor_area);
 
     // Render scrollbar for the text area
     let lines_count = textarea.lines().len();
