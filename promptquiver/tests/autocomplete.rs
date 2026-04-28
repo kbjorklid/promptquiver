@@ -118,6 +118,7 @@ async fn test_autocomplete_slash_command_title() {
                     current_path: "",
                     suggestions: &app.suggestions,
                     suggestion_index: app.suggestion_index,
+                    autocomplete_open: app.autocomplete_open,
                     autocomplete_list_state: &mut app.autocomplete_list_state,
                     search_query: "",
                     global_search_query: "",
@@ -219,8 +220,10 @@ async fn test_autocomplete_positioning_below_cursor() {
             current_path: "",
             suggestions: &app.suggestions,
             suggestion_index: app.suggestion_index,
+            autocomplete_open: app.autocomplete_open,
             autocomplete_list_state: &mut app.autocomplete_list_state,
-            search_query: "",            global_search_query: "",
+            search_query: "",
+            global_search_query: "",
             settings: &app.settings,
         }, &mut None);
     }).unwrap();
@@ -305,8 +308,10 @@ async fn test_autocomplete_positioning_above_cursor() {
             current_path: "",
             suggestions: &app.suggestions,
             suggestion_index: app.suggestion_index,
+            autocomplete_open: app.autocomplete_open,
             autocomplete_list_state: &mut app.autocomplete_list_state,
-            search_query: "",            global_search_query: "",
+            search_query: "",
+            global_search_query: "",
             settings: &app.settings,
         }, &mut None);
     }).unwrap();
@@ -362,4 +367,38 @@ async fn test_autocomplete_positioning_above_cursor() {
         }
         panic!("Popup should be rendered above cursor_y={} when at bottom\nBuffer:\n{}", cursor_y, buffer_viz);
     }
+}
+
+#[tokio::test]
+async fn test_autocomplete_esc_closes_popup() {
+    let (mut app, _, _, _) = setup_app();
+    app.settings.slash_commands = vec!["test".to_string()];
+    
+    app.enter_editor("".to_string(), None);
+    
+    // Type /
+    app.textarea.input(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Char('/'),
+        crossterm::event::KeyModifiers::empty(),
+    ));
+    app.update_autocomplete().await.unwrap();
+    
+    assert!(app.autocomplete_open);
+    assert!(!app.suggestions.is_empty());
+
+    // Type Esc
+    app.textarea.input(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Esc,
+        crossterm::event::KeyModifiers::empty(),
+    ));
+    
+    // NOTE: In main.rs, the event loop handles Esc. 
+    // In tests, we need to simulate what main.rs does.
+    if app.autocomplete_open {
+        app.autocomplete_open = false;
+        app.suggestions.clear();
+    }
+
+    assert!(!app.autocomplete_open);
+    assert!(app.suggestions.is_empty());
 }

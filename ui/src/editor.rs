@@ -89,12 +89,13 @@ pub fn render_autocomplete(
     textarea: &TextArea<'_>,
     suggestions: &[Prompt],
     suggestion_index: usize,
+    autocomplete_open: bool,
     autocomplete_list_state: &mut ratatui::widgets::ListState,
     settings: &contracts::Settings,
 ) {
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
     
-    if !suggestions.is_empty() {
+    if autocomplete_open && !suggestions.is_empty() {
         let screen_cursor = textarea.screen_cursor();
         let col = screen_cursor.col;
         let row = screen_cursor.row;

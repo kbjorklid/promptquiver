@@ -56,6 +56,7 @@ async fn test_editor_discard_confirmation_modal() {
                     current_path: "",
                     suggestions: &[],
                     suggestion_index: 0,
+                    autocomplete_open: false,
                     autocomplete_list_state: &mut app.autocomplete_list_state,
                     search_query: "",
                     global_search_query: "",
