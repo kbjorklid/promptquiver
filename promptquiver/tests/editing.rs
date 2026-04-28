@@ -60,7 +60,6 @@ async fn test_editor_discard_confirmation_modal() {
                     search_query: "",
                     global_search_query: "",
                     settings: &contracts::Settings::default(),
-                    throbber_state: &mut app.throbber_state,
                 },
                 &mut None,
             );

@@ -39,7 +39,6 @@ async fn test_editor_scrollbar_render() {
                     search_query: &app.search_query,
                     global_search_query: &app.global_search_query,
                     settings: &app.settings,
-                    throbber_state: &mut app.throbber_state,
                 },
                 &mut None,
             );

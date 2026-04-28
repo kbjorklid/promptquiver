@@ -13,7 +13,7 @@ ratatui-textarea.workspace = true
 ratatui-toaster.workspace = true
 ratatui-themes.workspace = true
 tui-popup.workspace = true
-throbber-widgets-tui.workspace = true
+
 tui-big-text.workspace = true
 crossterm.workspace = true
 tokio.workspace = true

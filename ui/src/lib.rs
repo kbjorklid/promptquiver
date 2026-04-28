@@ -36,7 +36,6 @@ pub struct RenderState<'a, 'b> {
     pub search_query: &'a str,
     pub global_search_query: &'a str,
     pub settings: &'a contracts::Settings,
-    pub throbber_state: &'a mut throbber_widgets_tui::ThrobberState,
 }
 
 pub fn render(
@@ -196,7 +195,6 @@ pub fn render(
         state.current_path,
         state.current_branch,
         state.prompts.len(),
-        state.throbber_state,
         state.settings,
     );
 

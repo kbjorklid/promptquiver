@@ -99,7 +99,6 @@ To ensure architectural consistency, the following Ratatui widgets and ecosystem
 | **Status Bar** | `ratatui::widgets::Paragraph` | Footer info with background highlights. |
 | **Modals / Popups** | `tui-popup` | Autocomplete and confirmation overlays. |
 | **Notifications** | `ratatui-toaster` | Temporary toast messages (centered above footer). |
-| **Spinners** | `throbber-widgets-tui` | Background Git polling and I/O feedback. |
 
 ### Styling Constants
 - **Borders:** `BorderType::Rounded` for focus areas.

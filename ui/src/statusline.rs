@@ -1,10 +1,9 @@
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use ratatui::layout::{Rect, Layout, Direction, Constraint};
-use ratatui::style::{Style, Modifier};
+use ratatui::layout::Rect;
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use std::path::Path;
-use throbber_widgets_tui::{Throbber, ThrobberState};
 
 pub fn render(
     f: &mut Frame<'_>,
@@ -12,18 +11,10 @@ pub fn render(
     current_path: &str,
     current_branch: Option<&str>,
     prompts_count: usize,
-    throbber_state: &mut ThrobberState,
     settings: &contracts::Settings,
 ) {
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Min(10),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
+    
     let formatted_path = format_path(current_path);
     let branch_name = current_branch.unwrap_or("no branch");
     
@@ -34,12 +25,7 @@ pub fn render(
     ]);
 
     let paragraph = Paragraph::new(line).style(Style::default().bg(palette.bg));
-    f.render_widget(paragraph, chunks[0]);
-
-    let throbber = Throbber::default()
-        .throbber_set(throbber_widgets_tui::BRAILLE_SIX)
-        .style(Style::default().fg(palette.info).add_modifier(Modifier::BOLD));
-    f.render_stateful_widget(throbber, chunks[1], throbber_state);
+    f.render_widget(paragraph, area);
 }
 
 fn format_path(path_str: &str) -> String {

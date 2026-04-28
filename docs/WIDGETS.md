@@ -41,10 +41,9 @@ These crates extend Ratatui's functionality for more complex interactions or spe
 
 ### Visuals & Feedback
 - **[ratatui-image](https://github.com/extrawurst/ratatui-image)**: Renders images using Sixels or Unicode half-blocks.
-- **[ratatui-toaster](https://github.com/veeso/ratatui-toaster)**: Engine for temporary "toast" notifications.
-- **[tui-skeleton](https://github.com/veeso/tui-skeleton)**: "Shimmering" placeholders for loading states.
-- **[throbber-widgets-tui](https://github.com/veeso/throbber-widgets-tui)**: Simple spinners for background activity.
-- **[tui-big-text](https://github.com/veeso/tui-big-text)**: Renders large, stylized text using 8x8 fonts.
+- [ratatui-toaster](https://github.com/veeso/ratatui-toaster): Engine for temporary "toast" notifications.
+- [tui-skeleton](https://github.com/veeso/tui-skeleton): "Shimmering" placeholders for loading states.
+- [tui-big-text](https://github.com/veeso/tui-big-text): Renders large, stylized text using 8x8 fonts.
 
 ### Advanced Data Visualization
 - **[tui-piechart](https://github.com/veeso/tui-piechart)**: Configurable pie charts.

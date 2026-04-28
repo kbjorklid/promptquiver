@@ -84,6 +84,5 @@ fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'st
         search_query: &app.search_query,
         global_search_query: &app.global_search_query,
         settings: &app.settings,
-        throbber_state: &mut app.throbber_state,
     }
 }

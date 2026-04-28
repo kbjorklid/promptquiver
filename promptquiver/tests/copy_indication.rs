@@ -67,7 +67,6 @@ async fn test_copy_icon_rendering() {
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
-                    throbber_state: &mut app.throbber_state,
         }, &mut None);
     }).unwrap();
 

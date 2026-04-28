@@ -124,7 +124,6 @@ async fn main() -> Result<()> {
                     search_query: &app.search_query,
                     global_search_query: &app.global_search_query,
                     settings: &app.settings,
-                    throbber_state: &mut app.throbber_state,
                 },
                 &mut app.toaster,
             );
@@ -484,7 +483,11 @@ async fn main() -> Result<()> {
                                 }
                                 _ => {
                                     if app.title_focused && app.active_tab == contracts::Tab::Snippets {
-                                        app.title_textarea.input(event);
+                                        if !app.title_textarea.input(event) {
+                                            if let KeyCode::Char(c) = key.code {
+                                                app.title_textarea.input(crossterm::event::KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                            }
+                                        }
                                         // Ensure it stays single line (e.g. after paste)
                                         if app.title_textarea.lines().len() > 1 {
                                             let joined = app.title_textarea.lines().join("");
@@ -495,11 +498,19 @@ async fn main() -> Result<()> {
                                         if app.active_tab == contracts::Tab::Settings {
                                             // Only allow one line for slash commands
                                             if key.code != KeyCode::Enter {
-                                                app.textarea.input(event);
+                                                if !app.textarea.input(event) {
+                                                    if let KeyCode::Char(c) = key.code {
+                                                        app.textarea.input(crossterm::event::KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                                    }
+                                                }
                                                 handle_error!(app, app.update_autocomplete().await);
                                             }
                                         } else {
-                                            app.textarea.input(event);
+                                            if !app.textarea.input(event) {
+                                                if let KeyCode::Char(c) = key.code {
+                                                    app.textarea.input(crossterm::event::KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                                }
+                                            }
                                             handle_error!(app, app.update_autocomplete().await);
                                         }
                                     }

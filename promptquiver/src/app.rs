@@ -56,7 +56,6 @@ pub struct App<'a> {
     pub last_notification_time: Option<std::time::Instant>,
     pub current_path: String,
     pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
-    pub throbber_state: throbber_widgets_tui::ThrobberState,
     pub original_theme: Option<String>,
 }
 
@@ -118,13 +117,11 @@ impl App<'_> {
                 .to_string_lossy()
                 .into_owned(),
             file_search_tx: None,
-            throbber_state: throbber_widgets_tui::ThrobberState::default(),
             original_theme: None,
         }
     }
 
     pub fn tick(&mut self) {
-        self.throbber_state.calc_next();
         if let Some(last_time) = self.last_notification_time {
             if last_time.elapsed() >= std::time::Duration::from_secs(3) {
                 if let Some(ref mut toaster) = self.toaster {

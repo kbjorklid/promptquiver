@@ -27,7 +27,7 @@ ratatui-textarea = "0.9"
 ratatui-toaster = "0.1.2"
 ratatui-themes = { version = "0.2", features = ["widgets"] }
 tui-popup = "0.7.2"
-throbber-widgets-tui = "0.10"
+
 tui-big-text = "0.7"
 tempfile = "3.17.1"
 
