@@ -336,6 +336,14 @@ async fn main() -> Result<()> {
                                 KeyCode::Enter => {
                                     app.mode = promptquiver::app::Mode::List;
                                 }
+                                KeyCode::Char('\u{7f}') => {
+                                    if let Some(pos) = app.search_query.trim_end().rfind(' ') {
+                                        app.search_query.truncate(pos + 1);
+                                    } else {
+                                        app.search_query.clear();
+                                    }
+                                    handle_error!(app, app.load_prompts().await);
+                                }
                                 KeyCode::Char(c) => {
                                     app.search_query.push(c);
                                     handle_error!(app, app.load_prompts().await);
@@ -356,6 +364,22 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Enter => {
                                     app.mode = promptquiver::app::Mode::List;
+                                    handle_error!(app, app.search_all(app.global_search_query.clone()).await);
+                                }
+                                KeyCode::Backspace if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                                    if let Some(pos) = app.global_search_query.trim_end().rfind(' ') {
+                                        app.global_search_query.truncate(pos + 1);
+                                    } else {
+                                        app.global_search_query.clear();
+                                    }
+                                    handle_error!(app, app.search_all(app.global_search_query.clone()).await);
+                                }
+                                KeyCode::Char('\u{7f}') => {
+                                    if let Some(pos) = app.global_search_query.trim_end().rfind(' ') {
+                                        app.global_search_query.truncate(pos + 1);
+                                    } else {
+                                        app.global_search_query.clear();
+                                    }
                                     handle_error!(app, app.search_all(app.global_search_query.clone()).await);
                                 }
                                 KeyCode::Char(c) => {
@@ -421,6 +445,22 @@ async fn main() -> Result<()> {
                                 }
                                 KeyCode::Enter if app.title_focused && app.active_tab == contracts::Tab::Snippets => {
                                     app.title_focused = false;
+                                }
+                                KeyCode::Backspace if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                                    if app.title_focused && app.active_tab == contracts::Tab::Snippets {
+                                        app.title_textarea.delete_word();
+                                    } else {
+                                        app.textarea.delete_word();
+                                        handle_error!(app, app.update_autocomplete().await);
+                                    }
+                                }
+                                KeyCode::Char('\u{7f}') => {
+                                    if app.title_focused && app.active_tab == contracts::Tab::Snippets {
+                                        app.title_textarea.delete_word();
+                                    } else {
+                                        app.textarea.delete_word();
+                                        handle_error!(app, app.update_autocomplete().await);
+                                    }
                                 }
                                 _ => {
                                     if app.title_focused && app.active_tab == contracts::Tab::Snippets {
