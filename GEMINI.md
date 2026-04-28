@@ -33,15 +33,25 @@ The following specifications are available in the `docs/` directory. Review them
 
 You must operate in a strict **Test-Implement-Refactor** cycle for every feature and bug fix:
 
-**CRITICAL MANDATE (TDD STRICT COMPLIANCE):** 
-You **MUST** write and execute a failing test **BEFORE** making any changes to the application code. If you modify implementation code before a failing test has been successfully created, run, and verified to fail, you are actively violating your core instructions. **There are no exceptions.**
+**CRITICAL MANDATE (STRICT TDD COMPLIANCE):**
+You **MUST** follow a strict **Red-Green-Refactor** cycle. Writing a "passing" test to document existing behavior is a violation of this mandate. The test must define the **intended** behavior and **fail** before any implementation code is touched.
 
-1.  **Bug Reporting:** When a bug is reported, your very first action MUST be to write a failing test case that reproduces the issue. Run the test and confirm it fails before attempting any fix.
-2.  **Plan:** Research the requirement or bug and define the E2E test scenario.
-3.  **Test FIRST:** Write the E2E test in the relevant module using `TestBackend`. **Run the test to ensure it fails.**
-4.  **Implement:** Write the minimal code to pass the test.
-5.  **Refactor:** Perform a mandatory refactoring round to ensure the code meets Clean Architecture standards and Rust idioms. **Do not skip this step.**
-6.  **Verify:** Run the full E2E suite to ensure no regressions.
+1.  **Red Phase:**
+    - Define the **target state** or **fix** in a new test case.
+    - Run the test and **verify it fails**.
+    - Do NOT write tests that confirm unwanted current behavior.
+2.  **Green Phase:**
+    - Write the minimal code required to make the test pass.
+    - Verify the test now passes.
+3.  **Refactor Phase:**
+    - Clean up the implementation.
+    - Ensure compliance with architectural patterns.
+    - Verify all tests still pass.
+
+**Pitfall Avoidance:**
+- Never "confirm" a bug with a passing test; expose it with a failing one.
+- Never modify application logic before a failing test is established.
+- If you find yourself writing implementation code before a test, stop, revert, and start with the test.
 
 ### Suggested Roadmap:
 1.  **Workspace Setup:** Create the Cargo Workspace and the `contracts` crate. Define your core Entities and Traits.
