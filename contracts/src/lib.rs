@@ -83,6 +83,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub mod processor;
 pub use processor::Processor;
 
+pub mod service;
+pub use service::AppService;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Tab {
     Prompts,

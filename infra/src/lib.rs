@@ -381,7 +381,9 @@ impl Clipboard for RealClipboard {
     }
 }
 
-#[derive(Debug)]
+pub mod service;
+pub use service::RealAppService;
+
 pub struct RealGit;
 
 impl RealGit {

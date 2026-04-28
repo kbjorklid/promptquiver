@@ -8,7 +8,8 @@ pub fn setup_app() -> (App<'static>, Arc<InMemoryStorage>, Arc<MockClipboard>, A
     let storage = Arc::new(InMemoryStorage::new());
     let clipboard = Arc::new(MockClipboard::new());
     let git = Arc::new(MockGit::new(None));
-    let mut app = App::new(storage.clone(), clipboard.clone(), git.clone());
+    let service = Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
+    let mut app = App::new(storage.clone(), clipboard.clone(), git.clone(), service);
     app.current_path = TEST_PATH.to_string();
     (app, storage, clipboard, git)
 }

@@ -17,6 +17,8 @@ async-trait.workspace = true
 arboard.workspace = true
 directories.workspace = true
 sha2.workspace = true
+chrono.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["full", "macros"] }

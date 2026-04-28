@@ -22,9 +22,10 @@ async fn main() -> Result<()> {
     let storage: Arc<dyn Storage> = Arc::new(FileSystemStorage::new(None));
     let clipboard: Arc<dyn Clipboard> = Arc::new(RealClipboard::new());
     let git: Arc<dyn Git> = Arc::new(RealGit::new());
+    let service: Arc<dyn contracts::AppService> = Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
 
     // App State
-    let mut app = App::new(storage.clone(), clipboard, git.clone());
+    let mut app = App::new(storage.clone(), clipboard, git.clone(), service);
     handle_error!(app, app.load_prompts().await);
 
     // Background Git Poller

@@ -27,6 +27,7 @@ pub struct App<'a> {
     pub storage: Arc<dyn Storage>,
     pub clipboard: Arc<dyn Clipboard>,
     pub git: Arc<dyn Git>,
+    pub service: Arc<dyn contracts::AppService>,
     pub should_quit: bool,
     pub active_tab: Tab,
     pub prompts: Vec<Prompt>,
@@ -80,11 +81,13 @@ impl App<'_> {
         storage: Arc<dyn Storage>,
         clipboard: Arc<dyn Clipboard>,
         git: Arc<dyn Git>,
+        service: Arc<dyn contracts::AppService>,
     ) -> Self {
         Self {
             storage,
             clipboard,
             git,
+            service,
             should_quit: false,
             active_tab: Tab::Prompts,
             prompts: Vec::new(),
@@ -286,32 +289,6 @@ impl App<'_> {
         self.current_path.clone()
     }
 
-    async fn clear_all_last_copied(&mut self) -> contracts::Result<()> {
-        let path = self.current_project_path();
-        
-        let mut prompts = self.storage.get_project_prompts(&path).await?;
-        let mut notes = self.storage.get_project_notes(&path).await?;
-        let mut snippets = self.storage.get_global_snippets().await?;
-        let mut canned = self.storage.get_global_canned().await?;
-        let mut archive = self.storage.get_project_archive(&path).await?;
-
-        let mut changed = false;
-        for p in &mut prompts { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut notes { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut snippets { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut canned { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut archive { if p.last_copied { p.last_copied = false; changed = true; } }
-
-        if changed {
-            self.storage.save_project_prompts(&path, prompts).await?;
-            self.storage.save_project_notes(&path, notes).await?;
-            self.storage.save_global_snippets(snippets).await?;
-            self.storage.save_global_canned(canned).await?;
-            self.storage.save_project_archive(&path, archive).await?;
-        }
-        Ok(())
-    }
-
     pub fn push_history(&mut self) {
         let entry = HistoryEntry {
             tab: self.active_tab,
@@ -374,92 +351,26 @@ impl App<'_> {
     }
 
     pub async fn stage_selected(&mut self) -> contracts::Result<()> {
-        if self.active_tab == Tab::Settings {
-            return Ok(());
-        }
-        if self.prompts.is_empty() {
+        if self.active_tab == Tab::Settings || self.prompts.is_empty() {
             return Ok(());
         }
 
-        // Alias for Notes and Snippets: they cannot be staged anymore
-        if self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets {
-            return self.copy_selected().await;
-        }
+        let item = self.prompts[self.selected_index].clone();
+        let is_staged = item.staged;
+        let is_alias = self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets;
 
         self.push_history();
-        let path = self.current_project_path();
-        let target_idx = self.selected_index;
-        let is_staged = self.prompts[target_idx].staged;
+        self.service.stage_item(&self.current_project_path(), self.active_tab, item).await?;
 
-        if is_staged {
-            // Un-stage
-            self.prompts[target_idx].staged = false;
-            self.save_current_list().await?;
+        if is_alias {
+            self.notify("Copied to clipboard!", ToastType::Success);
+        } else if is_staged {
             self.notify("Prompt un-staged", ToastType::Info);
         } else {
-            // Stage
-            // 1. Un-stage and Archive others (Prompts only now)
-            let mut prompts = self.storage.get_project_prompts(&path).await?;
-            let mut archive = self.storage.get_project_archive(&path).await?;
-            let mut canned = self.storage.get_global_canned().await?;
-
-            let mut to_archive = Vec::new();
-
-            for p in &mut prompts {
-                if p.staged {
-                    p.staged = false;
-                    to_archive.push(p.clone());
-                }
-            }
-            
-            for p in &mut canned {
-                if p.staged {
-                    p.staged = false;
-                }
-            }
-
-            // Remove archived items from their original lists
-            prompts.retain(|p| !to_archive.iter().any(|a| a.id == p.id));
-
-            // Add to archive (to the top)
-            for mut p in to_archive {
-                p.staged = false;
-                archive.insert(0, p);
-            }
-
-            // 2. Set target to staged
-            let mut target = self.prompts[target_idx].clone();
-            target.staged = true;
-            
-            // Update the list we are currently in
-            match self.active_tab {
-                Tab::Prompts => {
-                    prompts.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
-                }
-                Tab::Canned => {
-                    canned.iter_mut().for_each(|p| if p.id == target.id { p.staged = true; });
-                }
-                _ => {}
-            }
-
-            // Save affected lists
-            self.storage.save_project_prompts(&path, prompts).await?;
-            self.storage.save_project_archive(&path, archive).await?;
-            self.storage.save_global_canned(canned).await?;
-
-            // Clear last_copied for all when staging
-            self.clear_all_last_copied().await?;
-
-            // Process text before copying
-            let snippets = self.storage.get_global_snippets().await?;
-            let processed_text = contracts::Processor::process(&target.text, &snippets);
-            self.clipboard.copy(processed_text).await?;
             self.notify("Prompt staged and copied to clipboard!", ToastType::Success);
         }
 
-        // Re-load current view
         self.load_prompts().await?;
-
         Ok(())
     }
 
@@ -708,48 +619,13 @@ impl App<'_> {
         }
 
         self.push_history();
-        let path = self.current_project_path();
         let target = self.prompts[self.selected_index].clone();
 
+        self.service.archive_item(&self.current_project_path(), self.active_tab, target).await?;
+
         if self.active_tab == Tab::Archive {
-            // Permanent delete
-            let mut archive = self.storage.get_project_archive(&path).await?;
-            archive.retain(|p| p.id != target.id);
-            self.storage.save_project_archive(&path, archive).await?;
             self.notify("Prompt deleted permanently", ToastType::Warning);
         } else {
-            // Move to archive
-            // 1. Remove from original list
-            match self.active_tab {
-                Tab::Prompts => {
-                    let mut list = self.storage.get_project_prompts(&path).await?;
-                    list.retain(|p| p.id != target.id);
-                    self.storage.save_project_prompts(&path, list).await?;
-                }
-                Tab::Notes => {
-                    let mut list = self.storage.get_project_notes(&path).await?;
-                    list.retain(|p| p.id != target.id);
-                    self.storage.save_project_notes(&path, list).await?;
-                }
-                Tab::Canned => {
-                    let mut list = self.storage.get_global_canned().await?;
-                    list.retain(|p| p.id != target.id);
-                    self.storage.save_global_canned(list).await?;
-                }
-                Tab::Snippets => {
-                    let mut list = self.storage.get_global_snippets().await?;
-                    list.retain(|p| p.id != target.id);
-                    self.storage.save_global_snippets(list).await?;
-                }
-                _ => {}
-            }
-
-            // 2. Add to archive
-            let mut archive = self.storage.get_project_archive(&path).await?;
-            let mut archived_item = target;
-            archived_item.staged = false;
-            archive.insert(0, archived_item);
-            self.storage.save_project_archive(&path, archive).await?;
             self.notify("Prompt moved to archive", ToastType::Info);
         }
 
@@ -763,71 +639,30 @@ impl App<'_> {
         }
 
         self.push_history();
-        let mut target = self.prompts[self.selected_index].clone();
-        target.id = uuid::Uuid::new_v4();
-        target.staged = false;
-        target.last_copied = false;
-        let now = chrono::Utc::now();
-        target.created_at = now;
-        target.updated_at = now;
+        let target = self.prompts[self.selected_index].clone();
 
-        // Insert after the selected item
-        self.prompts.insert(self.selected_index + 1, target);
-        self.selected_index += 1;
+        if let Some(new_prompt) = self.service.duplicate_item(&self.current_project_path(), self.active_tab, target).await? {
+            // Update in-memory list and selection
+            self.prompts.insert(self.selected_index + 1, new_prompt);
+            self.selected_index += 1;
+            self.list_state.select(Some(self.selected_index));
+            self.notify("Prompt duplicated", ToastType::Success);
+        }
         
-        self.save_current_list().await?;
-        self.notify("Prompt duplicated", ToastType::Success);
         Ok(())
     }
 
     pub async fn copy_selected(&mut self) -> contracts::Result<()> {
-        if self.prompts.is_empty() {
+        if self.prompts.is_empty() || self.active_tab == Tab::Settings {
             return Ok(());
         }
 
-        let target_id = self.prompts[self.selected_index].id;
-        let snippets = self.storage.get_global_snippets().await?;
+        let target = self.prompts[self.selected_index].clone();
         
-        // 1. Clear all
-        self.clear_all_last_copied().await?;
+        self.service.copy_item(&self.current_project_path(), self.active_tab, target).await?;
 
-        // 2. Mark current as last_copied in its original list
-        let path = self.current_project_path();
-        match self.active_tab {
-            Tab::Prompts => {
-                let mut list = self.storage.get_project_prompts(&path).await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
-                self.storage.save_project_prompts(&path, list).await?;
-            }
-            Tab::Notes => {
-                let mut list = self.storage.get_project_notes(&path).await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
-                self.storage.save_project_notes(&path, list).await?;
-            }
-            Tab::Canned => {
-                let mut list = self.storage.get_global_canned().await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
-                self.storage.save_global_canned(list).await?;
-            }
-            Tab::Snippets => {
-                let mut list = self.storage.get_global_snippets().await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
-                self.storage.save_global_snippets(list).await?;
-            }
-            Tab::Archive => {
-                let mut list = self.storage.get_project_archive(&path).await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == target_id) { p.last_copied = true; }
-                self.storage.save_project_archive(&path, list).await?;
-            }
-            _ => {}
-        }
-
-        // 3. Update in-memory state
+        // Update in-memory state to reflect last_copied
         self.load_prompts().await?;
-
-        let target = &self.prompts[self.selected_index];
-        let processed_text = contracts::Processor::process(&target.text, &snippets);
-        self.clipboard.copy(processed_text).await?;
         self.notify("Copied to clipboard!", ToastType::Success);
         
         Ok(())
@@ -839,32 +674,9 @@ impl App<'_> {
         }
 
         self.push_history();
-        let path = self.current_project_path();
         let target = self.prompts[self.selected_index].clone();
 
-        // 1. Remove from Archive
-        let mut archive = self.storage.get_project_archive(&path).await?;
-        archive.retain(|p| p.id != target.id);
-        self.storage.save_project_archive(&path, archive).await?;
-
-        // 2. Add back to original list based on type
-        match target.r#type {
-            PromptType::Prompt => {
-                let mut list = self.storage.get_project_prompts(&path).await?;
-                list.push(target);
-                self.storage.save_project_prompts(&path, list).await?;
-            }
-            PromptType::Note => {
-                let mut list = self.storage.get_project_notes(&path).await?;
-                list.push(target);
-                self.storage.save_project_notes(&path, list).await?;
-            }
-            PromptType::Snippet => {
-                let mut list = self.storage.get_global_snippets().await?;
-                list.push(target);
-                self.storage.save_global_snippets(list).await?;
-            }
-        }
+        self.service.restore_item(&self.current_project_path(), target).await?;
 
         self.load_prompts().await?;
         self.notify("Prompt restored", ToastType::Success);
