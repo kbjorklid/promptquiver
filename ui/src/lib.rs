@@ -136,6 +136,8 @@ pub fn render(
     }
 
 
+    let mut editor_content_area = None;
+
     if state.mode == "Editor" || state.mode == "Confirm Discard" || state.mode == "Theme Picker" {
         if state.active_tab == Tab::Settings {
             settings::render(
@@ -149,18 +151,15 @@ pub fn render(
                 state.mode == "Theme Picker"
             );
         } else {
-            editor::render(
+            editor_content_area = Some(editor::render(
                 f,
                 content_chunk,
                 state.textarea,
                 state.title_textarea,
                 state.title_focused,
                 state.active_tab,
-                state.suggestions,
-                state.suggestion_index,
-                state.autocomplete_list_state,
                 state.settings,
-            );
+            ));
 
             if state.mode == "Confirm Discard" {
                 let text = ratatui::text::Text::from("\n  Are you sure you want to discard changes?  \n\n            (y) Yes, (n) No            ");
@@ -187,6 +186,18 @@ pub fn render(
                 list::render_preview(f, p_chunk, selected_prompt, state.settings);
             }
         }
+    }
+
+    if let Some(area) = editor_content_area {
+        editor::render_autocomplete(
+            f, 
+            area, 
+            state.textarea, 
+            state.suggestions, 
+            state.suggestion_index, 
+            state.autocomplete_list_state, 
+            state.settings
+        );
     }
 
     statusline::render(

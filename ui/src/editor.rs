@@ -12,11 +12,8 @@ pub fn render(
     title_textarea: &mut TextArea<'_>,
     title_focused: bool,
     active_tab: Tab,
-    suggestions: &[Prompt],
-    suggestion_index: usize,
-    autocomplete_list_state: &mut ratatui::widgets::ListState,
     settings: &contracts::Settings,
-) {
+) -> Rect {
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
     let is_snippet = active_tab == Tab::Snippets;
     
@@ -82,48 +79,79 @@ pub fn render(
         }),
         &mut scrollbar_state,
     );
+    
+    editor_area
+}
 
-    // Autocomplete popup
+pub fn render_autocomplete(
+    f: &mut Frame<'_>,
+    editor_area: Rect,
+    textarea: &TextArea<'_>,
+    suggestions: &[Prompt],
+    suggestion_index: usize,
+    autocomplete_list_state: &mut ratatui::widgets::ListState,
+    settings: &contracts::Settings,
+) {
+    let palette = crate::utils::get_palette(settings.theme_name.as_deref());
+    
     if !suggestions.is_empty() {
-        let cursor = textarea.cursor();
-        let row = cursor.0;
-        let col = cursor.1;
+        let screen_cursor = textarea.screen_cursor();
+        let col = screen_cursor.col;
+        let row = screen_cursor.row;
         
         let popup_width = 60;
-        let popup_height = (suggestions.len() as u16 + 2).min(10);
+        let popup_height_pref = (suggestions.len() as u16 + 2).min(10);
         
-        // Heuristic: position relative to cursor
-        // Note: We don't have access to scroll state from TextArea, 
-        // so we constrain it to the editor area to handle scrolled text better.
-        let mut cursor_x = editor_area.x.saturating_add(1).saturating_add(col as u16);
-        let mut cursor_y = editor_area.y.saturating_add(1).saturating_add(row as u16);
+        // Absolute screen coordinates of the cursor
+        let cursor_x = editor_area.x.saturating_add(1).saturating_add(col as u16);
+        let cursor_y = editor_area.y.saturating_add(1).saturating_add(row as u16);
         
-        // Constrain to editor content area
-        cursor_x = cursor_x.min(editor_area.right().saturating_sub(1));
-        cursor_y = cursor_y.min(editor_area.bottom().saturating_sub(2));
-
+        // Define safe screen limits
+        let top_limit = f.area().top().saturating_add(1);       // Row after header
+        let bottom_limit = f.area().bottom().saturating_sub(3); // Row before footer (2) and statusline (1)
+        
         let mut popup_area = Rect {
-            x: cursor_x,
-            y: cursor_y.saturating_add(1), // Default to below cursor
-            width: popup_width,
-            height: popup_height,
+            x: cursor_x.min(f.area().right().saturating_sub(popup_width)),
+            y: 0,
+            width: popup_width.min(f.area().width),
+            height: popup_height_pref,
         };
 
-        // If not enough space below, show above
-        if popup_area.y + popup_area.height > f.area().bottom() {
-            if cursor_y >= popup_height {
-                popup_area.y = cursor_y.saturating_sub(popup_height);
-            } else {
-                // Constrain to bottom
-                popup_area.y = f.area().bottom().saturating_sub(popup_height);
-            }
+        let space_below = bottom_limit.saturating_sub(cursor_y.saturating_add(1));
+        let space_above = cursor_y.saturating_sub(top_limit);
+
+        // Positioning strategy: 
+        // 1. Try below if it fits perfectly.
+        // 2. Otherwise try above if it fits perfectly.
+        // 3. Otherwise use the side with more room and shrink.
+        if space_below >= popup_height_pref {
+            popup_area.y = cursor_y.saturating_add(1);
+        } else if space_above >= popup_height_pref {
+            popup_area.y = cursor_y.saturating_sub(popup_height_pref);
+        } else if space_below >= space_above && space_below >= 3 {
+            popup_area.y = cursor_y.saturating_add(1);
+            popup_area.height = space_below;
+        } else if space_above >= 3 {
+            popup_area.height = space_above.min(popup_height_pref);
+            popup_area.y = cursor_y.saturating_sub(popup_area.height);
+        } else {
+            // Emergency fallback: just show it below and hope for the best
+            popup_area.y = cursor_y.saturating_add(1);
+            popup_area.height = space_below.max(1);
         }
 
-        // Final constraints to stay within frame
-        popup_area.x = popup_area.x.min(f.area().right().saturating_sub(popup_width));
-        popup_area.y = popup_area.y.min(f.area().bottom().saturating_sub(popup_height));
-        popup_area.width = popup_area.width.min(f.area().width);
-        popup_area.height = popup_area.height.min(f.area().height);
+        // Final safety constraints
+        popup_area.y = popup_area.y.max(top_limit).min(f.area().bottom().saturating_sub(1));
+        if popup_area.bottom() > bottom_limit {
+            popup_area.height = bottom_limit.saturating_sub(popup_area.y);
+        }
+
+        /* 
+        // Debug positioning
+        let debug_text = format!("cy:{} sl:{} sa:{} y:{} h:{} bl:{}", 
+            cursor_y, space_below, space_above, popup_area.y, popup_area.height, bottom_limit);
+        f.render_widget(ratatui::widgets::Paragraph::new(debug_text).style(Style::default().bg(palette.accent).fg(palette.bg)), Rect::new(0, 0, 80, 1));
+        */
         
         f.render_widget(Clear, popup_area);
         
