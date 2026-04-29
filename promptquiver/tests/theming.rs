@@ -55,6 +55,51 @@ async fn test_theming_selection() {
     assert_eq!(sample_cell.bg, palette.bg);
 }
 
+#[tokio::test]
+async fn test_theme_picker_opening_and_dismissal() {
+    use promptquiver::handlers::handle_key_event;
+    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, KeyEventKind, KeyEventState};
+
+    let (mut app, _, _, _) = common::setup_app();
+
+    app.set_tab(Tab::Settings);
+    app.load_prompts().await.unwrap();
+
+    // 1. Verify opening theme picker via Enter
+    let tabs_len = Tab::all().len();
+    let slash_len = app.settings.slash_commands.len();
+    let theme_idx = tabs_len + slash_len + 3; // theme item index
+    app.nav.selected_index = theme_idx;
+
+    let enter_key = KeyEvent {
+        code: KeyCode::Enter,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    };
+
+    handle_key_event(&mut app, enter_key).await;
+    assert_eq!(app.mode, Mode::ThemePicker, "Enter on theme setting should open theme picker");
+
+    // 2. Verify dismissal via Enter inside theme picker
+    handle_key_event(&mut app, enter_key).await;
+    assert_eq!(app.mode, Mode::List, "Enter in Theme Picker should return to List mode");
+
+    // 3. Verify opening again and dismissal via Esc
+    app.nav.selected_index = theme_idx;
+    handle_key_event(&mut app, enter_key).await;
+    assert_eq!(app.mode, Mode::ThemePicker);
+
+    let esc_key = KeyEvent {
+        code: KeyCode::Esc,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    };
+    handle_key_event(&mut app, esc_key).await;
+    assert_eq!(app.mode, Mode::List, "Esc in Theme Picker should return to List mode");
+}
+
 fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'static> {
     ui::RenderState {
         nav: &mut app.nav,

@@ -43,7 +43,11 @@ You **MUST** follow a strict **Red-Green-Refactor** cycle. Writing a "passing" t
 2.  **Green Phase:**
     - Write the minimal code required to make the test pass.
     - Verify the test now passes.
-3.  **Refactor Phase:**
+    4.  **Integration Phase:**
+    - **CRITICAL:** Do NOT delete your reproduction tests. 
+    - Integrate the successful test case into the permanent test suite (e.g., `promptquiver/tests/`) to prevent future regressions.
+    - If you created a temporary test file, merge its logic into the most relevant existing test file.
+    5.  **Refactor Phase:**
     - Clean up the implementation.
     - Ensure compliance with architectural patterns.
     - Verify all tests still pass.
