@@ -924,6 +924,7 @@ dependencies = [
  "chrono",
  "contracts",
  "directories",
+ "fuzzy-matcher",
  "serde",
  "sha2",
  "tempfile",

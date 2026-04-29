@@ -19,6 +19,7 @@ directories.workspace = true
 sha2.workspace = true
 chrono.workspace = true
 uuid.workspace = true
+fuzzy-matcher.workspace = true
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["full", "macros"] }

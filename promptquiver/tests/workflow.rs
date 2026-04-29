@@ -13,15 +13,6 @@ async fn test_basic_render() {
 
     terminal
         .draw(|f| {
-            let mode_str = match app.mode {
-                promptquiver::app::Mode::List => "List",
-                promptquiver::app::Mode::Editor => "Editor",
-                promptquiver::app::Mode::Move => "Move",
-                promptquiver::app::Mode::Search => "Search",
-                promptquiver::app::Mode::GlobalSearch => "Global Search",
-                promptquiver::app::Mode::ConfirmDiscard => "Confirm Discard",
-                promptquiver::app::Mode::ThemePicker => "Theme Picker",
-            };
             ui::render(
                 f,
                 ui::RenderState {

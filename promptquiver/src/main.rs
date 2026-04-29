@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
     let service: Arc<dyn contracts::AppService> = Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
 
     // App State
-    let mut app = App::new(storage.clone(), clipboard, git.clone(), service);
+    let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
     handle_error!(app, app.load_prompts().await);
 
     // Background Git Poller
@@ -49,12 +49,12 @@ async fn main() -> Result<()> {
     let (file_result_tx, mut file_result_rx) = tokio::sync::mpsc::channel::<(String, Vec<contracts::Prompt>)>(10);
     app.file_search_tx = Some(file_search_tx);
 
+    let service_clone = service.clone();
     tokio::spawn(async move {
         while let Some((path, query)) = file_search_rx.recv().await {
-            let path_buf = std::path::PathBuf::from(path);
-            let mut results = Vec::new();
-            promptquiver::app::walk_files(&path_buf, &path_buf, &query, &mut results);
-            let _ = file_result_tx.send((query, results)).await;
+            if let Ok(results) = service_clone.search_files(&path, &query).await {
+                let _ = file_result_tx.send((query, results)).await;
+            }
         }
     });
 

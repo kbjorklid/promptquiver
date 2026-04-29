@@ -291,4 +291,122 @@ impl AppService for RealAppService {
 
         Ok(())
     }
+
+    async fn save_item(&self, project_path: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, insert_index: Option<usize>, branch: Option<String>) -> Result<()> {
+        if let Some(id) = id {
+            match tab {
+                Tab::Prompts => {
+                    let mut list = self.storage.get_project_prompts(project_path).await?;
+                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
+                        p.text = text;
+                        p.name = title;
+                        p.updated_at = chrono::Utc::now();
+                    }
+                    self.storage.save_project_prompts(project_path, list).await?;
+                }
+                Tab::Notes => {
+                    let mut list = self.storage.get_project_notes(project_path).await?;
+                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
+                        p.text = text;
+                        p.name = title;
+                        p.updated_at = chrono::Utc::now();
+                    }
+                    self.storage.save_project_notes(project_path, list).await?;
+                }
+                Tab::Canned => {
+                    let mut list = self.storage.get_global_canned().await?;
+                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
+                        p.text = text;
+                        p.name = title;
+                        p.updated_at = chrono::Utc::now();
+                    }
+                    self.storage.save_global_canned(list).await?;
+                }
+                Tab::Snippets => {
+                    let mut list = self.storage.get_global_snippets().await?;
+                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
+                        p.text = text;
+                        p.name = title;
+                        p.updated_at = chrono::Utc::now();
+                    }
+                    self.storage.save_global_snippets(list).await?;
+                }
+                _ => {}
+            }
+        } else {
+            let r#type = match tab {
+                Tab::Notes => contracts::PromptType::Note,
+                Tab::Snippets => contracts::PromptType::Snippet,
+                _ => contracts::PromptType::Prompt,
+            };
+            
+            let prompt = contracts::Prompt::new(text, r#type, branch, title);
+            
+            match tab {
+                Tab::Prompts => {
+                    let mut list = self.storage.get_project_prompts(project_path).await?;
+                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
+                    self.storage.save_project_prompts(project_path, list).await?;
+                }
+                Tab::Notes => {
+                    let mut list = self.storage.get_project_notes(project_path).await?;
+                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
+                    self.storage.save_project_notes(project_path, list).await?;
+                }
+                Tab::Canned => {
+                    let mut list = self.storage.get_global_canned().await?;
+                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
+                    self.storage.save_global_canned(list).await?;
+                }
+                Tab::Snippets => {
+                    let mut list = self.storage.get_global_snippets().await?;
+                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
+                    self.storage.save_global_snippets(list).await?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    async fn search_files(&self, base_dir: &str, query: &str) -> Result<Vec<Prompt>> {
+        use fuzzy_matcher::FuzzyMatcher;
+        use fuzzy_matcher::skim::SkimMatcherV2;
+
+        let base_path = std::path::PathBuf::from(base_dir);
+        let matcher = SkimMatcherV2::default();
+        let query_normalized = query.replace('\\', "/").to_lowercase();
+        
+        let mut scored_results = Vec::new();
+
+        fn walk_recursive(base_dir: &std::path::Path, current_dir: &std::path::Path, query_normalized: &str, matcher: &SkimMatcherV2, results: &mut Vec<(i64, Prompt)>) {
+            if results.len() >= 1000 { return; }
+            if let Ok(entries) = std::fs::read_dir(current_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                            if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') { continue; }
+                        }
+                        walk_recursive(base_dir, &path, query_normalized, matcher, results);
+                    } else {
+                        let relative_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
+                        let path_normalized = relative_path.replace('\\', "/");
+                        let path_lower = path_normalized.to_lowercase();
+                        
+                        if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
+                            let mut final_score = score;
+                            if path_lower.contains(query_normalized) { final_score += 100; }
+                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, Some(relative_path))));
+                        }
+                    }
+                }
+            }
+        }
+
+        walk_recursive(&base_path, &base_path, &query_normalized, &matcher, &mut scored_results);
+        scored_results.sort_by_key(|b| std::cmp::Reverse(b.0));
+        
+        Ok(scored_results.into_iter().take(20).map(|(_, p)| p).collect())
+    }
 }

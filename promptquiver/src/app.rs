@@ -2,8 +2,6 @@ use contracts::{Clipboard, Git, Storage, Tab};
 use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastPosition};
 use std::sync::Arc;
 pub use ui::{Mode, AppMessage, UpdateContext, ListModule, EditorModule};
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
 
 use std::fmt;
 
@@ -292,97 +290,16 @@ impl App<'_> {
 
         self.nav.push_history();
 
-        if let Some(id) = self.editor.editing_id {
-            match self.nav.active_tab {
-                Tab::Prompts => {
-                    let mut list = self.storage.get_project_prompts(&path).await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_project_prompts(&path, list).await?;
-                }
-                Tab::Notes => {
-                    let mut list = self.storage.get_project_notes(&path).await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_project_notes(&path, list).await?;
-                }
-                Tab::Canned => {
-                    let mut list = self.storage.get_global_canned().await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_global_canned(list).await?;
-                }
-                Tab::Snippets => {
-                    let mut list = self.storage.get_global_snippets().await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_global_snippets(list).await?;
-                }
-                _ => {}
-            }
-        } else {
-            // Add new
-            let r#type = match self.nav.active_tab {
-                Tab::Notes => contracts::PromptType::Note,
-                Tab::Snippets => contracts::PromptType::Snippet,
-                _ => contracts::PromptType::Prompt,
-            };
-            
-            let current_branch = self.git.get_current_branch(&path).await.unwrap_or_default();
-            let prompt = contracts::Prompt::new(text, r#type, current_branch, title);
-            
-            match self.nav.active_tab {
-                Tab::Prompts => {
-                    let mut list = self.storage.get_project_prompts(&path).await?;
-                    if let Some(idx) = self.editor.insert_index {
-                        list.insert(idx, prompt);
-                    } else {
-                        list.push(prompt);
-                    }
-                    self.storage.save_project_prompts(&path, list).await?;
-                }
-                Tab::Notes => {
-                    let mut list = self.storage.get_project_notes(&path).await?;
-                    if let Some(idx) = self.editor.insert_index {
-                        list.insert(idx, prompt);
-                    } else {
-                        list.push(prompt);
-                    }
-                    self.storage.save_project_notes(&path, list).await?;
-                }
-                Tab::Canned => {
-                    let mut list = self.storage.get_global_canned().await?;
-                    if let Some(idx) = self.editor.insert_index {
-                        list.insert(idx, prompt);
-                    } else {
-                        list.push(prompt);
-                    }
-                    self.storage.save_global_canned(list).await?;
-                }
-                Tab::Snippets => {
-                    let mut list = self.storage.get_global_snippets().await?;
-                    if let Some(idx) = self.editor.insert_index {
-                        list.insert(idx, prompt);
-                    } else {
-                        list.push(prompt);
-                    }
-                    self.storage.save_global_snippets(list).await?;
-                }
-                _ => {}
-            }
-        }
+        let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
+        self.service.save_item(
+            &path, 
+            self.nav.active_tab, 
+            text, 
+            title, 
+            self.editor.editing_id, 
+            self.editor.insert_index,
+            branch
+        ).await?;
 
         self.exit_editor();
         self.load_prompts().await?;
@@ -393,68 +310,5 @@ impl App<'_> {
     pub async fn save_and_stage_editor(&mut self) -> contracts::Result<()> {
         self.save_editor().await?;
         self.handle_message(AppMessage::StageSelected).await
-    }
-}
-
-pub fn walk_files(base_dir: &std::path::Path, current_dir: &std::path::Path, query: &str, results: &mut Vec<contracts::Prompt>) {
-    if results.len() >= 100 { // Increased limit for fuzzy matching
-        return;
-    }
-    
-    let matcher = SkimMatcherV2::default();
-    let query_normalized = query.replace('\\', "/").to_lowercase();
-
-    fn walk_recursive(base_dir: &std::path::Path, current_dir: &std::path::Path, query: &str, query_normalized: &str, matcher: &SkimMatcherV2, results: &mut Vec<(i64, contracts::Prompt)>) {
-        if results.len() >= 1000 { // Internal limit to avoid excessive recursion/matching
-            return;
-        }
-        if let Ok(entries) = std::fs::read_dir(current_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') {
-                            continue;
-                        }
-                    }
-                    walk_recursive(base_dir, &path, query, query_normalized, matcher, results);
-                } else {
-                    let relative_path = path.strip_prefix(base_dir)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-                    
-                    let path_normalized = relative_path.replace('\\', "/");
-                    let path_lower = path_normalized.to_lowercase();
-                    
-                    // Fuzzy match against the normalized relative path
-                    if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
-                        let mut final_score = score;
-                        
-                        // Bonus for exact back-to-back match (case-insensitive)
-                        if path_lower.contains(query_normalized) {
-                            final_score += 100;
-                        }
-                        
-                        results.push((final_score, contracts::Prompt::new(
-                            path.to_string_lossy().to_string(),
-                            contracts::PromptType::Note,
-                            None,
-                            Some(relative_path),
-                        )));
-                    }
-                }
-            }
-        }
-    }
-
-    let mut scored_results = Vec::new();
-    walk_recursive(base_dir, current_dir, query, &query_normalized, &matcher, &mut scored_results);
-    
-    // Sort by score descending
-    scored_results.sort_by_key(|b| std::cmp::Reverse(b.0));
-    
-    for (_, p) in scored_results.into_iter().take(20) {
-        results.push(p);
     }
 }
