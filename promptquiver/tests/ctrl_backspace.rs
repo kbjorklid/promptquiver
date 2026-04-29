@@ -8,10 +8,10 @@ async fn test_ctrl_backspace_deletes_word() {
     
     // Enter editor with some text
     app.enter_editor("hello world".to_string(), None);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     
     // Initial state: "hello world" |
-    assert_eq!(app.textarea.lines()[0], "hello world");
+    assert_eq!(app.editor.textarea.lines()[0], "hello world");
     
     // Simulate Ctrl+Backspace (as KeyCode::Backspace + CONTROL)
     let event = KeyEvent {
@@ -24,19 +24,19 @@ async fn test_ctrl_backspace_deletes_word() {
     // Simulate logic from main.rs
     match event.code {
         KeyCode::Backspace if event.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.textarea.delete_word();
+            app.editor.textarea.delete_word();
         }
         KeyCode::Char('\u{7f}') => {
-            app.textarea.delete_word();
+            app.editor.textarea.delete_word();
         }
         _ => {
-            app.textarea.input(event);
+            app.editor.textarea.input(event);
         }
     }
 
     // If it works, it should be "hello "
     // If it doesn't work, it will still be "hello world"
-    assert_eq!(app.textarea.lines()[0], "hello ", "Ctrl+Backspace should delete the word 'world'");
+    assert_eq!(app.editor.textarea.lines()[0], "hello ", "Ctrl+Backspace should delete the word 'world'");
 }
 
 #[tokio::test]
@@ -45,7 +45,7 @@ async fn test_ctrl_backspace_char_7f_deletes_word() {
     
     // Enter editor with some text
     app.enter_editor("hello world".to_string(), None);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     
     // Simulate Ctrl+Backspace (as KeyCode::Char('\u{7f}'))
     // Some Windows terminals send this for Ctrl+Backspace
@@ -59,15 +59,16 @@ async fn test_ctrl_backspace_char_7f_deletes_word() {
     // Simulate logic from main.rs
     match event.code {
         KeyCode::Backspace if event.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.textarea.delete_word();
+            app.editor.textarea.delete_word();
         }
         KeyCode::Char('\u{7f}') => {
-            app.textarea.delete_word();
+            app.editor.textarea.delete_word();
         }
         _ => {
-            app.textarea.input(event);
+            app.editor.textarea.input(event);
         }
     }
 
-    assert_eq!(app.textarea.lines()[0], "hello ", "KeyCode::Char('\\u{{7f}}') should delete the word 'world'");
+    assert_eq!(app.editor.textarea.lines()[0], "hello ", "KeyCode::Char('\\u{{7f}}') should delete the word 'world'");
 }
+

@@ -12,21 +12,21 @@ async fn test_autocomplete() {
     storage.save_global_snippets(vec![s1]).await.unwrap();
     
     app.enter_editor("Hello ".to_string(), None);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
 
     for c in "$$t".chars() {
-        app.textarea.input(crossterm::event::KeyEvent::new(
+        app.editor.textarea.input(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Char(c),
             crossterm::event::KeyModifiers::empty(),
         ));
     }
     app.update_autocomplete().await.unwrap();
     
-    assert!(app.autocomplete_open);
-    assert_eq!(app.suggestions.len(), 1);
+    assert!(app.editor.autocomplete.open);
+    assert_eq!(app.editor.autocomplete.suggestions.len(), 1);
 
     app.select_suggestion();
-    assert_eq!(app.textarea.lines()[0], "Hello $$ts");
+    assert_eq!(app.editor.textarea.lines()[0], "Hello $$ts");
 }
 
 #[tokio::test]
@@ -42,10 +42,10 @@ async fn test_autocomplete_file() {
     let temp_dir = std::env::current_dir().unwrap();
     let temp_file = temp_dir.join("test_file_for_autocomplete.txt");
     std::fs::write(&temp_file, "content").unwrap();
-    app.current_path = temp_dir.to_string_lossy().to_string();
+    app.nav.current_path = temp_dir.to_string_lossy().to_string();
 
     app.enter_editor("Check @test".to_string(), None);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
 
     app.update_autocomplete().await.unwrap();
     
@@ -65,15 +65,15 @@ async fn test_autocomplete_file() {
 
     // Receive result
     if let Ok(results) = file_result_rx.try_recv() {
-        app.suggestions = results;
-        app.autocomplete_open = true;
+        app.editor.autocomplete.suggestions = results;
+        app.editor.autocomplete.open = true;
     }
     
-    assert!(app.autocomplete_open);
-    assert!(app.suggestions.iter().any(|s| s.name.as_deref() == Some("test_file_for_autocomplete.txt")));
+    assert!(app.editor.autocomplete.open);
+    assert!(app.editor.autocomplete.suggestions.iter().any(|s| s.name.as_deref() == Some("test_file_for_autocomplete.txt")));
 
     app.select_suggestion();
-    let line = &app.textarea.lines()[0];
+    let line = &app.editor.textarea.lines()[0];
     assert!(line.contains("@test_file_for_autocomplete.txt"));
     assert!(!line.contains("Check @test ")); // Ensure it didn't just append
     assert!(!line.ends_with("@test")); // Ensure @test was replaced
@@ -88,9 +88,9 @@ async fn test_autocomplete_slash_command_title() {
     app.storage.save_settings(app.settings.clone()).await.unwrap();
 
     app.enter_editor(" ".to_string(), None);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
 
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
     ));
@@ -104,22 +104,22 @@ async fn test_autocomplete_slash_command_title() {
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.active_tab,
-                    prompts: &app.prompts,
-                    selected_index: app.selected_index,
-                    list_state: &mut app.list_state,
-                    settings_slash_list_state: &mut app.settings_slash_list_state,
-                    theme_list_state: &mut app.theme_list_state,
+                    active_tab: app.nav.active_tab,
+                    prompts: &app.nav.prompts,
+                    selected_index: app.nav.selected_index,
+                    list_state: &mut app.nav.list_state,
+                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+                    theme_list_state: &mut app.nav.theme_list_state,
                     mode: "Editor",
-                    textarea: &mut app.textarea,
-                    title_textarea: &mut app.title_textarea,
-                    title_focused: app.title_focused,
+                    textarea: &mut app.editor.textarea,
+                    title_textarea: &mut app.editor.title_textarea,
+                    title_focused: app.editor.title_focused,
                     current_branch: None,
                     current_path: "",
-                    suggestions: &app.suggestions,
-                    suggestion_index: app.suggestion_index,
-                    autocomplete_open: app.autocomplete_open,
-                    autocomplete_list_state: &mut app.autocomplete_list_state,
+                    suggestions: &app.editor.autocomplete.suggestions,
+                    suggestion_index: app.editor.autocomplete.index,
+                    autocomplete_open: app.editor.autocomplete.open,
+                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
                     search_query: "",
                     global_search_query: "",
                     settings: &app.settings,
@@ -156,28 +156,28 @@ async fn test_autocomplete_closes_on_trigger_removal() {
     app.enter_editor("".to_string(), None);
     
     // Type @
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('@'),
         crossterm::event::KeyModifiers::empty(),
     ));
     // Simulate finding a file (manually since background searcher is complex to setup here)
-    app.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Note, None, Some("test".to_string()))];
-    app.autocomplete_open = true;
+    app.editor.autocomplete.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Note, None, Some("test".to_string()))];
+    app.editor.autocomplete.open = true;
 
-    assert!(app.autocomplete_open);
-    assert!(!app.suggestions.is_empty());
+    assert!(app.editor.autocomplete.open);
+    assert!(!app.editor.autocomplete.suggestions.is_empty());
 
     // Remove @
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Backspace,
         crossterm::event::KeyModifiers::empty(),
     ));
     app.update_autocomplete().await.unwrap();
     
     // It should be closed
-    assert!(!app.autocomplete_open, "Autocomplete should be closed after removing trigger");
+    assert!(!app.editor.autocomplete.open, "Autocomplete should be closed after removing trigger");
     // AND suggestions should be empty so it's not rendered
-    assert!(app.suggestions.is_empty(), "Suggestions should be cleared after removing trigger");
+    assert!(app.editor.autocomplete.suggestions.is_empty(), "Suggestions should be cleared after removing trigger");
 }
 
 #[tokio::test]
@@ -187,15 +187,15 @@ async fn test_autocomplete_positioning_below_cursor() {
 
     app.enter_editor("line1\nline2".to_string(), None);
     // Move to end of line 2
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::Down);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::Down);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     
     // Type space then /
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char(' '),
         crossterm::event::KeyModifiers::empty(),
     ));
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
     ));
@@ -206,22 +206,22 @@ async fn test_autocomplete_positioning_below_cursor() {
 
     terminal.draw(|f| {
         ui::render(f, ui::RenderState {
-            active_tab: app.active_tab,
-            prompts: &app.prompts,
-            selected_index: app.selected_index,
-            list_state: &mut app.list_state,
-            settings_slash_list_state: &mut app.settings_slash_list_state,
-            theme_list_state: &mut app.theme_list_state,
+            active_tab: app.nav.active_tab,
+            prompts: &app.nav.prompts,
+            selected_index: app.nav.selected_index,
+            list_state: &mut app.nav.list_state,
+            settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+            theme_list_state: &mut app.nav.theme_list_state,
             mode: "Editor",
-            textarea: &mut app.textarea,
-            title_textarea: &mut app.title_textarea,
-            title_focused: app.title_focused,
+            textarea: &mut app.editor.textarea,
+            title_textarea: &mut app.editor.title_textarea,
+            title_focused: app.editor.title_focused,
             current_branch: None,
             current_path: "",
-            suggestions: &app.suggestions,
-            suggestion_index: app.suggestion_index,
-            autocomplete_open: app.autocomplete_open,
-            autocomplete_list_state: &mut app.autocomplete_list_state,
+            suggestions: &app.editor.autocomplete.suggestions,
+            suggestion_index: app.editor.autocomplete.index,
+            autocomplete_open: app.editor.autocomplete.open,
+            autocomplete_list_state: &mut app.editor.autocomplete.list_state,
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
@@ -269,47 +269,47 @@ async fn test_autocomplete_positioning_above_cursor() {
     app.enter_editor(lines, None);
     
     // Move to last line (line24)
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::Bottom);
-    app.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::Bottom);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     
     // Type space then /
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char(' '),
         crossterm::event::KeyModifiers::empty(),
     ));
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
     ));
     app.update_autocomplete().await.unwrap();
     // Force autocomplete open for test reliability if it didn't trigger
-    if !app.autocomplete_open {
-        app.autocomplete_open = true;
-        app.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Prompt, None, Some("test".to_string()))];
+    if !app.editor.autocomplete.open {
+        app.editor.autocomplete.open = true;
+        app.editor.autocomplete.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Prompt, None, Some("test".to_string()))];
     }
-    assert!(app.autocomplete_open);
+    assert!(app.editor.autocomplete.open);
     
     let backend = TestBackend::new(80, 20);
     let mut terminal = ratatui::Terminal::new(backend).unwrap();
 
     terminal.draw(|f| {
         ui::render(f, ui::RenderState {
-            active_tab: app.active_tab,
-            prompts: &app.prompts,
-            selected_index: app.selected_index,
-            list_state: &mut app.list_state,
-            settings_slash_list_state: &mut app.settings_slash_list_state,
-            theme_list_state: &mut app.theme_list_state,
+            active_tab: app.nav.active_tab,
+            prompts: &app.nav.prompts,
+            selected_index: app.nav.selected_index,
+            list_state: &mut app.nav.list_state,
+            settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+            theme_list_state: &mut app.nav.theme_list_state,
             mode: "Editor",
-            textarea: &mut app.textarea,
-            title_textarea: &mut app.title_textarea,
-            title_focused: app.title_focused,
+            textarea: &mut app.editor.textarea,
+            title_textarea: &mut app.editor.title_textarea,
+            title_focused: app.editor.title_focused,
             current_branch: None,
             current_path: "",
-            suggestions: &app.suggestions,
-            suggestion_index: app.suggestion_index,
-            autocomplete_open: app.autocomplete_open,
-            autocomplete_list_state: &mut app.autocomplete_list_state,
+            suggestions: &app.editor.autocomplete.suggestions,
+            suggestion_index: app.editor.autocomplete.index,
+            autocomplete_open: app.editor.autocomplete.open,
+            autocomplete_list_state: &mut app.editor.autocomplete.list_state,
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
@@ -377,28 +377,29 @@ async fn test_autocomplete_esc_closes_popup() {
     app.enter_editor("".to_string(), None);
     
     // Type /
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
     ));
     app.update_autocomplete().await.unwrap();
     
-    assert!(app.autocomplete_open);
-    assert!(!app.suggestions.is_empty());
+    assert!(app.editor.autocomplete.open);
+    assert!(!app.editor.autocomplete.suggestions.is_empty());
 
     // Type Esc
-    app.textarea.input(crossterm::event::KeyEvent::new(
+    app.editor.textarea.input(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Esc,
         crossterm::event::KeyModifiers::empty(),
     ));
     
     // NOTE: In main.rs, the event loop handles Esc. 
     // In tests, we need to simulate what main.rs does.
-    if app.autocomplete_open {
-        app.autocomplete_open = false;
-        app.suggestions.clear();
+    if app.editor.autocomplete.open {
+        app.editor.autocomplete.open = false;
+        app.editor.autocomplete.suggestions.clear();
     }
 
-    assert!(!app.autocomplete_open);
-    assert!(app.suggestions.is_empty());
+    assert!(!app.editor.autocomplete.open);
+    assert!(app.editor.autocomplete.suggestions.is_empty());
 }
+

@@ -9,6 +9,12 @@ pub struct RealAppService {
     clipboard: Arc<dyn Clipboard>,
 }
 
+impl std::fmt::Debug for RealAppService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RealAppService").finish_non_exhaustive()
+    }
+}
+
 impl RealAppService {
     pub fn new(storage: Arc<dyn Storage>, clipboard: Arc<dyn Clipboard>) -> Self {
         Self { storage, clipboard }

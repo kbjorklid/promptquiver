@@ -9,15 +9,15 @@ async fn test_add_edit_prompt() {
     
     app.enter_editor("New Prompt".to_string(), None);
     app.save_editor().await.unwrap();
-    assert_eq!(app.prompts.len(), 1);
-    assert_eq!(app.prompts[0].text, "New Prompt");
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "New Prompt");
 
-    let id = app.prompts[0].id;
+    let id = app.nav.prompts[0].id;
     app.enter_editor("Updated Prompt".to_string(), Some(id));
     app.save_editor().await.unwrap();
     
-    assert_eq!(app.prompts.len(), 1);
-    assert_eq!(app.prompts[0].text, "Updated Prompt");
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "Updated Prompt");
 }
 
 #[tokio::test]
@@ -25,10 +25,10 @@ async fn test_editor_discard_confirmation_modal() {
     let (mut app, _, _, _) = setup_app();
 
     app.enter_editor("Original".to_string(), None);
-    app.textarea.insert_str("Modified");
+    app.editor.textarea.insert_str("Modified");
     
-    let current_text = app.textarea.lines().join("\n");
-    if current_text != app.original_text {
+    let current_text = app.editor.textarea.lines().join("\n");
+    if current_text != app.editor.original_text {
         app.mode = promptquiver::app::Mode::ConfirmDiscard;
     }
 
@@ -42,22 +42,22 @@ async fn test_editor_discard_confirmation_modal() {
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.active_tab,
-                    prompts: &app.prompts,
-                    selected_index: app.selected_index,
-                    list_state: &mut app.list_state,
-                    settings_slash_list_state: &mut app.settings_slash_list_state,
-                    theme_list_state: &mut app.theme_list_state,
+                    active_tab: app.nav.active_tab,
+                    prompts: &app.nav.prompts,
+                    selected_index: app.nav.selected_index,
+                    list_state: &mut app.nav.list_state,
+                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+                    theme_list_state: &mut app.nav.theme_list_state,
                     mode: "Confirm Discard",
-                    textarea: &mut app.textarea,
-                    title_textarea: &mut app.title_textarea,
-                    title_focused: app.title_focused,
+                    textarea: &mut app.editor.textarea,
+                    title_textarea: &mut app.editor.title_textarea,
+                    title_focused: app.editor.title_focused,
                     current_branch: None,
                     current_path: "",
                     suggestions: &[],
                     suggestion_index: 0,
                     autocomplete_open: false,
-                    autocomplete_list_state: &mut app.autocomplete_list_state,
+                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
                     search_query: "",
                     global_search_query: "",
                     settings: &contracts::Settings::default(),
@@ -94,40 +94,41 @@ async fn test_snippet_name_enter_moves_focus() {
     use contracts::Tab;
     
     // Switch to Snippets tab
-    app.active_tab = Tab::Snippets;
+    app.nav.active_tab = Tab::Snippets;
     
     // Enter editor
     app.enter_editor("Snippet content".to_string(), None);
     
     // Verify initial state
-    assert!(app.title_focused, "Title should be focused initially for snippets");
-    assert_eq!(app.title_textarea.lines()[0], "", "Title should be empty");
+    assert!(app.editor.title_focused, "Title should be focused initially for snippets");
+    assert_eq!(app.editor.title_textarea.lines()[0], "", "Title should be empty");
 
     // Simulate typing "mysnip"
     for c in "mysnip".chars() {
-        app.title_textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+        app.editor.title_textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
     }
-    assert_eq!(app.title_textarea.lines()[0], "mysnip");
+    assert_eq!(app.editor.title_textarea.lines()[0], "mysnip");
 
     // Simulate pressing Enter
     let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
     
     // Explicitly handle Enter for title_focused snippet (Logic from main.rs)
-    if app.title_focused && app.active_tab == Tab::Snippets && event.code == KeyCode::Enter {
-        app.title_focused = false;
+    if app.editor.title_focused && app.nav.active_tab == Tab::Snippets && event.code == KeyCode::Enter {
+        app.editor.title_focused = false;
     } else {
-        app.title_textarea.input(event);
+        app.editor.title_textarea.input(event);
     }
     
     // Verify behavior after fix
-    assert!(!app.title_focused, "Focus should move to content field");
-    assert_eq!(app.title_textarea.lines().len(), 1, "Snippet name should remain single-line");
-    assert_eq!(app.title_textarea.lines()[0], "mysnip", "Snippet name should not have been modified");
+    assert!(!app.editor.title_focused, "Focus should move to content field");
+    assert_eq!(app.editor.title_textarea.lines().len(), 1, "Snippet name should remain single-line");
+    assert_eq!(app.editor.title_textarea.lines()[0], "mysnip", "Snippet name should not have been modified");
 
     // Test Tab key still works
     let tab_event = KeyEvent::new(KeyCode::Tab, KeyModifiers::empty());
-    if tab_event.code == KeyCode::Tab && app.active_tab == Tab::Snippets {
-        app.title_focused = !app.title_focused;
+    if tab_event.code == KeyCode::Tab && app.nav.active_tab == Tab::Snippets {
+        app.editor.title_focused = !app.editor.title_focused;
     }
-    assert!(app.title_focused, "Tab should move focus back to title");
+    assert!(app.editor.title_focused, "Tab should move focus back to title");
 }
+

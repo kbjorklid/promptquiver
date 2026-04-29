@@ -9,17 +9,17 @@ async fn test_settings_navigation_and_tab_focus() {
     app.set_tab(Tab::Settings);
     app.load_prompts().await.unwrap();
 
-    assert_eq!(app.selected_index, 0);
+    assert_eq!(app.nav.selected_index, 0);
     app.move_down();
-    assert_eq!(app.selected_index, 1);
+    assert_eq!(app.nav.selected_index, 1);
     
     for _ in 0..15 {
         app.move_down();
     }
-    assert_eq!(app.selected_index, 9);
+    assert_eq!(app.nav.selected_index, 9);
 
     app.move_up();
-    assert_eq!(app.selected_index, 8);
+    assert_eq!(app.nav.selected_index, 8);
 }
 
 #[tokio::test]
@@ -33,13 +33,13 @@ async fn test_edit_slash_commands_inline() {
     app.load_prompts().await.unwrap();
 
     let tabs_len = Tab::all().len();
-    app.selected_index = tabs_len; // First Slash Command ("test")
+    app.nav.selected_index = tabs_len; // First Slash Command ("test")
 
     app.edit_setting();
     assert_eq!(app.mode, promptquiver::app::Mode::Editor);
-    assert_eq!(app.textarea.lines().join("\n"), "test");
+    assert_eq!(app.editor.textarea.lines().join("\n"), "test");
 
-    app.textarea = ratatui_textarea::TextArea::from(vec!["updated".to_string()]);
+    app.editor.textarea = ratatui_textarea::TextArea::from(vec!["updated".to_string()]);
     app.save_editor().await.unwrap();
 
     assert_eq!(app.mode, promptquiver::app::Mode::List);
@@ -47,9 +47,9 @@ async fn test_edit_slash_commands_inline() {
     assert_eq!(updated_settings.slash_commands, vec!["updated".to_string()]);
 
     // Test Adding new
-    app.selected_index = tabs_len + 1; // "Add New"
+    app.nav.selected_index = tabs_len + 1; // "Add New"
     app.edit_setting();
-    app.textarea = ratatui_textarea::TextArea::from(vec!["new".to_string()]);
+    app.editor.textarea = ratatui_textarea::TextArea::from(vec!["new".to_string()]);
     app.save_editor().await.unwrap();
 
     let updated_settings = storage.get_settings().await.unwrap();
@@ -64,14 +64,15 @@ async fn test_settings_auto_discard_on_esc() {
     app.load_prompts().await.unwrap();
 
     let tabs_len = contracts::Tab::all().len();
-    app.selected_index = tabs_len; // First Slash Command (if any, or Add New)
+    app.nav.selected_index = tabs_len; // First Slash Command (if any, or Add New)
 
     app.edit_setting();
-    app.textarea.insert_str("modified");
+    app.editor.textarea.insert_str("modified");
     
-    if app.active_tab == contracts::Tab::Settings {
+    if app.nav.active_tab == contracts::Tab::Settings {
         app.exit_editor();
     }
 
     assert_eq!(app.mode, promptquiver::app::Mode::List);
 }
+

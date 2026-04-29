@@ -23,41 +23,104 @@ pub struct HistoryEntry {
     pub prompts: Vec<Prompt>,
 }
 
-pub struct App<'a> {
-    pub storage: Arc<dyn Storage>,
-    pub clipboard: Arc<dyn Clipboard>,
-    pub git: Arc<dyn Git>,
-    pub service: Arc<dyn contracts::AppService>,
-    pub should_quit: bool,
+#[derive(Debug)]
+pub struct AutocompleteState {
+    pub open: bool,
+    pub suggestions: Vec<Prompt>,
+    pub index: usize,
+    pub list_state: ratatui::widgets::ListState,
+}
+
+impl Default for AutocompleteState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            suggestions: Vec::new(),
+            index: 0,
+            list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct EditorState<'a> {
+    pub textarea: TextArea<'a>,
+    pub title_textarea: TextArea<'a>,
+    pub title_focused: bool,
+    pub editing_id: Option<uuid::Uuid>,
+    pub insert_index: Option<usize>,
+    pub original_text: String,
+    pub autocomplete: AutocompleteState,
+}
+
+impl Default for EditorState<'_> {
+    fn default() -> Self {
+        Self {
+            textarea: TextArea::default(),
+            title_textarea: TextArea::default(),
+            title_focused: false,
+            editing_id: None,
+            insert_index: None,
+            original_text: String::new(),
+            autocomplete: AutocompleteState::default(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct NavigationState {
     pub active_tab: Tab,
     pub prompts: Vec<Prompt>,
     pub selected_index: usize,
     pub list_state: ratatui::widgets::ListState,
     pub settings_slash_list_state: ratatui::widgets::ListState,
     pub theme_list_state: ratatui::widgets::ListState,
-    pub mode: Mode,
-    pub textarea: TextArea<'a>,
-    pub title_textarea: TextArea<'a>,
-    pub title_focused: bool,
-    pub editing_id: Option<uuid::Uuid>,
-    pub insert_index: Option<usize>,
-    pub current_branch: Option<String>,
-    pub autocomplete_open: bool,
-    pub suggestions: Vec<Prompt>,
-    pub suggestion_index: usize,
-    pub autocomplete_list_state: ratatui::widgets::ListState,
-    pub toaster: Option<ToastEngine<ToastMessage>>,
-    pub settings: contracts::Settings,
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
     pub branch_filter: bool,
     pub search_query: String,
-    pub original_text: String,
     pub global_search_query: String,
-    pub last_notification_time: Option<std::time::Instant>,
     pub current_path: String,
-    pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
     pub original_theme: Option<String>,
+}
+
+impl Default for NavigationState {
+    fn default() -> Self {
+        Self {
+            active_tab: Tab::Prompts,
+            prompts: Vec::new(),
+            selected_index: 0,
+            list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+            settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+            theme_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            branch_filter: false,
+            search_query: String::new(),
+            global_search_query: String::new(),
+            current_path: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .to_string_lossy()
+                .into_owned(),
+            original_theme: None,
+        }
+    }
+}
+
+pub struct App<'a> {
+    pub storage: Arc<dyn Storage>,
+    pub clipboard: Arc<dyn Clipboard>,
+    pub git: Arc<dyn Git>,
+    pub service: Arc<dyn contracts::AppService>,
+    pub should_quit: bool,
+    pub mode: Mode,
+    pub nav: NavigationState,
+    pub editor: EditorState<'a>,
+    pub current_branch: Option<String>,
+    pub toaster: Option<ToastEngine<ToastMessage>>,
+    pub settings: contracts::Settings,
+    pub last_notification_time: Option<std::time::Instant>,
+    pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
 }
 
 
@@ -65,12 +128,12 @@ impl fmt::Debug for App<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("App")
             .field("should_quit", &self.should_quit)
-            .field("active_tab", &self.active_tab)
-            .field("prompts_count", &self.prompts.len())
-            .field("selected_index", &self.selected_index)
+            .field("active_tab", &self.nav.active_tab)
+            .field("prompts_count", &self.nav.prompts.len())
+            .field("selected_index", &self.nav.selected_index)
             .field("mode", &self.mode)
             .field("current_branch", &self.current_branch)
-            .field("autocomplete_open", &self.autocomplete_open)
+            .field("autocomplete_open", &self.editor.autocomplete.open)
             .finish_non_exhaustive()
     }
 }
@@ -89,38 +152,14 @@ impl App<'_> {
             git,
             service,
             should_quit: false,
-            active_tab: Tab::Prompts,
-            prompts: Vec::new(),
-            selected_index: 0,
-            list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            theme_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             mode: Mode::List,
-            textarea: TextArea::default(),
-            title_textarea: TextArea::default(),
-            title_focused: false,
-            editing_id: None,
-            insert_index: None,
+            nav: NavigationState::default(),
+            editor: EditorState::default(),
             current_branch: None,
-            autocomplete_open: false,
-            suggestions: Vec::new(),
-            suggestion_index: 0,
-            autocomplete_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             toaster: None,
             settings: contracts::Settings::default(),
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
-            branch_filter: false,
-            search_query: String::new(),
-            original_text: String::new(),
-            global_search_query: String::new(),
             last_notification_time: None,
-            current_path: std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .to_string_lossy()
-                .into_owned(),
             file_search_tx: None,
-            original_theme: None,
         }
     }
 
@@ -150,95 +189,95 @@ impl App<'_> {
     }
 
     pub fn next_tab(&mut self) {
-        self.active_tab = self.active_tab.next();
-        self.selected_index = 0;
-        self.list_state.select(Some(0));
+        self.nav.active_tab = self.nav.active_tab.next();
+        self.nav.selected_index = 0;
+        self.nav.list_state.select(Some(0));
     }
 
     pub fn prev_tab(&mut self) {
-        self.active_tab = self.active_tab.prev();
-        self.selected_index = 0;
-        self.list_state.select(Some(0));
+        self.nav.active_tab = self.nav.active_tab.prev();
+        self.nav.selected_index = 0;
+        self.nav.list_state.select(Some(0));
     }
 
     pub fn set_tab(&mut self, tab: Tab) {
-        self.active_tab = tab;
-        self.selected_index = 0;
-        self.list_state.select(Some(0));
+        self.nav.active_tab = tab;
+        self.nav.selected_index = 0;
+        self.nav.list_state.select(Some(0));
     }
 
     pub fn move_down(&mut self) {
-        if self.active_tab == Tab::Settings {
+        if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
             let total_settings = tabs_len + slash_len + 4; // tabs + slash commands + Add New + 3 advanced
-            if self.selected_index < total_settings - 1 {
-                self.selected_index += 1;
-                self.list_state.select(Some(self.selected_index));
+            if self.nav.selected_index < total_settings - 1 {
+                self.nav.selected_index += 1;
+                self.nav.list_state.select(Some(self.nav.selected_index));
                 
                 // Update slash list state
-                if self.selected_index >= tabs_len && self.selected_index <= tabs_len + slash_len {
-                    self.settings_slash_list_state.select(Some(self.selected_index - tabs_len));
+                if self.nav.selected_index >= tabs_len && self.nav.selected_index <= tabs_len + slash_len {
+                    self.nav.settings_slash_list_state.select(Some(self.nav.selected_index - tabs_len));
                 } else {
-                    self.settings_slash_list_state.select(None);
+                    self.nav.settings_slash_list_state.select(None);
                 }
             }
-        } else if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
-            self.selected_index += 1;
-            self.list_state.select(Some(self.selected_index));
+        } else if !self.nav.prompts.is_empty() && self.nav.selected_index < self.nav.prompts.len() - 1 {
+            self.nav.selected_index += 1;
+            self.nav.list_state.select(Some(self.nav.selected_index));
         }
     }
 
     pub fn move_up(&mut self) {
-        if self.selected_index > 0 {
-            self.selected_index -= 1;
-            self.list_state.select(Some(self.selected_index));
+        if self.nav.selected_index > 0 {
+            self.nav.selected_index -= 1;
+            self.nav.list_state.select(Some(self.nav.selected_index));
 
-            if self.active_tab == Tab::Settings {
+            if self.nav.active_tab == Tab::Settings {
                 let tabs_len = Tab::all().len();
                 let slash_len = self.settings.slash_commands.len();
-                if self.selected_index >= tabs_len && self.selected_index <= tabs_len + slash_len {
-                    self.settings_slash_list_state.select(Some(self.selected_index - tabs_len));
+                if self.nav.selected_index >= tabs_len && self.nav.selected_index <= tabs_len + slash_len {
+                    self.nav.settings_slash_list_state.select(Some(self.nav.selected_index - tabs_len));
                 } else {
-                    self.settings_slash_list_state.select(None);
+                    self.nav.settings_slash_list_state.select(None);
                 }
             }
         }
     }
 
     pub fn move_to_top(&mut self) {
-        self.selected_index = 0;
-        self.list_state.select(Some(0));
+        self.nav.selected_index = 0;
+        self.nav.list_state.select(Some(0));
     }
 
     pub fn move_to_bottom(&mut self) {
-        if self.active_tab == Tab::Settings {
+        if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
             let total_settings = tabs_len + slash_len + 4;
-            self.selected_index = total_settings - 1;
-            self.list_state.select(Some(self.selected_index));
-        } else if !self.prompts.is_empty() {
-            self.selected_index = self.prompts.len() - 1;
-            self.list_state.select(Some(self.selected_index));
+            self.nav.selected_index = total_settings - 1;
+            self.nav.list_state.select(Some(self.nav.selected_index));
+        } else if !self.nav.prompts.is_empty() {
+            self.nav.selected_index = self.nav.prompts.len() - 1;
+            self.nav.list_state.select(Some(self.nav.selected_index));
         }
     }
 
     pub async fn move_item_up(&mut self) -> contracts::Result<()> {
-        if self.selected_index > 0 && !self.prompts.is_empty() {
+        if self.nav.selected_index > 0 && !self.nav.prompts.is_empty() {
             self.push_history();
-            self.prompts.swap(self.selected_index, self.selected_index - 1);
-            self.selected_index -= 1;
+            self.nav.prompts.swap(self.nav.selected_index, self.nav.selected_index - 1);
+            self.nav.selected_index -= 1;
             self.save_current_list().await?;
         }
         Ok(())
     }
 
     pub async fn move_item_down(&mut self) -> contracts::Result<()> {
-        if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
+        if !self.nav.prompts.is_empty() && self.nav.selected_index < self.nav.prompts.len() - 1 {
             self.push_history();
-            self.prompts.swap(self.selected_index, self.selected_index + 1);
-            self.selected_index += 1;
+            self.nav.prompts.swap(self.nav.selected_index, self.nav.selected_index + 1);
+            self.nav.selected_index += 1;
             self.save_current_list().await?;
         }
         Ok(())
@@ -252,7 +291,7 @@ impl App<'_> {
 
         self.settings = self.storage.get_settings().await.unwrap_or_default();
 
-        let mut prompts = match self.active_tab {
+        let mut prompts = match self.nav.active_tab {
             Tab::Prompts => self.storage.get_project_prompts(&path).await?,
             Tab::Notes => self.storage.get_project_notes(&path).await?,
             Tab::Archive => self.storage.get_project_archive(&path).await?,
@@ -261,58 +300,58 @@ impl App<'_> {
             Tab::Settings => Vec::new(),
         };
 
-        if self.branch_filter {
+        if self.nav.branch_filter {
             if let Some(ref branch) = self.current_branch {
                 prompts.retain(|p| p.branch.as_deref() == Some(branch));
             }
         }
 
-        if !self.search_query.is_empty() {
-            let query = self.search_query.to_lowercase();
+        if !self.nav.search_query.is_empty() {
+            let query = self.nav.search_query.to_lowercase();
             prompts.retain(|p| {
                 p.text.to_lowercase().contains(&query) || 
                 p.name.as_deref().unwrap_or("").to_lowercase().contains(&query)
             });
         }
         
-        self.prompts = prompts;
+        self.nav.prompts = prompts;
         
-        if self.selected_index >= self.prompts.len() && !self.prompts.is_empty() {
-            self.selected_index = self.prompts.len() - 1;
+        if self.nav.selected_index >= self.nav.prompts.len() && !self.nav.prompts.is_empty() {
+            self.nav.selected_index = self.nav.prompts.len() - 1;
         }
-        self.list_state.select(Some(self.selected_index));
+        self.nav.list_state.select(Some(self.nav.selected_index));
         
         Ok(())
     }
 
     fn current_project_path(&self) -> String {
-        self.current_path.clone()
+        self.nav.current_path.clone()
     }
 
     pub fn push_history(&mut self) {
         let entry = HistoryEntry {
-            tab: self.active_tab,
-            prompts: self.prompts.clone(),
+            tab: self.nav.active_tab,
+            prompts: self.nav.prompts.clone(),
         };
-        self.undo_stack.push(entry);
-        self.redo_stack.clear();
+        self.nav.undo_stack.push(entry);
+        self.nav.redo_stack.clear();
         
         // Limit stack size
-        if self.undo_stack.len() > 100 {
-            self.undo_stack.remove(0);
+        if self.nav.undo_stack.len() > 100 {
+            self.nav.undo_stack.remove(0);
         }
     }
 
     pub async fn undo(&mut self) -> contracts::Result<()> {
-        if let Some(entry) = self.undo_stack.pop() {
+        if let Some(entry) = self.nav.undo_stack.pop() {
             let current = HistoryEntry {
-                tab: self.active_tab,
-                prompts: self.prompts.clone(),
+                tab: self.nav.active_tab,
+                prompts: self.nav.prompts.clone(),
             };
-            self.redo_stack.push(current);
+            self.nav.redo_stack.push(current);
 
-            self.active_tab = entry.tab;
-            self.prompts = entry.prompts;
+            self.nav.active_tab = entry.tab;
+            self.nav.prompts = entry.prompts;
             
             self.save_current_list().await?;
             self.notify("Undo", ToastType::Info);
@@ -321,15 +360,15 @@ impl App<'_> {
     }
 
     pub async fn redo(&mut self) -> contracts::Result<()> {
-        if let Some(entry) = self.redo_stack.pop() {
+        if let Some(entry) = self.nav.redo_stack.pop() {
             let current = HistoryEntry {
-                tab: self.active_tab,
-                prompts: self.prompts.clone(),
+                tab: self.nav.active_tab,
+                prompts: self.nav.prompts.clone(),
             };
-            self.undo_stack.push(current);
+            self.nav.undo_stack.push(current);
 
-            self.active_tab = entry.tab;
-            self.prompts = entry.prompts;
+            self.nav.active_tab = entry.tab;
+            self.nav.prompts = entry.prompts;
 
             self.save_current_list().await?;
             self.notify("Redo", ToastType::Info);
@@ -339,28 +378,28 @@ impl App<'_> {
 
     async fn save_current_list(&mut self) -> contracts::Result<()> {
         let path = self.current_project_path();
-        match self.active_tab {
-            Tab::Prompts => self.storage.save_project_prompts(&path, self.prompts.clone()).await?,
-            Tab::Notes => self.storage.save_project_notes(&path, self.prompts.clone()).await?,
-            Tab::Archive => self.storage.save_project_archive(&path, self.prompts.clone()).await?,
-            Tab::Canned => self.storage.save_global_canned(self.prompts.clone()).await?,
-            Tab::Snippets => self.storage.save_global_snippets(self.prompts.clone()).await?,
+        match self.nav.active_tab {
+            Tab::Prompts => self.storage.save_project_prompts(&path, self.nav.prompts.clone()).await?,
+            Tab::Notes => self.storage.save_project_notes(&path, self.nav.prompts.clone()).await?,
+            Tab::Archive => self.storage.save_project_archive(&path, self.nav.prompts.clone()).await?,
+            Tab::Canned => self.storage.save_global_canned(self.nav.prompts.clone()).await?,
+            Tab::Snippets => self.storage.save_global_snippets(self.nav.prompts.clone()).await?,
             Tab::Settings => {}
         }
         Ok(())
     }
 
     pub async fn stage_selected(&mut self) -> contracts::Result<()> {
-        if self.active_tab == Tab::Settings || self.prompts.is_empty() {
+        if self.nav.active_tab == Tab::Settings || self.nav.prompts.is_empty() {
             return Ok(());
         }
 
-        let item = self.prompts[self.selected_index].clone();
+        let item = self.nav.prompts[self.nav.selected_index].clone();
         let is_staged = item.staged;
-        let is_alias = self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets;
+        let is_alias = self.nav.active_tab == Tab::Notes || self.nav.active_tab == Tab::Snippets;
 
         self.push_history();
-        self.service.stage_item(&self.current_project_path(), self.active_tab, item).await?;
+        self.service.stage_item(&self.current_project_path(), self.nav.active_tab, item).await?;
 
         if is_alias {
             self.notify("Copied to clipboard!", ToastType::Success);
@@ -375,89 +414,89 @@ impl App<'_> {
     }
 
     pub fn enter_editor(&mut self, text: String, id: Option<uuid::Uuid>) {
-        self.search_query.clear();
-        self.global_search_query.clear();
+        self.nav.search_query.clear();
+        self.nav.global_search_query.clear();
         self.mode = Mode::Editor;
-        self.textarea = TextArea::new(text.lines().map(String::from).collect());
-        self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
+        self.editor.textarea = TextArea::new(text.lines().map(String::from).collect());
+        self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
         
-        let title = if self.active_tab == Tab::Snippets {
+        let title = if self.nav.active_tab == Tab::Snippets {
             if let Some(id) = id {
-                self.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default()
+                self.nav.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default()
             } else {
                 String::new()
             }
         } else {
             String::new()
         };
-        self.title_textarea = TextArea::new(vec![title]);
-        self.title_focused = self.active_tab == Tab::Snippets;
+        self.editor.title_textarea = TextArea::new(vec![title]);
+        self.editor.title_focused = self.nav.active_tab == Tab::Snippets;
         
-        self.editing_id = id;
-        self.insert_index = None;
-        self.original_text = text;
+        self.editor.editing_id = id;
+        self.editor.insert_index = None;
+        self.editor.original_text = text;
     }
 
     pub fn enter_editor_before(&mut self, text: String, index: usize) {
-        self.search_query.clear();
-        self.global_search_query.clear();
+        self.nav.search_query.clear();
+        self.nav.global_search_query.clear();
         self.mode = Mode::Editor;
-        self.textarea = TextArea::new(text.lines().map(String::from).collect());
-        self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
+        self.editor.textarea = TextArea::new(text.lines().map(String::from).collect());
+        self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
 
-        let title = String::new();        self.title_textarea = TextArea::new(vec![title]);
-        self.title_focused = self.active_tab == Tab::Snippets;
+        let title = String::new();        self.editor.title_textarea = TextArea::new(vec![title]);
+        self.editor.title_focused = self.nav.active_tab == Tab::Snippets;
 
-        self.editing_id = None;
-        self.insert_index = Some(index);
-        self.original_text = text;
+        self.editor.editing_id = None;
+        self.editor.insert_index = Some(index);
+        self.editor.original_text = text;
     }
 
     pub fn exit_editor(&mut self) {
         self.mode = Mode::List;
-        self.editing_id = None;
-        self.insert_index = None;
-        self.autocomplete_open = false;
-        self.suggestions.clear();
-        self.title_textarea = TextArea::default();
-        self.title_focused = false;
+        self.editor.editing_id = None;
+        self.editor.insert_index = None;
+        self.editor.autocomplete.open = false;
+        self.editor.autocomplete.suggestions.clear();
+        self.editor.title_textarea = TextArea::default();
+        self.editor.title_focused = false;
     }
 
     pub fn edit_setting(&mut self) {
-        if self.active_tab != Tab::Settings {
+        if self.nav.active_tab != Tab::Settings {
             return;
         }
         let tabs_len = Tab::all().len();
         let slash_len = self.settings.slash_commands.len();
 
-        if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
+        if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len {
             // Edit existing Slash Command
-            let idx = self.selected_index - tabs_len;
+            let idx = self.nav.selected_index - tabs_len;
             let text = self.settings.slash_commands[idx].clone();
             self.mode = Mode::Editor;
-            self.textarea = TextArea::new(vec![text.clone()]);
-            self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
-            self.title_textarea = TextArea::default();
-            self.title_focused = false;
-            self.editing_id = None; // We'll use selected_index to know which one
-            self.original_text = text;
-        } else if self.selected_index == tabs_len + slash_len {
+            self.editor.textarea = TextArea::new(vec![text.clone()]);
+            self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
+            self.editor.title_textarea = TextArea::default();
+            self.editor.title_focused = false;
+            self.editor.editing_id = None; // We'll use selected_index to know which one
+            self.editor.original_text = text;
+        } else if self.nav.selected_index == tabs_len + slash_len {
             // Add New Slash Command
             self.mode = Mode::Editor;
-            self.textarea = TextArea::default();
-            self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
-            self.title_textarea = TextArea::default();
-            self.title_focused = false;
-            self.editing_id = None;
-            self.original_text = String::new();
+            self.editor.textarea = TextArea::default();
+            self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
+            self.editor.title_textarea = TextArea::default();
+            self.editor.title_focused = false;
+            self.editor.editing_id = None;
+            self.editor.original_text = String::new();
         }
     }
 
     pub async fn save_editor(&mut self) -> contracts::Result<()> {
-        let text = self.textarea.lines().join("\n");
+        let text = self.editor.textarea.lines().join("\n");
         let path = self.current_project_path();
 
-        if self.active_tab == Tab::Settings {
+        if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
 
@@ -468,12 +507,12 @@ impl App<'_> {
                 return Ok(());
             }
 
-            if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
+            if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len {
                 // Update existing
-                let idx = self.selected_index - tabs_len;
+                let idx = self.nav.selected_index - tabs_len;
                 self.settings.slash_commands[idx] = trimmed.to_string();
                 self.storage.save_settings(self.settings.clone()).await?;
-            } else if self.selected_index == tabs_len + slash_len {
+            } else if self.nav.selected_index == tabs_len + slash_len {
                 // Add new
                 let new_cmd = trimmed.to_string();
                 if !new_cmd.is_empty() {
@@ -486,8 +525,8 @@ impl App<'_> {
             return Ok(());
         }
 
-        let title = if self.active_tab == Tab::Snippets {
-            let t = self.title_textarea.lines().join("");
+        let title = if self.nav.active_tab == Tab::Snippets {
+            let t = self.editor.title_textarea.lines().join("");
             let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
             if !re.is_match(&t) {
                 self.notify("Snippet name must match [a-zA-Z0-9_-]+", ToastType::Error);
@@ -500,8 +539,8 @@ impl App<'_> {
 
         self.push_history();
 
-        if let Some(id) = self.editing_id {
-            match self.active_tab {
+        if let Some(id) = self.editor.editing_id {
+            match self.nav.active_tab {
                 Tab::Prompts => {
                     let mut list = self.storage.get_project_prompts(&path).await?;
                     if let Some(p) = list.iter_mut().find(|p| p.id == id) {
@@ -542,7 +581,7 @@ impl App<'_> {
             }
         } else {
             // Add new
-            let r#type = match self.active_tab {
+            let r#type = match self.nav.active_tab {
                 Tab::Notes => PromptType::Note,
                 Tab::Snippets => PromptType::Snippet,
                 _ => PromptType::Prompt,
@@ -551,10 +590,10 @@ impl App<'_> {
             let current_branch = self.git.get_current_branch(&path).await.unwrap_or_default();
             let prompt = Prompt::new(text, r#type, current_branch, title);
             
-            match self.active_tab {
+            match self.nav.active_tab {
                 Tab::Prompts => {
                     let mut list = self.storage.get_project_prompts(&path).await?;
-                    if let Some(idx) = self.insert_index {
+                    if let Some(idx) = self.editor.insert_index {
                         list.insert(idx, prompt);
                     } else {
                         list.push(prompt);
@@ -563,7 +602,7 @@ impl App<'_> {
                 }
                 Tab::Notes => {
                     let mut list = self.storage.get_project_notes(&path).await?;
-                    if let Some(idx) = self.insert_index {
+                    if let Some(idx) = self.editor.insert_index {
                         list.insert(idx, prompt);
                     } else {
                         list.push(prompt);
@@ -572,7 +611,7 @@ impl App<'_> {
                 }
                 Tab::Canned => {
                     let mut list = self.storage.get_global_canned().await?;
-                    if let Some(idx) = self.insert_index {
+                    if let Some(idx) = self.editor.insert_index {
                         list.insert(idx, prompt);
                     } else {
                         list.push(prompt);
@@ -581,7 +620,7 @@ impl App<'_> {
                 }
                 Tab::Snippets => {
                     let mut list = self.storage.get_global_snippets().await?;
-                    if let Some(idx) = self.insert_index {
+                    if let Some(idx) = self.editor.insert_index {
                         list.insert(idx, prompt);
                     } else {
                         list.push(prompt);
@@ -599,31 +638,31 @@ impl App<'_> {
     }
 
     pub async fn archive_selected(&mut self) -> contracts::Result<()> {
-        if self.active_tab == Tab::Settings {
+        if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
             let slash_len = self.settings.slash_commands.len();
-            if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
-                let idx = self.selected_index - tabs_len;
+            if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len {
+                let idx = self.nav.selected_index - tabs_len;
                 self.settings.slash_commands.remove(idx);
                 self.storage.save_settings(self.settings.clone()).await?;
                 self.notify("Slash command deleted", ToastType::Warning);
-                if self.selected_index > 0 {
-                    self.selected_index -= 1;
+                if self.nav.selected_index > 0 {
+                    self.nav.selected_index -= 1;
                 }
             }
             return Ok(());
         }
 
-        if self.prompts.is_empty() {
+        if self.nav.prompts.is_empty() {
             return Ok(());
         }
 
         self.push_history();
-        let target = self.prompts[self.selected_index].clone();
+        let target = self.nav.prompts[self.nav.selected_index].clone();
 
-        self.service.archive_item(&self.current_project_path(), self.active_tab, target).await?;
+        self.service.archive_item(&self.current_project_path(), self.nav.active_tab, target).await?;
 
-        if self.active_tab == Tab::Archive {
+        if self.nav.active_tab == Tab::Archive {
             self.notify("Prompt deleted permanently", ToastType::Warning);
         } else {
             self.notify("Prompt moved to archive", ToastType::Info);
@@ -634,18 +673,18 @@ impl App<'_> {
     }
 
     pub async fn duplicate_selected(&mut self) -> contracts::Result<()> {
-        if self.active_tab == Tab::Settings || self.prompts.is_empty() {
+        if self.nav.active_tab == Tab::Settings || self.nav.prompts.is_empty() {
             return Ok(());
         }
 
         self.push_history();
-        let target = self.prompts[self.selected_index].clone();
+        let target = self.nav.prompts[self.nav.selected_index].clone();
 
-        if let Some(new_prompt) = self.service.duplicate_item(&self.current_project_path(), self.active_tab, target).await? {
+        if let Some(new_prompt) = self.service.duplicate_item(&self.current_project_path(), self.nav.active_tab, target).await? {
             // Update in-memory list and selection
-            self.prompts.insert(self.selected_index + 1, new_prompt);
-            self.selected_index += 1;
-            self.list_state.select(Some(self.selected_index));
+            self.nav.prompts.insert(self.nav.selected_index + 1, new_prompt);
+            self.nav.selected_index += 1;
+            self.nav.list_state.select(Some(self.nav.selected_index));
             self.notify("Prompt duplicated", ToastType::Success);
         }
         
@@ -653,13 +692,13 @@ impl App<'_> {
     }
 
     pub async fn copy_selected(&mut self) -> contracts::Result<()> {
-        if self.prompts.is_empty() || self.active_tab == Tab::Settings {
+        if self.nav.prompts.is_empty() || self.nav.active_tab == Tab::Settings {
             return Ok(());
         }
 
-        let target = self.prompts[self.selected_index].clone();
+        let target = self.nav.prompts[self.nav.selected_index].clone();
         
-        self.service.copy_item(&self.current_project_path(), self.active_tab, target).await?;
+        self.service.copy_item(&self.current_project_path(), self.nav.active_tab, target).await?;
 
         // Update in-memory state to reflect last_copied
         self.load_prompts().await?;
@@ -669,12 +708,12 @@ impl App<'_> {
     }
 
     pub async fn restore_selected(&mut self) -> contracts::Result<()> {
-        if self.active_tab != Tab::Archive || self.prompts.is_empty() {
+        if self.nav.active_tab != Tab::Archive || self.nav.prompts.is_empty() {
             return Ok(());
         }
 
         self.push_history();
-        let target = self.prompts[self.selected_index].clone();
+        let target = self.nav.prompts[self.nav.selected_index].clone();
 
         self.service.restore_item(&self.current_project_path(), target).await?;
 
@@ -684,15 +723,15 @@ impl App<'_> {
     }
 
     pub fn get_current_autocomplete_query(&self) -> Option<(String, String)> {
-        let cursor = self.textarea.cursor();
+        let cursor = self.editor.textarea.cursor();
         let row = cursor.0;
         let col = cursor.1;
         
-        if row >= self.textarea.lines().len() {
+        if row >= self.editor.textarea.lines().len() {
             return None;
         }
         
-        let line = &self.textarea.lines()[row];
+        let line = &self.editor.textarea.lines()[row];
         let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
         let before_cursor = &line[..byte_col];
 
@@ -753,14 +792,14 @@ impl App<'_> {
                         .collect();
                     
                     scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
+                    self.editor.autocomplete.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
                 "@" => {
-                    self.suggestions.clear();
-                    self.autocomplete_open = false;
+                    self.editor.autocomplete.suggestions.clear();
+                    self.editor.autocomplete.open = false;
                     if let Some(tx) = &self.file_search_tx {
                         // self.notify(format!("Searching files for: '{}'", query), contracts::ToastType::Info);
-                        let _ = tx.try_send((self.current_path.clone(), query.to_string()));
+                        let _ = tx.try_send((self.nav.current_path.clone(), query.to_string()));
                     }
                     return Ok(());
                 }
@@ -775,48 +814,48 @@ impl App<'_> {
                         .collect();
                         
                     scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
+                    self.editor.autocomplete.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
-                _ => self.suggestions = Vec::new(),
+                _ => self.editor.autocomplete.suggestions = Vec::new(),
             }
             
-            if self.suggestions.is_empty() {
-                self.autocomplete_open = false;
+            if self.editor.autocomplete.suggestions.is_empty() {
+                self.editor.autocomplete.open = false;
             } else {
-                self.autocomplete_open = true;
-                if self.suggestion_index >= self.suggestions.len() {
-                    self.suggestion_index = 0;
+                self.editor.autocomplete.open = true;
+                if self.editor.autocomplete.index >= self.editor.autocomplete.suggestions.len() {
+                    self.editor.autocomplete.index = 0;
                 }
             }
         } else {
-            self.autocomplete_open = false;
-            self.suggestions.clear();
+            self.editor.autocomplete.open = false;
+            self.editor.autocomplete.suggestions.clear();
         }
 
         Ok(())
     }
 
     pub const fn move_suggestion_down(&mut self) {
-        if !self.suggestions.is_empty() && self.suggestion_index < self.suggestions.len() - 1 {
-            self.suggestion_index += 1;
+        if !self.editor.autocomplete.suggestions.is_empty() && self.editor.autocomplete.index < self.editor.autocomplete.suggestions.len() - 1 {
+            self.editor.autocomplete.index += 1;
         }
     }
 
     pub const fn move_suggestion_up(&mut self) {
-        if self.suggestion_index > 0 {
-            self.suggestion_index -= 1;
+        if self.editor.autocomplete.index > 0 {
+            self.editor.autocomplete.index -= 1;
         }
     }
 
     pub fn select_suggestion(&mut self) {
-        if !self.suggestions.is_empty() && self.autocomplete_open {
-            let snippet = &self.suggestions[self.suggestion_index];
+        if !self.editor.autocomplete.suggestions.is_empty() && self.editor.autocomplete.open {
+            let snippet = &self.editor.autocomplete.suggestions[self.editor.autocomplete.index];
             let name = snippet.name.as_deref().unwrap_or(&snippet.text);
             
-            let cursor = self.textarea.cursor();
+            let cursor = self.editor.textarea.cursor();
             let row = cursor.0;
             let col = cursor.1;
-            let line = self.textarea.lines()[row].clone();
+            let line = self.editor.textarea.lines()[row].clone();
             let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
             let before_cursor = &line[..byte_col];
             
@@ -865,41 +904,41 @@ impl App<'_> {
                 let new_col = line[..best_pos].chars().count() + replacement.chars().count();
                 
                 // This is a bit hacky with ratatui-textarea but works for simple cases
-                self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, 0));
-                self.textarea.delete_line_by_end();
-                self.textarea.insert_str(&new_line);
-                self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, new_col as u16));
+                self.editor.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, 0));
+                self.editor.textarea.delete_line_by_end();
+                self.editor.textarea.insert_str(&new_line);
+                self.editor.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, new_col as u16));
             }
             
-            self.autocomplete_open = false;
-            self.suggestions.clear();
-            self.suggestion_index = 0;
+            self.editor.autocomplete.open = false;
+            self.editor.autocomplete.suggestions.clear();
+            self.editor.autocomplete.index = 0;
         }
     }
 
     pub async fn toggle_setting(&mut self) -> contracts::Result<()> {
-        if self.active_tab != Tab::Settings {
+        if self.nav.active_tab != Tab::Settings {
             return Ok(());
         }
 
         let tabs = Tab::all();
-        if self.selected_index < tabs.len() {
-            let tab = tabs[self.selected_index];
+        if self.nav.selected_index < tabs.len() {
+            let tab = tabs[self.nav.selected_index];
             let current = self.settings.tab_visibility.get(&tab).copied().unwrap_or(true);
             self.settings.tab_visibility.insert(tab, !current);
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Toggled visibility for {tab:?}"), ToastType::Info);
-        } else if self.selected_index >= tabs.len() && self.selected_index < tabs.len() + self.settings.slash_commands.len() + 1 {
+        } else if self.nav.selected_index >= tabs.len() && self.nav.selected_index < tabs.len() + self.settings.slash_commands.len() + 1 {
              // Slash commands - maybe edit?
-        } else if self.selected_index == tabs.len() + self.settings.slash_commands.len() + 1 {
+        } else if self.nav.selected_index == tabs.len() + self.settings.slash_commands.len() + 1 {
             self.settings.enable_claude_commands = !self.settings.enable_claude_commands;
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Claude commands: {}", if self.settings.enable_claude_commands { "ON" } else { "OFF" }), ToastType::Info);
-        } else if self.selected_index == tabs.len() + self.settings.slash_commands.len() + 2 {
+        } else if self.nav.selected_index == tabs.len() + self.settings.slash_commands.len() + 2 {
             self.settings.use_nerd_font = !self.settings.use_nerd_font;
             self.storage.save_settings(self.settings.clone()).await?;
             self.notify(format!("Use Nerd Font Icons: {}", if self.settings.use_nerd_font { "ON" } else { "OFF" }), ToastType::Info);
-        } else if self.selected_index == tabs.len() + self.settings.slash_commands.len() + 3 {
+        } else if self.nav.selected_index == tabs.len() + self.settings.slash_commands.len() + 3 {
             self.mode = Mode::ThemePicker;
         }
 
@@ -938,9 +977,9 @@ impl App<'_> {
             }
         }
         
-        self.prompts = results;
-        self.selected_index = 0;
-        self.notify(format!("Global search found {} results", self.prompts.len()), ToastType::Info);
+        self.nav.prompts = results;
+        self.nav.selected_index = 0;
+        self.notify(format!("Global search found {} results", self.nav.prompts.len()), ToastType::Info);
         Ok(())
     }
 }

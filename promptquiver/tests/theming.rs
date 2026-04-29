@@ -18,7 +18,7 @@ async fn test_theming_selection() {
     // 2. Select Theme item in Advanced section
     // Tab Visibility (6 items) + Slash Commands (0 initial + 1 Add New) + Claude (1) + Nerd (1) + Theme (1)
     // selected_index for Theme should be 6 + 1 + 2 = 9
-    app.selected_index = 9;
+    app.nav.selected_index = 9;
 
     // 3. Open Theme Picker
     app.mode = Mode::ThemePicker;
@@ -29,7 +29,7 @@ async fn test_theming_selection() {
     }).unwrap();
 
     // 4. Select a theme (e.g., the second one)
-    app.theme_list_state.select(Some(1));
+    app.nav.theme_list_state.select(Some(1));
     
     // Simulate Enter to select theme
     let themes = ratatui_themes::ThemeName::all();
@@ -66,24 +66,25 @@ fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'st
         Mode::ThemePicker => "Theme Picker",
     };
     ui::RenderState {
-        active_tab: app.active_tab,
-        prompts: &app.prompts,
-        selected_index: app.selected_index,
-        list_state: &mut app.list_state,
-        settings_slash_list_state: &mut app.settings_slash_list_state,
-        theme_list_state: &mut app.theme_list_state,
+        active_tab: app.nav.active_tab,
+        prompts: &app.nav.prompts,
+        selected_index: app.nav.selected_index,
+        list_state: &mut app.nav.list_state,
+        settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+        theme_list_state: &mut app.nav.theme_list_state,
         mode: mode_str,
-        textarea: &mut app.textarea,
-        title_textarea: &mut app.title_textarea,
-        title_focused: app.title_focused,
+        textarea: &mut app.editor.textarea,
+        title_textarea: &mut app.editor.title_textarea,
+        title_focused: app.editor.title_focused,
         current_branch: app.current_branch.as_deref(),
-        current_path: &app.current_path,
-        suggestions: &app.suggestions,
-        suggestion_index: app.suggestion_index,
-        autocomplete_open: app.autocomplete_open,
-        autocomplete_list_state: &mut app.autocomplete_list_state,
-        search_query: &app.search_query,
-        global_search_query: &app.global_search_query,
+        current_path: &app.nav.current_path,
+        suggestions: &app.editor.autocomplete.suggestions,
+        suggestion_index: app.editor.autocomplete.index,
+        autocomplete_open: app.editor.autocomplete.open,
+        autocomplete_list_state: &mut app.editor.autocomplete.list_state,
+        search_query: &app.nav.search_query,
+        global_search_query: &app.nav.global_search_query,
         settings: &app.settings,
     }
 }
+

@@ -25,24 +25,24 @@ async fn test_dynamic_shortcut_hints() {
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.active_tab,
-                    prompts: &app.prompts,
-                    selected_index: app.selected_index,
-                    list_state: &mut app.list_state,
-                    settings_slash_list_state: &mut app.settings_slash_list_state,
-                    theme_list_state: &mut app.theme_list_state,
+                    active_tab: app.nav.active_tab,
+                    prompts: &app.nav.prompts,
+                    selected_index: app.nav.selected_index,
+                    list_state: &mut app.nav.list_state,
+                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+                    theme_list_state: &mut app.nav.theme_list_state,
                     mode: mode_str,
-                    textarea: &mut app.textarea,
-                    title_textarea: &mut app.title_textarea,
-                    title_focused: app.title_focused,
+                    textarea: &mut app.editor.textarea,
+                    title_textarea: &mut app.editor.title_textarea,
+                    title_focused: app.editor.title_focused,
                     current_branch: app.current_branch.as_deref(),
-                    current_path: &app.current_path,
-                    suggestions: &app.suggestions,
-                    suggestion_index: app.suggestion_index,
-                    autocomplete_open: app.autocomplete_open,
-                    autocomplete_list_state: &mut app.autocomplete_list_state,
-                    search_query: &app.search_query,
-                    global_search_query: &app.global_search_query,
+                    current_path: &app.nav.current_path,
+                    suggestions: &app.editor.autocomplete.suggestions,
+                    suggestion_index: app.editor.autocomplete.index,
+                    autocomplete_open: app.editor.autocomplete.open,
+                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
+                    search_query: &app.nav.search_query,
+                    global_search_query: &app.nav.global_search_query,
                     settings: &app.settings,
                 },
                 &mut None,
@@ -87,7 +87,8 @@ async fn test_dynamic_shortcut_hints() {
 
     // 4. Test Archive Tab (List Mode)
     app.mode = promptquiver::app::Mode::List;
-    app.active_tab = contracts::Tab::Archive;
+    app.nav.active_tab = contracts::Tab::Archive;
     let footer = get_footer(&mut app);
     assert!(footer.contains("r: Restore"), "Archive tab should show 'r: Restore'");
 }
+

@@ -15,7 +15,7 @@ async fn test_note_staging_alias() {
     // Now, this should NOT stage the note, but SHOULD copy it
     app.stage_selected().await.unwrap();
     
-    assert!(!app.prompts[0].staged, "Notes should not be stageable");
+    assert!(!app.nav.prompts[0].staged, "Notes should not be stageable");
     assert_eq!(clipboard.paste().await.unwrap(), "N1", "Should still copy to clipboard");
 }
 
@@ -32,7 +32,7 @@ async fn test_snippet_staging_alias() {
     // Now, this should NOT stage the snippet, but SHOULD copy it
     app.stage_selected().await.unwrap();
     
-    assert!(!app.prompts[0].staged, "Snippets should not be stageable");
+    assert!(!app.nav.prompts[0].staged, "Snippets should not be stageable");
     assert_eq!(clipboard.paste().await.unwrap(), "S1", "Should still copy to clipboard");
 }
 
@@ -65,3 +65,4 @@ async fn test_prompt_staging_does_not_archive_notes_or_snippets() {
     let archive = storage.get_project_archive(common::TEST_PATH).await.unwrap();
     assert!(archive.is_empty(), "Archive should be empty");
 }
+

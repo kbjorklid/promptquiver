@@ -5,16 +5,16 @@ use contracts::{Tab, Storage};
 #[tokio::test]
 async fn test_tab_navigation() {
     let (mut app, _, _, _) = setup_app();
-    assert_eq!(app.active_tab, Tab::Prompts);
+    assert_eq!(app.nav.active_tab, Tab::Prompts);
 
     app.next_tab();
-    assert_eq!(app.active_tab, Tab::Canned);
+    assert_eq!(app.nav.active_tab, Tab::Canned);
 
     app.next_tab();
-    assert_eq!(app.active_tab, Tab::Notes);
+    assert_eq!(app.nav.active_tab, Tab::Notes);
 
     app.prev_tab();
-    assert_eq!(app.active_tab, Tab::Canned);
+    assert_eq!(app.nav.active_tab, Tab::Canned);
 }
 
 #[tokio::test]
@@ -29,14 +29,14 @@ async fn test_list_navigation() {
 
     app.load_prompts().await.unwrap();
 
-    assert_eq!(app.prompts.len(), 2);
-    assert_eq!(app.selected_index, 0);
+    assert_eq!(app.nav.prompts.len(), 2);
+    assert_eq!(app.nav.selected_index, 0);
 
     app.move_down();
-    assert_eq!(app.selected_index, 1);
+    assert_eq!(app.nav.selected_index, 1);
 
     app.move_up();
-    assert_eq!(app.selected_index, 0);
+    assert_eq!(app.nav.selected_index, 0);
 }
 
 #[tokio::test]
@@ -52,11 +52,12 @@ async fn test_tab_specific_content() {
     ]).await.unwrap();
 
     app.load_prompts().await.unwrap();
-    assert_eq!(app.prompts.len(), 1);
-    assert_eq!(app.prompts[0].text, "P1");
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "P1");
 
     app.set_tab(Tab::Notes);
     app.load_prompts().await.unwrap();
-    assert_eq!(app.prompts.len(), 1);
-    assert_eq!(app.prompts[0].text, "N1");
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "N1");
 }
+

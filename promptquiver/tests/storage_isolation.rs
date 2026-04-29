@@ -47,3 +47,4 @@ async fn test_storage_isolation_per_folder() {
     assert_eq!(storage.get_project_prompts(&project_b).await.unwrap().len(), 1);
     assert_eq!(storage.get_project_prompts(&project_b).await.unwrap()[0].text, "Prompt B");
 }
+

@@ -18,7 +18,7 @@ async fn test_repro_at_symbol_typing() {
     });
 
     if let Event::Key(key) = event {
-        app.textarea.input(key);
+        app.editor.textarea.input(key);
     }
 
     // Verify get_current_autocomplete_query
@@ -29,7 +29,7 @@ async fn test_repro_at_symbol_typing() {
     assert_eq!(query, "");
 
     // Check if it was typed
-    assert_eq!(app.textarea.lines()[0], "@");
+    assert_eq!(app.editor.textarea.lines()[0], "@");
 }
 
 #[tokio::test]
@@ -51,14 +51,15 @@ async fn test_at_symbol_altgr_typing() {
     if let Event::Key(key) = event {
         if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
             // This represents the fallback logic in main.rs
-            if !app.textarea.input(event) {
+            if !app.editor.textarea.input(event) {
                 if let KeyCode::Char(c) = key.code {
-                    app.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                    app.editor.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
                 }
             }
         }
     }
 
     // Check if it was typed
-    assert_eq!(app.textarea.lines()[0], "@", "AltGr character should be typed using fallback logic");
+    assert_eq!(app.editor.textarea.lines()[0], "@", "AltGr character should be typed using fallback logic");
 }
+

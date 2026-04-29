@@ -25,24 +25,24 @@ async fn test_basic_render() {
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.active_tab,
-                    prompts: &app.prompts,
-                    selected_index: app.selected_index,
-                    list_state: &mut app.list_state,
-                    settings_slash_list_state: &mut app.settings_slash_list_state,
-                    theme_list_state: &mut app.theme_list_state,
+                    active_tab: app.nav.active_tab,
+                    prompts: &app.nav.prompts,
+                    selected_index: app.nav.selected_index,
+                    list_state: &mut app.nav.list_state,
+                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+                    theme_list_state: &mut app.nav.theme_list_state,
                     mode: mode_str,
-                    textarea: &mut app.textarea,
-                    title_textarea: &mut app.title_textarea,
-                    title_focused: app.title_focused,
+                    textarea: &mut app.editor.textarea,
+                    title_textarea: &mut app.editor.title_textarea,
+                    title_focused: app.editor.title_focused,
                     current_branch: app.current_branch.as_deref(),
-                    current_path: &app.current_path,
-                    suggestions: &app.suggestions,
-                    suggestion_index: app.suggestion_index,
-                    autocomplete_open: app.autocomplete_open,
-                    autocomplete_list_state: &mut app.autocomplete_list_state,
-                    search_query: &app.search_query,
-                    global_search_query: &app.global_search_query,
+                    current_path: &app.nav.current_path,
+                    suggestions: &app.editor.autocomplete.suggestions,
+                    suggestion_index: app.editor.autocomplete.index,
+                    autocomplete_open: app.editor.autocomplete.open,
+                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
+                    search_query: &app.nav.search_query,
+                    global_search_query: &app.nav.global_search_query,
                     settings: &app.settings,
                 },
                 &mut None,
@@ -91,15 +91,15 @@ async fn test_staging() {
     app.load_prompts().await.unwrap();
 
     app.stage_selected().await.unwrap();
-    assert!(app.prompts[0].staged);
+    assert!(app.nav.prompts[0].staged);
     assert_eq!(clipboard.paste().await.unwrap(), "P1");
 
     app.move_down();
     app.stage_selected().await.unwrap();
     
-    assert_eq!(app.prompts.len(), 1);
-    assert_eq!(app.prompts[0].text, "P2");
-    assert!(app.prompts[0].staged);
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "P2");
+    assert!(app.nav.prompts[0].staged);
     assert_eq!(clipboard.paste().await.unwrap(), "P2");
 
     let archive = storage.get_project_archive(common::TEST_PATH).await.unwrap();
@@ -116,11 +116,11 @@ async fn test_unstaging() {
     storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
 
     app.load_prompts().await.unwrap();
-    assert!(app.prompts[0].staged);
+    assert!(app.nav.prompts[0].staged);
 
     // Unstage
     app.stage_selected().await.unwrap();
-    assert!(!app.prompts[0].staged, "Should be unstaged in memory");
+    assert!(!app.nav.prompts[0].staged, "Should be unstaged in memory");
 
     // Verify persistence
     let stored = storage.get_project_prompts(common::TEST_PATH).await.unwrap();
@@ -137,15 +137,16 @@ async fn test_archive_delete() {
     app.load_prompts().await.unwrap();
 
     app.archive_selected().await.unwrap();
-    assert_eq!(app.prompts.len(), 0);
+    assert_eq!(app.nav.prompts.len(), 0);
 
     app.set_tab(contracts::Tab::Archive);
     app.load_prompts().await.unwrap();
-    assert_eq!(app.prompts.len(), 1);
+    assert_eq!(app.nav.prompts.len(), 1);
 
     app.archive_selected().await.unwrap();
-    assert_eq!(app.prompts.len(), 0);
+    assert_eq!(app.nav.prompts.len(), 0);
     
     let archive = storage.get_project_archive(common::TEST_PATH).await.unwrap();
     assert_eq!(archive.len(), 0);
 }
+

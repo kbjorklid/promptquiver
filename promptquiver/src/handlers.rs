@@ -34,30 +34,30 @@ async fn handle_list_events(app: &mut App<'_>, key: KeyEvent) {
             app.prev_tab();
             handle_error!(app, app.load_prompts().await);
         }
-        KeyCode::Tab if app.active_tab == Tab::Settings => {
+        KeyCode::Tab if app.nav.active_tab == Tab::Settings => {
             let tabs_len = Tab::all().len();
             let slash_len = app.settings.slash_commands.len();
             let advanced_idx = tabs_len + slash_len + 1;
 
-            if app.selected_index < tabs_len {
-                app.selected_index = tabs_len;
-            } else if app.selected_index < advanced_idx {
-                app.selected_index = advanced_idx;
+            if app.nav.selected_index < tabs_len {
+                app.nav.selected_index = tabs_len;
+            } else if app.nav.selected_index < advanced_idx {
+                app.nav.selected_index = advanced_idx;
             } else {
-                app.selected_index = 0;
+                app.nav.selected_index = 0;
             }
         }
-        KeyCode::BackTab if app.active_tab == Tab::Settings => {
+        KeyCode::BackTab if app.nav.active_tab == Tab::Settings => {
             let tabs_len = Tab::all().len();
             let slash_len = app.settings.slash_commands.len();
             let advanced_idx = tabs_len + slash_len + 1;
 
-            if app.selected_index == 0 {
-                app.selected_index = advanced_idx;
-            } else if app.selected_index < advanced_idx && app.selected_index >= tabs_len {
-                app.selected_index = 0;
-            } else if app.selected_index >= advanced_idx {
-                app.selected_index = tabs_len;
+            if app.nav.selected_index == 0 {
+                app.nav.selected_index = advanced_idx;
+            } else if app.nav.selected_index < advanced_idx && app.nav.selected_index >= tabs_len {
+                app.nav.selected_index = 0;
+            } else if app.nav.selected_index >= advanced_idx {
+                app.nav.selected_index = tabs_len;
             }
         }
         KeyCode::Char('1') => { app.set_tab(Tab::Prompts); handle_error!(app, app.load_prompts().await); }
@@ -75,53 +75,53 @@ async fn handle_list_events(app: &mut App<'_>, key: KeyEvent) {
         KeyCode::Char('D') => { handle_error!(app, app.duplicate_selected().await); }
         KeyCode::Char('r') => { handle_error!(app, app.restore_selected().await); }
         KeyCode::Char('a') => {
-            if app.active_tab == Tab::Settings {
+            if app.nav.active_tab == Tab::Settings {
                 app.edit_setting();
             } else {
                 app.enter_editor(String::new(), None);
             }
         }
-        KeyCode::Char('i') => { app.enter_editor_before(String::new(), app.selected_index); }
+        KeyCode::Char('i') => { app.enter_editor_before(String::new(), app.nav.selected_index); }
         KeyCode::Char('b') => {
-            app.branch_filter = !app.branch_filter;
+            app.nav.branch_filter = !app.nav.branch_filter;
             handle_error!(app, app.load_prompts().await);
-            app.notify(format!("Branch filter: {}", if app.branch_filter { "ON" } else { "OFF" }), ToastType::Info);
+            app.notify(format!("Branch filter: {}", if app.nav.branch_filter { "ON" } else { "OFF" }), ToastType::Info);
         }
         KeyCode::Char('/') => {
             app.mode = Mode::Search;
-            app.search_query.clear();
+            app.nav.search_query.clear();
         }
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.mode = Mode::GlobalSearch;
-            app.global_search_query.clear();
+            app.nav.global_search_query.clear();
         }
         KeyCode::Char('G') => { app.move_to_bottom(); }
         KeyCode::Char('g') => { app.move_to_top(); }
         KeyCode::Char('e') | KeyCode::Enter => {
-            if app.active_tab == Tab::Settings {
+            if app.nav.active_tab == Tab::Settings {
                 let tabs_len = Tab::all().len();
                 let slash_len = app.settings.slash_commands.len();
                 let advanced_idx = tabs_len + slash_len + 1;
-                if app.selected_index == advanced_idx + 2 {
-                    app.original_theme = app.settings.theme_name.clone();
+                if app.nav.selected_index == advanced_idx + 2 {
+                    app.nav.original_theme = app.settings.theme_name.clone();
                     app.mode = Mode::ThemePicker;
                 } else {
                     app.edit_setting();
                 }
-            } else if !app.prompts.is_empty() {
-                let p = &app.prompts[app.selected_index];
+            } else if !app.nav.prompts.is_empty() {
+                let p = &app.nav.prompts[app.nav.selected_index];
                 app.enter_editor(p.text.clone(), Some(p.id));
             }
         }
         KeyCode::Char('m') => {
             app.mode = if app.mode == Mode::Move { Mode::List } else { Mode::Move };
         }
-        KeyCode::Char(' ') if app.active_tab == Tab::Settings => {
+        KeyCode::Char(' ') if app.nav.active_tab == Tab::Settings => {
             let tabs_len = Tab::all().len();
             let slash_len = app.settings.slash_commands.len();
             let advanced_idx = tabs_len + slash_len + 1;
-            if app.selected_index == advanced_idx + 2 {
-                app.original_theme = app.settings.theme_name.clone();
+            if app.nav.selected_index == advanced_idx + 2 {
+                app.nav.original_theme = app.settings.theme_name.clone();
                 app.mode = Mode::ThemePicker;
             } else {
                 handle_error!(app, app.toggle_setting().await);
@@ -134,22 +134,22 @@ async fn handle_list_events(app: &mut App<'_>, key: KeyEvent) {
 
 async fn handle_editor_events(app: &mut App<'_>, key: KeyEvent) {
     match key.code {
-        KeyCode::Tab if app.active_tab == Tab::Snippets => {
-            app.title_focused = !app.title_focused;
+        KeyCode::Tab if app.nav.active_tab == Tab::Snippets => {
+            app.editor.title_focused = !app.editor.title_focused;
         }
         KeyCode::Esc => {
-            if app.autocomplete_open {
-                app.autocomplete_open = false;
-                app.suggestions.clear();
-            } else if app.active_tab == Tab::Settings {
+            if app.editor.autocomplete.open {
+                app.editor.autocomplete.open = false;
+                app.editor.autocomplete.suggestions.clear();
+            } else if app.nav.active_tab == Tab::Settings {
                 app.exit_editor();
             } else {
-                let current_text = app.textarea.lines().join("\n");
-                let current_title = app.title_textarea.lines().join("");
+                let current_text = app.editor.textarea.lines().join("\n");
+                let current_title = app.editor.title_textarea.lines().join("");
                 
-                let title_changed = if app.active_tab == Tab::Snippets {
-                    if let Some(id) = app.editing_id {
-                        let original_title = app.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default();
+                let title_changed = if app.nav.active_tab == Tab::Snippets {
+                    if let Some(id) = app.editor.editing_id {
+                        let original_title = app.nav.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default();
                         current_title != original_title
                     } else {
                         !current_title.is_empty()
@@ -158,7 +158,7 @@ async fn handle_editor_events(app: &mut App<'_>, key: KeyEvent) {
                     false
                 };
 
-                if current_text == app.original_text && !title_changed {
+                if current_text == app.editor.original_text && !title_changed {
                     app.exit_editor();
                 } else {
                     app.mode = Mode::ConfirmDiscard;
@@ -171,64 +171,64 @@ async fn handle_editor_events(app: &mut App<'_>, key: KeyEvent) {
         KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             handle_error!(app, app.save_and_stage_editor().await);
         }
-        KeyCode::Up if app.autocomplete_open => { app.move_suggestion_up(); }
-        KeyCode::Down if app.autocomplete_open => { app.move_suggestion_down(); }
-        KeyCode::Enter if app.autocomplete_open => { app.select_suggestion(); }
-        KeyCode::Enter if app.active_tab == Tab::Settings => { handle_error!(app, app.save_editor().await); }
-        KeyCode::Enter if app.title_focused && app.active_tab == Tab::Snippets => { app.title_focused = false; }
+        KeyCode::Up if app.editor.autocomplete.open => { app.move_suggestion_up(); }
+        KeyCode::Down if app.editor.autocomplete.open => { app.move_suggestion_down(); }
+        KeyCode::Enter if app.editor.autocomplete.open => { app.select_suggestion(); }
+        KeyCode::Enter if app.nav.active_tab == Tab::Settings => { handle_error!(app, app.save_editor().await); }
+        KeyCode::Enter if app.editor.title_focused && app.nav.active_tab == Tab::Snippets => { app.editor.title_focused = false; }
         KeyCode::Backspace if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if app.title_focused && app.active_tab == Tab::Snippets {
-                app.title_textarea.delete_word();
+            if app.editor.title_focused && app.nav.active_tab == Tab::Snippets {
+                app.editor.title_textarea.delete_word();
             } else {
-                app.textarea.delete_word();
+                app.editor.textarea.delete_word();
                 handle_error!(app, app.update_autocomplete().await);
             }
         }
         KeyCode::Char('\u{7f}') => {
             if key.modifiers.contains(KeyModifiers::CONTROL) {
-                if app.title_focused && app.active_tab == Tab::Snippets {
-                    app.title_textarea.delete_word();
+                if app.editor.title_focused && app.nav.active_tab == Tab::Snippets {
+                    app.editor.title_textarea.delete_word();
                 } else {
-                    app.textarea.delete_word();
+                    app.editor.textarea.delete_word();
                     handle_error!(app, app.update_autocomplete().await);
                 }
             } else {
                 let mut bs_key = key;
                 bs_key.code = KeyCode::Backspace;
-                if app.title_focused && app.active_tab == Tab::Snippets {
-                    app.title_textarea.input(bs_key);
+                if app.editor.title_focused && app.nav.active_tab == Tab::Snippets {
+                    app.editor.title_textarea.input(bs_key);
                 } else {
-                    app.textarea.input(bs_key);
+                    app.editor.textarea.input(bs_key);
                     handle_error!(app, app.update_autocomplete().await);
                 }
             }
         }
         _ => {
-            if app.title_focused && app.active_tab == Tab::Snippets {
-                if !app.title_textarea.input(key) {
+            if app.editor.title_focused && app.nav.active_tab == Tab::Snippets {
+                if !app.editor.title_textarea.input(key) {
                     if let KeyCode::Char(c) = key.code {
-                        app.title_textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                        app.editor.title_textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
                     }
                 }
-                if app.title_textarea.lines().len() > 1 {
-                    let joined = app.title_textarea.lines().join("");
-                    app.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
-                    app.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
+                if app.editor.title_textarea.lines().len() > 1 {
+                    let joined = app.editor.title_textarea.lines().join("");
+                    app.editor.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
+                    app.editor.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
                 }
             } else {
-                if app.active_tab == Tab::Settings {
+                if app.nav.active_tab == Tab::Settings {
                     if key.code != KeyCode::Enter {
-                        if !app.textarea.input(key) {
+                        if !app.editor.textarea.input(key) {
                             if let KeyCode::Char(c) = key.code {
-                                app.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                                app.editor.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
                             }
                         }
                         handle_error!(app, app.update_autocomplete().await);
                     }
                 } else {
-                    if !app.textarea.input(key) {
+                    if !app.editor.textarea.input(key) {
                         if let KeyCode::Char(c) = key.code {
-                            app.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                            app.editor.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
                         }
                     }
                     handle_error!(app, app.update_autocomplete().await);
@@ -251,28 +251,28 @@ async fn handle_search_events(app: &mut App<'_>, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => {
             app.mode = Mode::List;
-            app.search_query.clear();
+            app.nav.search_query.clear();
             handle_error!(app, app.load_prompts().await);
         }
         KeyCode::Enter => { app.mode = Mode::List; }
         KeyCode::Char('\u{7f}') => {
             if key.modifiers.contains(KeyModifiers::CONTROL) {
-                if let Some(pos) = app.search_query.trim_end().rfind(' ') {
-                    app.search_query.truncate(pos + 1);
+                if let Some(pos) = app.nav.search_query.trim_end().rfind(' ') {
+                    app.nav.search_query.truncate(pos + 1);
                 } else {
-                    app.search_query.clear();
+                    app.nav.search_query.clear();
                 }
             } else {
-                app.search_query.pop();
+                app.nav.search_query.pop();
             }
             handle_error!(app, app.load_prompts().await);
         }
         KeyCode::Char(c) => {
-            app.search_query.push(c);
+            app.nav.search_query.push(c);
             handle_error!(app, app.load_prompts().await);
         }
         KeyCode::Backspace => {
-            app.search_query.pop();
+            app.nav.search_query.pop();
             handle_error!(app, app.load_prompts().await);
         }
         _ => {}
@@ -283,32 +283,32 @@ async fn handle_global_search_events(app: &mut App<'_>, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => {
             app.mode = Mode::List;
-            app.global_search_query.clear();
+            app.nav.global_search_query.clear();
             handle_error!(app, app.load_prompts().await);
         }
         KeyCode::Enter => {
             app.mode = Mode::List;
-            handle_error!(app, app.search_all(app.global_search_query.clone()).await);
+            handle_error!(app, app.search_all(app.nav.global_search_query.clone()).await);
         }
         KeyCode::Char('\u{7f}') => {
             if key.modifiers.contains(KeyModifiers::CONTROL) {
-                if let Some(pos) = app.global_search_query.trim_end().rfind(' ') {
-                    app.global_search_query.truncate(pos + 1);
+                if let Some(pos) = app.nav.global_search_query.trim_end().rfind(' ') {
+                    app.nav.global_search_query.truncate(pos + 1);
                 } else {
-                    app.global_search_query.clear();
+                    app.nav.global_search_query.clear();
                 }
             } else {
-                app.global_search_query.pop();
+                app.nav.global_search_query.pop();
             }
-            handle_error!(app, app.search_all(app.global_search_query.clone()).await);
+            handle_error!(app, app.search_all(app.nav.global_search_query.clone()).await);
         }
         KeyCode::Char(c) => {
-            app.global_search_query.push(c);
-            handle_error!(app, app.search_all(app.global_search_query.clone()).await);
+            app.nav.global_search_query.push(c);
+            handle_error!(app, app.search_all(app.nav.global_search_query.clone()).await);
         }
         KeyCode::Backspace => {
-            app.global_search_query.pop();
-            handle_error!(app, app.search_all(app.global_search_query.clone()).await);
+            app.nav.global_search_query.pop();
+            handle_error!(app, app.search_all(app.nav.global_search_query.clone()).await);
         }
         _ => {}
     }
@@ -325,32 +325,32 @@ async fn handle_confirm_discard_events(app: &mut App<'_>, key: KeyEvent) {
 async fn handle_theme_picker_events(app: &mut App<'_>, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => {
-            app.settings.theme_name = app.original_theme.take();
+            app.settings.theme_name = app.nav.original_theme.take();
             app.mode = Mode::List;
         }
         KeyCode::Char('j') | KeyCode::Down => {
             let themes = ratatui_themes::ThemeName::all();
-            let current = app.theme_list_state.selected().unwrap_or(0);
+            let current = app.nav.theme_list_state.selected().unwrap_or(0);
             if current < themes.len() - 1 {
                 let new_idx = current + 1;
-                app.theme_list_state.select(Some(new_idx));
+                app.nav.theme_list_state.select(Some(new_idx));
                 app.settings.theme_name = Some(format!("{:?}", themes[new_idx]));
             }
         }
         KeyCode::Char('k') | KeyCode::Up => {
             let themes = ratatui_themes::ThemeName::all();
-            let current = app.theme_list_state.selected().unwrap_or(0);
+            let current = app.nav.theme_list_state.selected().unwrap_or(0);
             if current > 0 {
                 let new_idx = current - 1;
-                app.theme_list_state.select(Some(new_idx));
+                app.nav.theme_list_state.select(Some(new_idx));
                 app.settings.theme_name = Some(format!("{:?}", themes[new_idx]));
             }
         }
         KeyCode::Enter | KeyCode::Char(' ') => {
             let themes = ratatui_themes::ThemeName::all();
-            let selected = app.theme_list_state.selected().unwrap_or(0);
+            let selected = app.nav.theme_list_state.selected().unwrap_or(0);
             app.settings.theme_name = Some(format!("{:?}", themes[selected]));
-            app.original_theme = None;
+            app.nav.original_theme = None;
             handle_error!(app, app.storage.save_settings(app.settings.clone()).await);
             app.mode = Mode::List;
             app.notify("Theme updated!", ToastType::Success);

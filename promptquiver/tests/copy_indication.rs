@@ -11,25 +11,25 @@ async fn test_copy_indication() {
     storage.save_project_prompts(common::TEST_PATH, vec![p1.clone(), p2.clone()]).await.unwrap();
 
     app.load_prompts().await.unwrap();
-    assert_eq!(app.prompts.len(), 2);
+    assert_eq!(app.nav.prompts.len(), 2);
 
     // 1. Copy first prompt
     app.copy_selected().await.unwrap();
-    assert!(app.prompts[0].last_copied, "First prompt should be marked as last_copied");
-    assert!(!app.prompts[1].last_copied, "Second prompt should NOT be marked as last_copied");
+    assert!(app.nav.prompts[0].last_copied, "First prompt should be marked as last_copied");
+    assert!(!app.nav.prompts[1].last_copied, "Second prompt should NOT be marked as last_copied");
 
     // 2. Copy second prompt
     app.move_down();
     app.copy_selected().await.unwrap();
-    assert!(!app.prompts[0].last_copied, "First prompt should NO LONGER be marked as last_copied");
-    assert!(app.prompts[1].last_copied, "Second prompt should NOW be marked as last_copied");
+    assert!(!app.nav.prompts[0].last_copied, "First prompt should NO LONGER be marked as last_copied");
+    assert!(app.nav.prompts[1].last_copied, "Second prompt should NOW be marked as last_copied");
 
     // 3. Stage a prompt should clear last_copied
     app.stage_selected().await.unwrap();
     // Re-load because stage_selected reloads
     app.load_prompts().await.unwrap();
     
-    for p in &app.prompts {
+    for p in &app.nav.prompts {
         assert!(!p.last_copied, "Staging should clear last_copied icon from all prompts");
     }
 }
@@ -49,22 +49,22 @@ async fn test_copy_icon_rendering() {
 
     terminal.draw(|f| {
         ui::render(f, ui::RenderState {
-            active_tab: app.active_tab,
-            prompts: &app.prompts,
-            selected_index: app.selected_index,
-            list_state: &mut app.list_state,
-            settings_slash_list_state: &mut app.settings_slash_list_state,
-            theme_list_state: &mut app.theme_list_state,
+            active_tab: app.nav.active_tab,
+            prompts: &app.nav.prompts,
+            selected_index: app.nav.selected_index,
+            list_state: &mut app.nav.list_state,
+            settings_slash_list_state: &mut app.nav.settings_slash_list_state,
+            theme_list_state: &mut app.nav.theme_list_state,
             mode: "List",
-            textarea: &mut app.textarea,
-            title_textarea: &mut app.title_textarea,
-            title_focused: app.title_focused,
+            textarea: &mut app.editor.textarea,
+            title_textarea: &mut app.editor.title_textarea,
+            title_focused: app.editor.title_focused,
             current_branch: None,
             current_path: "test",
             suggestions: &[],
             suggestion_index: 0,
-            autocomplete_open: app.autocomplete_open,
-            autocomplete_list_state: &mut app.autocomplete_list_state,
+            autocomplete_open: app.editor.autocomplete.open,
+            autocomplete_list_state: &mut app.editor.autocomplete.list_state,
             search_query: "",
             global_search_query: "",
             settings: &app.settings,
@@ -81,3 +81,4 @@ async fn test_copy_icon_rendering() {
     // Should contain the copy icon
     assert!(row_text.contains("📋"), "Rendered list should contain copy icon 📋. Found: {}", row_text);
 }
+
