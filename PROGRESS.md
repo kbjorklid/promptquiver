@@ -15,9 +15,12 @@
 - [x] Create comprehensive `docs/WIDGETS.md` cataloging core and community Ratatui widgets.
 - [x] Implement discarding of autocomplete popup on `Esc` key.
 - [x] Improved autocomplete popup positioning and reliability.
+- [x] Implement multi-instance support with file watching and optimistic locking.
+- [x] Handle write conflicts with user notifications.
+- [x] Create minor release v0.7.0.
 
 ## Current Tasks
-- [x] Implementation completed and verified.
+- [x] Version 0.7.0 released.
 
 ## Next Steps
 - None. Ready for next feature.
