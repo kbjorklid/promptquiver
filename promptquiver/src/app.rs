@@ -1,9 +1,9 @@
 use contracts::{Clipboard, Git, Prompt, PromptType, Storage, Tab};
-use ratatui_textarea::TextArea;
 use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastPosition};
 use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
+use crate::editor::EditorModule;
 
 use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,50 +21,6 @@ pub enum Mode {
 pub struct HistoryEntry {
     pub tab: Tab,
     pub prompts: Vec<Prompt>,
-}
-
-#[derive(Debug)]
-pub struct AutocompleteState {
-    pub open: bool,
-    pub suggestions: Vec<Prompt>,
-    pub index: usize,
-    pub list_state: ratatui::widgets::ListState,
-}
-
-impl Default for AutocompleteState {
-    fn default() -> Self {
-        Self {
-            open: false,
-            suggestions: Vec::new(),
-            index: 0,
-            list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct EditorState<'a> {
-    pub textarea: TextArea<'a>,
-    pub title_textarea: TextArea<'a>,
-    pub title_focused: bool,
-    pub editing_id: Option<uuid::Uuid>,
-    pub insert_index: Option<usize>,
-    pub original_text: String,
-    pub autocomplete: AutocompleteState,
-}
-
-impl Default for EditorState<'_> {
-    fn default() -> Self {
-        Self {
-            textarea: TextArea::default(),
-            title_textarea: TextArea::default(),
-            title_focused: false,
-            editing_id: None,
-            insert_index: None,
-            original_text: String::new(),
-            autocomplete: AutocompleteState::default(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -115,7 +71,7 @@ pub struct App<'a> {
     pub should_quit: bool,
     pub mode: Mode,
     pub nav: NavigationState,
-    pub editor: EditorState<'a>,
+    pub editor: EditorModule<'a>,
     pub current_branch: Option<String>,
     pub toaster: Option<ToastEngine<ToastMessage>>,
     pub settings: contracts::Settings,
@@ -154,7 +110,7 @@ impl App<'_> {
             should_quit: false,
             mode: Mode::List,
             nav: NavigationState::default(),
-            editor: EditorState::default(),
+            editor: EditorModule::default(),
             current_branch: None,
             toaster: None,
             settings: contracts::Settings::default(),
@@ -417,8 +373,6 @@ impl App<'_> {
         self.nav.search_query.clear();
         self.nav.global_search_query.clear();
         self.mode = Mode::Editor;
-        self.editor.textarea = TextArea::new(text.lines().map(String::from).collect());
-        self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
         
         let title = if self.nav.active_tab == Tab::Snippets {
             if let Some(id) = id {
@@ -429,37 +383,20 @@ impl App<'_> {
         } else {
             String::new()
         };
-        self.editor.title_textarea = TextArea::new(vec![title]);
-        self.editor.title_focused = self.nav.active_tab == Tab::Snippets;
         
-        self.editor.editing_id = id;
-        self.editor.insert_index = None;
-        self.editor.original_text = text;
+        self.editor.enter(text, id, Some(title), self.nav.active_tab, None);
     }
 
     pub fn enter_editor_before(&mut self, text: String, index: usize) {
         self.nav.search_query.clear();
         self.nav.global_search_query.clear();
         self.mode = Mode::Editor;
-        self.editor.textarea = TextArea::new(text.lines().map(String::from).collect());
-        self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
-
-        let title = String::new();        self.editor.title_textarea = TextArea::new(vec![title]);
-        self.editor.title_focused = self.nav.active_tab == Tab::Snippets;
-
-        self.editor.editing_id = None;
-        self.editor.insert_index = Some(index);
-        self.editor.original_text = text;
+        self.editor.enter(text, None, Some(String::new()), self.nav.active_tab, Some(index));
     }
 
     pub fn exit_editor(&mut self) {
         self.mode = Mode::List;
-        self.editor.editing_id = None;
-        self.editor.insert_index = None;
-        self.editor.autocomplete.open = false;
-        self.editor.autocomplete.suggestions.clear();
-        self.editor.title_textarea = TextArea::default();
-        self.editor.title_focused = false;
+        self.editor.exit();
     }
 
     pub fn edit_setting(&mut self) {
@@ -474,21 +411,11 @@ impl App<'_> {
             let idx = self.nav.selected_index - tabs_len;
             let text = self.settings.slash_commands[idx].clone();
             self.mode = Mode::Editor;
-            self.editor.textarea = TextArea::new(vec![text.clone()]);
-            self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
-            self.editor.title_textarea = TextArea::default();
-            self.editor.title_focused = false;
-            self.editor.editing_id = None; // We'll use selected_index to know which one
-            self.editor.original_text = text;
+            self.editor.enter(text, None, None, self.nav.active_tab, None);
         } else if self.nav.selected_index == tabs_len + slash_len {
             // Add New Slash Command
             self.mode = Mode::Editor;
-            self.editor.textarea = TextArea::default();
-            self.editor.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
-            self.editor.title_textarea = TextArea::default();
-            self.editor.title_focused = false;
-            self.editor.editing_id = None;
-            self.editor.original_text = String::new();
+            self.editor.enter(String::new(), None, None, self.nav.active_tab, None);
         }
     }
 
@@ -722,198 +649,26 @@ impl App<'_> {
         Ok(())
     }
 
-    pub fn get_current_autocomplete_query(&self) -> Option<(String, String)> {
-        let cursor = self.editor.textarea.cursor();
-        let row = cursor.0;
-        let col = cursor.1;
-        
-        if row >= self.editor.textarea.lines().len() {
-            return None;
-        }
-        
-        let line = &self.editor.textarea.lines()[row];
-        let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
-        let before_cursor = &line[..byte_col];
-
-        let triggers = ["$$", "$", "@", "/"];
-        let mut best_trigger = None;
-        let mut best_pos = 0;
-
-        for trigger in triggers {
-            if let Some(pos) = before_cursor.rfind(trigger) {
-                // Check if it's a valid trigger position
-                let is_valid = match trigger {
-                    "/" => {
-                        // Slash is only a trigger if it's at the start or preceded by space
-                        pos == 0 || (pos > 0 && before_cursor.as_bytes()[pos - 1] == b' ')
-                    }
-                    _ => true,
-                };
-                if !is_valid {
-                    continue;
-                }
-
-                if trigger == "$" && pos > 0 && before_cursor.as_bytes()[pos - 1] == b'$' {
-                    continue;
-                }
-
-                if best_trigger.is_none() || pos > best_pos {
-                    best_trigger = Some(trigger);
-                    best_pos = pos;
-                }
-            }
-        }
-
-        if let Some(trigger) = best_trigger {
-            let query = &before_cursor[best_pos + trigger.len()..];
-            if query.contains(' ') {
-                return None;
-            }
-            return Some((trigger.to_string(), query.to_string()));
-        }
-        None
-    }
-
     pub async fn update_autocomplete(&mut self) -> contracts::Result<()> {
-        if let Some((trigger, query)) = self.get_current_autocomplete_query() {
-            let matcher = SkimMatcherV2::default();
-            
-            match trigger.as_str() {
-                "$" | "$$" => {
-                    let snippets = self.storage.get_global_snippets().await?;
-                    let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
-                        .into_iter()
-                        .filter_map(|s| {
-                            let text = s.name.as_deref().unwrap_or(&s.text);
-                            // Ignore case for snippet suggestions
-                            matcher.fuzzy_match(&text.to_lowercase(), &query_lower).map(|score| (score, s))
-                        })
-                        .collect();
-                    
-                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.editor.autocomplete.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
-                }
-                "@" => {
-                    self.editor.autocomplete.suggestions.clear();
-                    self.editor.autocomplete.open = false;
-                    if let Some(tx) = &self.file_search_tx {
-                        // self.notify(format!("Searching files for: '{}'", query), contracts::ToastType::Info);
-                        let _ = tx.try_send((self.nav.current_path.clone(), query.to_string()));
-                    }
-                    return Ok(());
-                }
-                "/" => {
-                    // Slash commands from settings
-                    let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = self.settings.slash_commands
-                        .iter()
-                        .filter_map(|cmd| {
-                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone()))))
-                        })
-                        .collect();
-                        
-                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.editor.autocomplete.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
-                }
-                _ => self.editor.autocomplete.suggestions = Vec::new(),
-            }
-            
-            if self.editor.autocomplete.suggestions.is_empty() {
-                self.editor.autocomplete.open = false;
-            } else {
-                self.editor.autocomplete.open = true;
-                if self.editor.autocomplete.index >= self.editor.autocomplete.suggestions.len() {
-                    self.editor.autocomplete.index = 0;
-                }
-            }
-        } else {
-            self.editor.autocomplete.open = false;
-            self.editor.autocomplete.suggestions.clear();
-        }
-
-        Ok(())
+        let snippets = self.storage.get_global_snippets().await?;
+        self.editor.update_autocomplete(
+            snippets,
+            &self.settings,
+            self.nav.current_path.clone(),
+            &self.file_search_tx
+        ).await
     }
 
-    pub const fn move_suggestion_down(&mut self) {
-        if !self.editor.autocomplete.suggestions.is_empty() && self.editor.autocomplete.index < self.editor.autocomplete.suggestions.len() - 1 {
-            self.editor.autocomplete.index += 1;
-        }
+    pub fn move_suggestion_down(&mut self) {
+        self.editor.move_suggestion_down();
     }
 
-    pub const fn move_suggestion_up(&mut self) {
-        if self.editor.autocomplete.index > 0 {
-            self.editor.autocomplete.index -= 1;
-        }
+    pub fn move_suggestion_up(&mut self) {
+        self.editor.move_suggestion_up();
     }
 
     pub fn select_suggestion(&mut self) {
-        if !self.editor.autocomplete.suggestions.is_empty() && self.editor.autocomplete.open {
-            let snippet = &self.editor.autocomplete.suggestions[self.editor.autocomplete.index];
-            let name = snippet.name.as_deref().unwrap_or(&snippet.text);
-            
-            let cursor = self.editor.textarea.cursor();
-            let row = cursor.0;
-            let col = cursor.1;
-            let line = self.editor.textarea.lines()[row].clone();
-            let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
-            let before_cursor = &line[..byte_col];
-            
-            let triggers = ["$$", "$", "@", "/"];
-            let mut best_trigger = None;
-            let mut best_pos = 0;
-
-            for trigger in triggers {
-                if let Some(pos) = before_cursor.rfind(trigger) {
-                    // Check if it's a valid trigger position
-                    let is_valid = match trigger {
-                        "/" => {
-                            // Slash is only a trigger if it's at the start or preceded by space
-                            pos == 0 || (pos > 0 && before_cursor.as_bytes()[pos - 1] == b' ')
-                        }
-                        _ => true,
-                    };
-
-                    if !is_valid {
-                        continue;
-                    }
-
-                    if trigger == "$" && pos > 0 && before_cursor.as_bytes()[pos - 1] == b'$' {
-                        continue;
-                    }
-
-                    if best_trigger.is_none() || pos > best_pos {
-                        best_trigger = Some(trigger);
-                        best_pos = pos;
-                    }
-                }
-            }
-            if let Some(trigger) = best_trigger {
-                let replacement = match trigger {
-                    "$$" => format!("$${name}"),
-                    "$" => snippet.text.clone(),
-                    "@" => format!("@{name}"),
-                    "/" => format!("/{name}"),
-                    _ => name.to_string(),
-                };
-
-                let mut new_line = line[..best_pos].to_string();
-                new_line.push_str(&replacement);
-                new_line.push_str(&line[byte_col..]);
-                
-                let new_col = line[..best_pos].chars().count() + replacement.chars().count();
-                
-                // This is a bit hacky with ratatui-textarea but works for simple cases
-                self.editor.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, 0));
-                self.editor.textarea.delete_line_by_end();
-                self.editor.textarea.insert_str(&new_line);
-                self.editor.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, new_col as u16));
-            }
-            
-            self.editor.autocomplete.open = false;
-            self.editor.autocomplete.suggestions.clear();
-            self.editor.autocomplete.index = 0;
-        }
+        self.editor.select_suggestion();
     }
 
     pub async fn toggle_setting(&mut self) -> contracts::Result<()> {

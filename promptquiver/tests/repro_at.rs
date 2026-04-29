@@ -22,7 +22,7 @@ async fn test_repro_at_symbol_typing() {
     }
 
     // Verify get_current_autocomplete_query
-    let query_state = app.get_current_autocomplete_query();
+    let query_state = app.editor.get_current_autocomplete_query();
     assert!(query_state.is_some());
     let (trigger, query) = query_state.unwrap();
     assert_eq!(trigger, "@");

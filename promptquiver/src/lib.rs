@@ -1,3 +1,4 @@
 pub mod app;
-pub mod tui;
 pub mod handlers;
+pub mod tui;
+pub mod editor;

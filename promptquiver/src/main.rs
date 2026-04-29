@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
 
         while let Ok((query, results)) = file_result_rx.try_recv() {
             // Only update if the query matches current cursor state
-            if let Some((trigger, current_query)) = app.get_current_autocomplete_query() {
+            if let Some((trigger, current_query)) = app.editor.get_current_autocomplete_query() {
                 if trigger == "@" && current_query == query {
                     if !results.is_empty() {
                         app.editor.autocomplete.suggestions = results;
