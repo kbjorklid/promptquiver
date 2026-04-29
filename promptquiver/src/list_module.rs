@@ -22,6 +22,7 @@ pub struct ListModule {
     pub global_search_query: String,
     pub current_path: String,
     pub original_theme: Option<String>,
+    pub current_branch: Option<String>,
 }
 
 impl Default for ListModule {
@@ -43,6 +44,7 @@ impl Default for ListModule {
                 .to_string_lossy()
                 .into_owned(),
             original_theme: None,
+            current_branch: None,
         }
     }
 }
@@ -50,6 +52,45 @@ impl Default for ListModule {
 impl ListModule {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub async fn load_prompts(&mut self, storage: &Arc<dyn Storage>) -> Result<()> {
+        let path = self.current_project_path();
+        
+        // Ensure project info is saved
+        let _ = storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
+
+        let mut prompts = match self.active_tab {
+            Tab::Prompts => storage.get_project_prompts(&path).await?,
+            Tab::Notes => storage.get_project_notes(&path).await?,
+            Tab::Archive => storage.get_project_archive(&path).await?,
+            Tab::Canned => storage.get_global_canned().await?,
+            Tab::Snippets => storage.get_global_snippets().await?,
+            Tab::Settings => Vec::new(),
+        };
+
+        if self.branch_filter {
+            if let Some(ref branch) = self.current_branch {
+                prompts.retain(|p| p.branch.as_deref() == Some(branch));
+            }
+        }
+
+        if !self.search_query.is_empty() {
+            let query = self.search_query.to_lowercase();
+            prompts.retain(|p| {
+                p.text.to_lowercase().contains(&query) || 
+                p.name.as_deref().unwrap_or("").to_lowercase().contains(&query)
+            });
+        }
+        
+        self.prompts = prompts;
+        
+        if self.selected_index >= self.prompts.len() && !self.prompts.is_empty() {
+            self.selected_index = self.prompts.len() - 1;
+        }
+        self.list_state.select(Some(self.selected_index));
+        
+        Ok(())
     }
 
     pub fn next_tab(&mut self) {
@@ -185,6 +226,297 @@ impl ListModule {
             Tab::Snippets => storage.save_global_snippets(self.prompts.clone()).await?,
             Tab::Settings => {}
         }
+        Ok(())
+    }
+
+    pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>) -> Result<Option<crate::types::AppMessage>> {
+        use crate::types::AppMessage;
+        match msg {
+            AppMessage::NextTab => { self.next_tab(); self.load_prompts(ctx.storage).await?; }
+            AppMessage::PrevTab => { self.prev_tab(); self.load_prompts(ctx.storage).await?; }
+            AppMessage::SetTab(tab) => { self.set_tab(tab); self.load_prompts(ctx.storage).await?; }
+            AppMessage::Undo => {
+                if self.undo(ctx.storage).await? {
+                    return Ok(Some(AppMessage::Notify("Undo".into(), ratatui_toaster::ToastType::Info)));
+                }
+            }
+            AppMessage::Redo => {
+                if self.redo(ctx.storage).await? {
+                    return Ok(Some(AppMessage::Notify("Redo".into(), ratatui_toaster::ToastType::Info)));
+                }
+            }
+            AppMessage::MoveDown => self.move_down(ctx.settings),
+            AppMessage::MoveUp => self.move_up(ctx.settings),
+            AppMessage::MoveToTop => self.move_to_top(),
+            AppMessage::MoveToBottom => self.move_to_bottom(ctx.settings),
+            AppMessage::MoveItemUp => {
+                if self.selected_index > 0 && !self.prompts.is_empty() {
+                    self.push_history();
+                    self.prompts.swap(self.selected_index, self.selected_index - 1);
+                    self.selected_index -= 1;
+                    self.save_current_list(ctx.storage).await?;
+                }
+            }
+            AppMessage::MoveItemDown => {
+                if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
+                    self.push_history();
+                    self.prompts.swap(self.selected_index, self.selected_index + 1);
+                    self.selected_index += 1;
+                    self.save_current_list(ctx.storage).await?;
+                }
+            }
+            AppMessage::StageSelected => {
+                if self.active_tab == Tab::Settings || self.prompts.is_empty() {
+                    return Ok(None);
+                }
+
+                let item = self.prompts[self.selected_index].clone();
+                let is_staged = item.staged;
+                let is_alias = self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets;
+
+                self.push_history();
+                ctx.service.stage_item(&self.current_project_path(), self.active_tab, item).await?;
+
+                let notify_msg = if is_alias {
+                    "Copied to clipboard!"
+                } else if is_staged {
+                    "Prompt un-staged"
+                } else {
+                    "Prompt staged and copied to clipboard!"
+                };
+                
+                let notify_type = if is_staged && !is_alias { ratatui_toaster::ToastType::Info } else { ratatui_toaster::ToastType::Success };
+                
+                self.load_prompts(ctx.storage).await?;
+                return Ok(Some(AppMessage::Notify(notify_msg.into(), notify_type)));
+            }
+            AppMessage::ArchiveSelected => {
+                if self.active_tab == Tab::Settings {
+                    let tabs_len = Tab::all().len();
+                    let slash_len = ctx.settings.slash_commands.len();
+                    if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
+                        let idx = self.selected_index - tabs_len;
+                        ctx.settings.slash_commands.remove(idx);
+                        ctx.storage.save_settings(ctx.settings.clone()).await?;
+                        if self.selected_index > 0 {
+                            self.selected_index -= 1;
+                        }
+                        return Ok(Some(AppMessage::Notify("Slash command deleted".into(), ratatui_toaster::ToastType::Warning)));
+                    }
+                    return Ok(None);
+                }
+
+                if self.prompts.is_empty() {
+                    return Ok(None);
+                }
+
+                self.push_history();
+                let target = self.prompts[self.selected_index].clone();
+
+                ctx.service.archive_item(&self.current_project_path(), self.active_tab, target).await?;
+
+                let notify_msg = if self.active_tab == Tab::Archive {
+                    "Prompt deleted permanently"
+                } else {
+                    "Prompt moved to archive"
+                };
+                let notify_type = if self.active_tab == Tab::Archive { ratatui_toaster::ToastType::Warning } else { ratatui_toaster::ToastType::Info };
+
+                self.load_prompts(ctx.storage).await?;
+                return Ok(Some(AppMessage::Notify(notify_msg.into(), notify_type)));
+            }
+            AppMessage::DuplicateSelected => {
+                if self.active_tab == Tab::Settings || self.prompts.is_empty() {
+                    return Ok(None);
+                }
+
+                self.push_history();
+                let target = self.prompts[self.selected_index].clone();
+
+                if let Some(new_prompt) = ctx.service.duplicate_item(&self.current_project_path(), self.active_tab, target).await? {
+                    self.prompts.insert(self.selected_index + 1, new_prompt);
+                    self.selected_index += 1;
+                    self.list_state.select(Some(self.selected_index));
+                    return Ok(Some(AppMessage::Notify("Prompt duplicated".into(), ratatui_toaster::ToastType::Success)));
+                }
+            }
+            AppMessage::RestoreSelected => {
+                if self.active_tab != Tab::Archive || self.prompts.is_empty() {
+                    return Ok(None);
+                }
+
+                self.push_history();
+                let target = self.prompts[self.selected_index].clone();
+
+                ctx.service.restore_item(&self.current_project_path(), target).await?;
+
+                self.load_prompts(ctx.storage).await?;
+                return Ok(Some(AppMessage::Notify("Prompt restored".into(), ratatui_toaster::ToastType::Success)));
+            }
+            AppMessage::ToggleSetting => {
+                if self.active_tab != Tab::Settings {
+                    return Ok(None);
+                }
+
+                let tabs = Tab::all();
+                if self.selected_index < tabs.len() {
+                    let tab = tabs[self.selected_index];
+                    let current = ctx.settings.tab_visibility.get(&tab).copied().unwrap_or(true);
+                    ctx.settings.tab_visibility.insert(tab, !current);
+                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                    return Ok(Some(AppMessage::Notify(format!("Toggled visibility for {tab:?}"), ratatui_toaster::ToastType::Info)));
+                } else if self.selected_index == tabs.len() + ctx.settings.slash_commands.len() + 1 {
+                    ctx.settings.enable_claude_commands = !ctx.settings.enable_claude_commands;
+                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                    return Ok(Some(AppMessage::Notify(format!("Claude commands: {}", if ctx.settings.enable_claude_commands { "ON" } else { "OFF" }), ratatui_toaster::ToastType::Info)));
+                } else if self.selected_index == tabs.len() + ctx.settings.slash_commands.len() + 2 {
+                    ctx.settings.use_nerd_font = !ctx.settings.use_nerd_font;
+                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                    return Ok(Some(AppMessage::Notify(format!("Use Nerd Font Icons: {}", if ctx.settings.use_nerd_font { "ON" } else { "OFF" }), ratatui_toaster::ToastType::Info)));
+                }
+            }
+            AppMessage::ToggleBranchFilter => {
+                self.branch_filter = !self.branch_filter;
+                self.load_prompts(ctx.storage).await?;
+                let status = if self.branch_filter { "ON" } else { "OFF" };
+                return Ok(Some(AppMessage::Notify(format!("Branch filter: {}", status), ratatui_toaster::ToastType::Info)));
+            }
+            AppMessage::Search(query) => {
+                self.search_query = query;
+                self.load_prompts(ctx.storage).await?;
+            }
+            AppMessage::GlobalSearch(query) => {
+                self.search_all(query, ctx.storage).await?;
+            }
+            AppMessage::SearchInput(key) => {
+                match key.code {
+                    crossterm::event::KeyCode::Esc => {
+                        self.search_query.clear();
+                        self.load_prompts(ctx.storage).await?;
+                        // This needs to change mode back to List. App will handle that if we return a message or handle it here if we had access to Mode.
+                        // But since Mode is in App, we might need a message.
+                    }
+                    crossterm::event::KeyCode::Enter => { /* Mode change to List by App */ }
+                    crossterm::event::KeyCode::Char('\u{7f}') => {
+                        if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                            if let Some(pos) = self.search_query.trim_end().rfind(' ') {
+                                self.search_query.truncate(pos + 1);
+                            } else {
+                                self.search_query.clear();
+                            }
+                        } else {
+                            self.search_query.pop();
+                        }
+                        self.load_prompts(ctx.storage).await?;
+                    }
+                    crossterm::event::KeyCode::Char(c) => {
+                        self.search_query.push(c);
+                        self.load_prompts(ctx.storage).await?;
+                    }
+                    crossterm::event::KeyCode::Backspace => {
+                        self.search_query.pop();
+                        self.load_prompts(ctx.storage).await?;
+                    }
+                    _ => {}
+                }
+            }
+            AppMessage::GlobalSearchInput(key) => {
+                 match key.code {
+                    crossterm::event::KeyCode::Esc => {
+                        self.global_search_query.clear();
+                        self.load_prompts(ctx.storage).await?;
+                    }
+                    crossterm::event::KeyCode::Enter => {
+                        self.search_all(self.global_search_query.clone(), ctx.storage).await?;
+                    }
+                    crossterm::event::KeyCode::Char('\u{7f}') => {
+                        if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                            if let Some(pos) = self.global_search_query.trim_end().rfind(' ') {
+                                self.global_search_query.truncate(pos + 1);
+                            } else {
+                                self.global_search_query.clear();
+                            }
+                        } else {
+                            self.global_search_query.pop();
+                        }
+                    }
+                    crossterm::event::KeyCode::Char(c) => {
+                        self.global_search_query.push(c);
+                    }
+                    crossterm::event::KeyCode::Backspace => {
+                        self.global_search_query.pop();
+                    }
+                    _ => {}
+                }
+            }
+            AppMessage::ThemePickerInput(key) => {
+                match key.code {
+                    crossterm::event::KeyCode::Esc => {
+                        ctx.settings.theme_name = self.original_theme.take();
+                    }
+                    crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
+                        let themes = ratatui_themes::ThemeName::all();
+                        let current = self.theme_list_state.selected().unwrap_or(0);
+                        if current < themes.len() - 1 {
+                            let new_idx = current + 1;
+                            self.theme_list_state.select(Some(new_idx));
+                            ctx.settings.theme_name = Some(format!("{:?}", themes[new_idx]));
+                        }
+                    }
+                    crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                        let themes = ratatui_themes::ThemeName::all();
+                        let current = self.theme_list_state.selected().unwrap_or(0);
+                        if current > 0 {
+                            let new_idx = current - 1;
+                            self.theme_list_state.select(Some(new_idx));
+                            ctx.settings.theme_name = Some(format!("{:?}", themes[new_idx]));
+                        }
+                    }
+                    crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Char(' ') => {
+                        let themes = ratatui_themes::ThemeName::all();
+                        let selected = self.theme_list_state.selected().unwrap_or(0);
+                        ctx.settings.theme_name = Some(format!("{:?}", themes[selected]));
+                        self.original_theme = None;
+                        ctx.storage.save_settings(ctx.settings.clone()).await?;
+                        return Ok(Some(AppMessage::Notify("Theme updated!".into(), ratatui_toaster::ToastType::Success)));
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+
+    pub async fn search_all(&mut self, query: String, storage: &Arc<dyn Storage>) -> Result<()> {
+        let path = self.current_project_path();
+        let query_lower = query.to_lowercase();
+        
+        let mut results = Vec::new();
+        
+        // Search all sources
+        let prompts = storage.get_project_prompts(&path).await?;
+        let notes = storage.get_project_notes(&path).await?;
+        let archive = storage.get_project_archive(&path).await?;
+        let canned = storage.get_global_canned().await?;
+        let snippets = storage.get_global_snippets().await?;
+        
+        let mut all = prompts;
+        all.extend(notes);
+        all.extend(archive);
+        all.extend(canned);
+        all.extend(snippets);
+        
+        for p in all {
+            if p.text.to_lowercase().contains(&query_lower) || 
+               p.name.as_deref().unwrap_or("").to_lowercase().contains(&query_lower) {
+                results.push(p);
+            }
+        }
+        
+        self.prompts = results;
+        self.selected_index = 0;
+        self.list_state.select(Some(0));
         Ok(())
     }
 

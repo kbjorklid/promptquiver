@@ -25,7 +25,7 @@ async fn test_autocomplete() {
     assert!(app.editor.autocomplete.open);
     assert_eq!(app.editor.autocomplete.suggestions.len(), 1);
 
-    app.select_suggestion();
+    app.select_suggestion().await.unwrap();
     assert_eq!(app.editor.textarea.lines()[0], "Hello $$ts");
 }
 
@@ -72,7 +72,7 @@ async fn test_autocomplete_file() {
     assert!(app.editor.autocomplete.open);
     assert!(app.editor.autocomplete.suggestions.iter().any(|s| s.name.as_deref() == Some("test_file_for_autocomplete.txt")));
 
-    app.select_suggestion();
+    app.select_suggestion().await.unwrap();
     let line = &app.editor.textarea.lines()[0];
     assert!(line.contains("@test_file_for_autocomplete.txt"));
     assert!(!line.contains("Check @test ")); // Ensure it didn't just append

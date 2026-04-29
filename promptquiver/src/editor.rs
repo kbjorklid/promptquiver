@@ -42,6 +42,103 @@ impl<'a> EditorModule<'a> {
         Self::default()
     }
 
+    pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>, current_path: String, file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>) -> contracts::Result<Option<crate::types::AppMessage>> {
+        use crate::types::AppMessage;
+        use contracts::{PromptType, Tab, Processor};
+        match msg {
+            AppMessage::SaveEditor => {
+                let text = self.textarea.lines().join("\n");
+
+                if ctx.active_tab == Tab::Settings {
+                    let tabs_len = Tab::all().len();
+                    let slash_len = ctx.settings.slash_commands.len();
+
+                    let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() && !re.is_match(trimmed) {
+                        return Ok(Some(AppMessage::Notify("Slash command must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error)));
+                    }
+
+                    if ctx.selected_index >= tabs_len && ctx.selected_index < tabs_len + slash_len {
+                        // Update existing
+                        let idx = ctx.selected_index - tabs_len;
+                        ctx.settings.slash_commands[idx] = trimmed.to_string();
+                        ctx.storage.save_settings(ctx.settings.clone()).await?;
+                    } else if ctx.selected_index == tabs_len + slash_len {
+                        // Add new
+                        let new_cmd = trimmed.to_string();
+                        if !new_cmd.is_empty() {
+                            ctx.settings.slash_commands.push(new_cmd);
+                            ctx.storage.save_settings(ctx.settings.clone()).await?;
+                        }
+                    }
+                    return Ok(Some(AppMessage::ExitEditor));
+                }
+
+                let title = if ctx.active_tab == Tab::Snippets {
+                    let t = self.title_textarea.lines().join("");
+                    let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
+                    if !re.is_match(&t) {
+                         return Ok(Some(AppMessage::Notify("Snippet name must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error)));
+                    }
+                    Some(t)
+                } else {
+                    Processor::extract_title(&text).0
+                };
+
+                // Saving logic (we need to return something or have access to list module)
+                // For now, let's return a "SaveResult" or just handle it here.
+                // But we don't have access to ListModule's push_history.
+                
+                // Maybe we should return a message that App handles to finish saving?
+                // Actually, let's keep the actual saving in App for now if it involves too much cross-module state.
+                // Or we return a specific AppMessage::SaveFinished(text, title, id, index).
+            }
+            AppMessage::UpdateAutocomplete => {
+                let snippets = ctx.storage.get_global_snippets().await?;
+                self.update_autocomplete(snippets, ctx.settings, current_path, file_search_tx).await?;
+            }
+            AppMessage::MoveSuggestionDown => self.move_suggestion_down(),
+            AppMessage::MoveSuggestionUp => self.move_suggestion_up(),
+            AppMessage::SelectSuggestion => self.select_suggestion(),
+            AppMessage::EditorInput(key) => {
+                 if self.title_focused && ctx.active_tab == Tab::Snippets {
+                    if !self.title_textarea.input(key) {
+                        if let crossterm::event::KeyCode::Char(c) = key.code {
+                            self.title_textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                        }
+                    }
+                    if self.title_textarea.lines().len() > 1 {
+                        let joined = self.title_textarea.lines().join("");
+                        self.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
+                        self.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
+                    }
+                } else {
+                    if ctx.active_tab == Tab::Settings {
+                        if key.code != crossterm::event::KeyCode::Enter {
+                            if !self.textarea.input(key) {
+                                if let crossterm::event::KeyCode::Char(c) = key.code {
+                                    self.textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                }
+                            }
+                            // Trigger autocomplete update
+                            return Ok(Some(AppMessage::UpdateAutocomplete));
+                        }
+                    } else {
+                        if !self.textarea.input(key) {
+                            if let crossterm::event::KeyCode::Char(c) = key.code {
+                                self.textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                            }
+                        }
+                        return Ok(Some(AppMessage::UpdateAutocomplete));
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+
     pub fn is_dirty(&self) -> bool {
         let current_text = self.textarea.lines().join("\n");
         current_text != self.original_text
