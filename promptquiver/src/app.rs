@@ -38,6 +38,12 @@ impl fmt::Debug for App<'_> {
 
 impl App<'_> {
     pub async fn handle_message(&mut self, initial_msg: AppMessage) -> contracts::Result<()> {
+        if let AppMessage::ThemePickerInput(ref key) = initial_msg {
+            if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
+                self.mode = Mode::List;
+            }
+        }
+
         let mut msg = initial_msg;
         loop {
             let mut ctx = UpdateContext {
