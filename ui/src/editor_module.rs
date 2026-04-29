@@ -44,7 +44,7 @@ impl<'a> EditorModule<'a> {
 
     pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>, current_path: String, file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>) -> contracts::Result<Option<crate::types::AppMessage>> {
         use crate::types::AppMessage;
-        use contracts::{Tab, Processor};
+        use contracts::Tab;
         match msg {
             AppMessage::SaveEditor => {
                 let text = self.textarea.lines().join("\n");

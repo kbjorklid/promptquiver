@@ -92,9 +92,7 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
              messages.push(AppMessage::ToggleSetting);
         }
         KeyCode::Char('y' | 'c') => {
-             messages.push(AppMessage::Notify("Copied to clipboard!".into(), ToastType::Success)); // This is handled by copy_selected
-             // Actually I should use the proper message
-             // I'll add CopySelected to AppMessage
+             messages.push(AppMessage::CopySelected);
         }
         _ => {}
     }

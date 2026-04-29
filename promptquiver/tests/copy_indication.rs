@@ -1,6 +1,6 @@
 mod common;
 use common::setup_app;
-use contracts::{Prompt, PromptType, Storage};
+use contracts::{Prompt, PromptType, Storage, Clipboard};
 
 #[tokio::test]
 async fn test_copy_indication() {
@@ -32,6 +32,49 @@ async fn test_copy_indication() {
     for p in &app.nav.prompts {
         assert!(!p.last_copied, "Staging should clear last_copied icon from all prompts");
     }
+}
+
+#[tokio::test]
+async fn test_copy_via_y_key() {
+    let (mut app, storage, clipboard, _) = setup_app();
+    
+    let p1 = contracts::Prompt::new("Copy this text".to_string(), contracts::PromptType::Prompt, None, None);
+    storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
+
+    app.load_prompts().await.unwrap();
+    
+    // Set some old content in clipboard
+    clipboard.copy("Old content".to_string()).await.unwrap();
+
+    // Simulate pressing 'y'
+    let key = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('y'), crossterm::event::KeyModifiers::NONE);
+    promptquiver::handlers::handle_key_event(&mut app, key).await;
+
+    // Verify clipboard
+    let current_clipboard = clipboard.paste().await.unwrap();
+    assert_eq!(current_clipboard, "Copy this text", "Clipboard should contain the prompt text after pressing 'y'");
+}
+
+#[tokio::test]
+async fn test_copy_via_y_key_canned_tab() {
+    let (mut app, storage, clipboard, _) = setup_app();
+    
+    let p1 = contracts::Prompt::new("Canned prompt text".to_string(), contracts::PromptType::Prompt, None, None);
+    storage.save_global_canned(vec![p1]).await.unwrap();
+
+    app.set_tab(contracts::Tab::Canned);
+    app.load_prompts().await.unwrap();
+    
+    // Set some old content in clipboard
+    clipboard.copy("Old content".to_string()).await.unwrap();
+
+    // Simulate pressing 'y'
+    let key = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('y'), crossterm::event::KeyModifiers::NONE);
+    promptquiver::handlers::handle_key_event(&mut app, key).await;
+
+    // Verify clipboard
+    let current_clipboard = clipboard.paste().await.unwrap();
+    assert_eq!(current_clipboard, "Canned prompt text", "Clipboard should contain the canned prompt text after pressing 'y'");
 }
 
 #[tokio::test]

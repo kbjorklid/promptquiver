@@ -71,6 +71,7 @@ impl App<'_> {
                 AppMessage::EnterEditor(text, id) => self.enter_editor(text, id),
                 AppMessage::EnterEditorBefore(text, index) => self.enter_editor_before(text, index),
                 AppMessage::ExitEditor => self.exit_editor(),
+                AppMessage::CopySelected => self.copy_selected().await?,
                 AppMessage::SaveEditor => self.save_editor().await?,
                 AppMessage::SaveAndStageEditor => {
                     self.save_editor().await?;

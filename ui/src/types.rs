@@ -28,6 +28,7 @@ pub enum AppMessage {
     MoveToBottom,
     MoveItemUp,
     MoveItemDown,
+    CopySelected,
     StageSelected,
     ArchiveSelected,
     DuplicateSelected,
@@ -66,4 +67,14 @@ pub struct UpdateContext<'a> {
     pub settings: &'a mut Settings,
     pub active_tab: Tab,
     pub selected_index: usize,
+}
+
+impl std::fmt::Debug for UpdateContext<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpdateContext")
+            .field("active_tab", &self.active_tab)
+            .field("selected_index", &self.selected_index)
+            .field("settings", &self.settings)
+            .finish_non_exhaustive()
+    }
 }
