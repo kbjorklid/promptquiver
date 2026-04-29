@@ -91,14 +91,18 @@ impl ListModule {
         Ok(())
     }
 
-    pub fn next_tab(&mut self) {
-        self.active_tab = self.active_tab.next();
+    pub fn next_tab(&mut self, settings: &contracts::Settings) {
+        let visible = settings.visible_tabs();
+        let pos = visible.iter().position(|&t| t == self.active_tab).unwrap_or(0);
+        self.active_tab = visible[(pos + 1) % visible.len()];
         self.selected_index = 0;
         self.list_state.select(Some(0));
     }
 
-    pub fn prev_tab(&mut self) {
-        self.active_tab = self.active_tab.prev();
+    pub fn prev_tab(&mut self, settings: &contracts::Settings) {
+        let visible = settings.visible_tabs();
+        let pos = visible.iter().position(|&t| t == self.active_tab).unwrap_or(0);
+        self.active_tab = visible[(pos + visible.len() - 1) % visible.len()];
         self.selected_index = 0;
         self.list_state.select(Some(0));
     }
@@ -111,7 +115,7 @@ impl ListModule {
 
     pub fn move_down(&mut self, settings: &contracts::Settings) {
         if self.active_tab == Tab::Settings {
-            let tabs_len = Tab::all().len();
+            let tabs_len = Tab::settings_display_len();
             let slash_len = settings.slash_commands.len();
             let total_settings = tabs_len + slash_len + 4; // tabs + slash commands + Add New + 3 advanced
             if self.selected_index < total_settings - 1 {
@@ -137,7 +141,7 @@ impl ListModule {
             self.list_state.select(Some(self.selected_index));
 
             if self.active_tab == Tab::Settings {
-                let tabs_len = Tab::all().len();
+                let tabs_len = Tab::settings_display_len();
                 let slash_len = settings.slash_commands.len();
                 if self.selected_index >= tabs_len && self.selected_index <= tabs_len + slash_len {
                     self.settings_slash_list_state.select(Some(self.selected_index - tabs_len));
@@ -155,7 +159,7 @@ impl ListModule {
 
     pub fn move_to_bottom(&mut self, settings: &contracts::Settings) {
         if self.active_tab == Tab::Settings {
-            let tabs_len = Tab::all().len();
+            let tabs_len = Tab::settings_display_len();
             let slash_len = settings.slash_commands.len();
             let total_settings = tabs_len + slash_len + 4;
             self.selected_index = total_settings - 1;
@@ -230,8 +234,8 @@ impl ListModule {
     pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>) -> Result<Option<crate::types::AppMessage>> {
         use crate::types::AppMessage;
         match msg {
-            AppMessage::NextTab => { self.next_tab(); self.load_prompts(ctx.storage).await?; }
-            AppMessage::PrevTab => { self.prev_tab(); self.load_prompts(ctx.storage).await?; }
+            AppMessage::NextTab => { self.next_tab(ctx.settings); self.load_prompts(ctx.storage).await?; }
+            AppMessage::PrevTab => { self.prev_tab(ctx.settings); self.load_prompts(ctx.storage).await?; }
             AppMessage::SetTab(tab) => { self.set_tab(tab); self.load_prompts(ctx.storage).await?; }
             AppMessage::Undo => {
                 if self.undo(ctx.storage).await? {
@@ -290,7 +294,7 @@ impl ListModule {
             }
             AppMessage::ArchiveSelected => {
                 if self.active_tab == Tab::Settings {
-                    let tabs_len = Tab::all().len();
+                    let tabs_len = Tab::settings_display_len();
                     let slash_len = ctx.settings.slash_commands.len();
                     if self.selected_index >= tabs_len && self.selected_index < tabs_len + slash_len {
                         let idx = self.selected_index - tabs_len;
@@ -356,7 +360,7 @@ impl ListModule {
                     return Ok(None);
                 }
 
-                let tabs = Tab::all();
+                let tabs: Vec<Tab> = Tab::all().into_iter().filter(|&t| t != Tab::Settings).collect();
                 if self.selected_index < tabs.len() {
                     let tab = tabs[self.selected_index];
                     let current = ctx.settings.tab_visibility.get(&tab).copied().unwrap_or(true);

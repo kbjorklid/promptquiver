@@ -70,6 +70,20 @@ pub struct Settings {
     pub preview_mode: PreviewMode,
 }
 
+impl Settings {
+    pub fn visible_tabs(&self) -> Vec<Tab> {
+        Tab::all()
+            .into_iter()
+            .filter(|t| {
+                if *t == Tab::Settings {
+                    return true;
+                }
+                *self.tab_visibility.get(t).unwrap_or(&true)
+            })
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProjectInfo {
     pub path: String,
@@ -117,16 +131,8 @@ impl Tab {
         ]
     }
 
-    pub fn next(self) -> Self {
-        let all = Self::all();
-        let pos = all.iter().position(|&t| t == self).unwrap();
-        all[(pos + 1) % all.len()]
-    }
-
-    pub fn prev(self) -> Self {
-        let all = Self::all();
-        let pos = all.iter().position(|&t| t == self).unwrap();
-        all[(pos + all.len() - 1) % all.len()]
+    pub fn settings_display_len() -> usize {
+        Self::all().into_iter().filter(|&t| t != Self::Settings).count()
     }
 }
 

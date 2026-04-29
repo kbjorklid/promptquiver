@@ -162,8 +162,8 @@ impl App<'_> {
     }
 
     // Wrappers for tests
-    pub fn next_tab(&mut self) { self.nav.next_tab(); }
-    pub fn prev_tab(&mut self) { self.nav.prev_tab(); }
+    pub fn next_tab(&mut self) { self.nav.next_tab(&self.settings); }
+    pub fn prev_tab(&mut self) { self.nav.prev_tab(&self.settings); }
     pub fn set_tab(&mut self, tab: Tab) { self.nav.set_tab(tab); }
     pub fn move_down(&mut self) { self.nav.move_down(&self.settings); }
     pub fn move_up(&mut self) { self.nav.move_up(&self.settings); }
@@ -228,7 +228,7 @@ impl App<'_> {
         if self.nav.active_tab != Tab::Settings {
             return;
         }
-        let tabs_len = Tab::all().len();
+        let tabs_len = Tab::settings_display_len();
         let slash_len = self.settings.slash_commands.len();
 
         if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len {
@@ -249,8 +249,9 @@ impl App<'_> {
         let path = self.nav.current_project_path();
 
         if self.nav.active_tab == Tab::Settings {
-            let tabs_len = Tab::all().len();
+            let tabs_len = Tab::settings_display_len();
             let slash_len = self.settings.slash_commands.len();
+// ...
 
             let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
             let trimmed = text.trim();

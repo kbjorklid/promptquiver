@@ -27,7 +27,7 @@ pub fn render(
         .split(area);
 
     // Tab Visibility
-    let tabs = Tab::all();
+    let tabs: Vec<Tab> = Tab::all().into_iter().filter(|&t| t != Tab::Settings).collect();
     let items: Vec<ListItem<'_>> = tabs.iter().enumerate().map(|(i, t)| {
         let is_visible = settings.tab_visibility.get(t).copied().unwrap_or(true);
         let prefix = if i == selected_index { "> " } else { "  " };

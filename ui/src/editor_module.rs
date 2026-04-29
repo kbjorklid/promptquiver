@@ -47,11 +47,10 @@ impl<'a> EditorModule<'a> {
         use contracts::Tab;
         match msg {
             AppMessage::SaveEditor => {
-                // ... (rest of SaveEditor unchanged)
                 let text = self.textarea.lines().join("\n");
 
                 if ctx.active_tab == Tab::Settings {
-                    let tabs_len = Tab::all().len();
+                    let tabs_len = Tab::settings_display_len();
                     let slash_len = ctx.settings.slash_commands.len();
 
                     let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
@@ -101,7 +100,9 @@ impl<'a> EditorModule<'a> {
                     }
                 } else {
                     if ctx.active_tab == Tab::Settings {
-                        if key.code != crossterm::event::KeyCode::Enter {
+                        if key.code == crossterm::event::KeyCode::Enter {
+                            return Ok(Some(AppMessage::SaveEditor));
+                        } else {
                             Self::input_with_fallback(&mut self.textarea, key);
                             // Trigger autocomplete update
                             return Ok(Some(AppMessage::UpdateAutocomplete));

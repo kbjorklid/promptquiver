@@ -16,10 +16,10 @@ async fn test_settings_navigation_and_tab_focus() {
     for _ in 0..15 {
         app.move_down();
     }
-    assert_eq!(app.nav.selected_index, 9);
+    assert_eq!(app.nav.selected_index, 8);
 
     app.move_up();
-    assert_eq!(app.nav.selected_index, 8);
+    assert_eq!(app.nav.selected_index, 7);
 }
 
 #[tokio::test]
@@ -32,7 +32,7 @@ async fn test_edit_slash_commands_inline() {
     app.set_tab(Tab::Settings);
     app.load_prompts().await.unwrap();
 
-    let tabs_len = Tab::all().len();
+    let tabs_len = Tab::settings_display_len();
     app.nav.selected_index = tabs_len; // First Slash Command ("test")
 
     app.edit_setting();
@@ -57,22 +57,28 @@ async fn test_edit_slash_commands_inline() {
 }
 
 #[tokio::test]
-async fn test_settings_auto_discard_on_esc() {
-    let (mut app, _, _, _) = setup_app();
+async fn test_save_slash_command_with_enter() {
+    let (mut app, storage, _, _) = setup_app();
 
     app.set_tab(contracts::Tab::Settings);
     app.load_prompts().await.unwrap();
 
-    let tabs_len = contracts::Tab::all().len();
-    app.nav.selected_index = tabs_len; // First Slash Command (if any, or Add New)
+    let tabs_len = contracts::Tab::settings_display_len();
+    app.nav.selected_index = tabs_len; // Add New
 
     app.edit_setting();
-    app.editor.textarea.insert_str("modified");
-    
-    if app.nav.active_tab == contracts::Tab::Settings {
-        app.exit_editor();
-    }
+    app.editor.textarea.insert_str("enter_save");
+
+    // Simulate Enter key
+    let enter_key = crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+    );
+    app.handle_message(promptquiver::app::AppMessage::EditorInput(enter_key)).await.unwrap();
 
     assert_eq!(app.mode, promptquiver::app::Mode::List);
+    let updated_settings = storage.get_settings().await.unwrap();
+    assert!(updated_settings.slash_commands.contains(&"enter_save".to_string()));
 }
+
 

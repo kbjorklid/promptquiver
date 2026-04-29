@@ -27,7 +27,7 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Right | KeyCode::Char('l') => messages.push(AppMessage::NextTab),
         KeyCode::Left | KeyCode::Char('h') => messages.push(AppMessage::PrevTab),
         KeyCode::Tab if app.nav.active_tab == Tab::Settings => {
-            let tabs_len = Tab::all().len();
+            let tabs_len = Tab::settings_display_len();
             let slash_len = app.settings.slash_commands.len();
             let advanced_idx = tabs_len + slash_len + 1;
 
@@ -72,7 +72,7 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Char('g') => messages.push(AppMessage::MoveToTop),
         KeyCode::Char('e') | KeyCode::Enter => {
             if app.nav.active_tab == Tab::Settings {
-                let tabs_len = Tab::all().len();
+                let tabs_len = Tab::settings_display_len();
                 let slash_len = app.settings.slash_commands.len();
                 let advanced_idx = tabs_len + slash_len + 1;
                 if app.nav.selected_index == advanced_idx + 2 {

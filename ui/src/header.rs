@@ -32,7 +32,8 @@ pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contrac
 }
 
 pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings, palette: &ratatui_themes::ThemePalette) {
-    let tab_titles = Tab::all().iter().map(|t| {
+    let visible_tabs = settings.visible_tabs();
+    let tab_titles = visible_tabs.iter().map(|t| {
         let icon = if settings.use_nerd_font {
             match t {
                 Tab::Prompts => "󰈚 ",
@@ -57,7 +58,7 @@ pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &co
     
     let tabs = Tabs::new(tab_titles)
         .divider("|")
-        .select(Tab::all().iter().position(|&t| t == active_tab).unwrap_or(0))
+        .select(visible_tabs.iter().position(|&t| t == active_tab).unwrap_or(0))
         .highlight_style(Style::default().bg(palette.info).fg(palette.bg).add_modifier(Modifier::BOLD))
         .style(Style::default().fg(palette.fg).bg(palette.bg));
     
