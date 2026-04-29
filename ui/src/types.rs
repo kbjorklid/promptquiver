@@ -54,6 +54,7 @@ pub enum AppMessage {
     ThemePickerInput(crossterm::event::KeyEvent),
     SetTheme(Option<String>),
     SelectTheme,
+    CyclePreviewMode,
 }
 
 pub struct UpdateContext<'a> {

@@ -31,6 +31,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("u", "Undo"),
                 Shortcut::new("Ctrl+y", "Redo"),
                 Shortcut::new("/", "Search"),
+                Shortcut::new("Ctrl+e", "Preview"),
                 Shortcut::new("y/c", "Copy"),
                 Shortcut::new("b", "Branch Filter"),
             ]);

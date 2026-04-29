@@ -1,4 +1,4 @@
-use contracts::{Prompt, Tab, Storage, Result};
+use contracts::{Prompt, Tab, Storage, Result, PreviewMode};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -459,6 +459,20 @@ impl ListModule {
                     }
                     _ => {}
                 }
+            }
+            AppMessage::CyclePreviewMode => {
+                ctx.settings.preview_mode = match ctx.settings.preview_mode {
+                    PreviewMode::Bottom => PreviewMode::Side,
+                    PreviewMode::Side => PreviewMode::Hidden,
+                    PreviewMode::Hidden => PreviewMode::Bottom,
+                };
+                let mode_str = match ctx.settings.preview_mode {
+                    PreviewMode::Bottom => "Bottom",
+                    PreviewMode::Side => "Side",
+                    PreviewMode::Hidden => "Hidden",
+                };
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                return Ok(Some(AppMessage::Notify(format!("Preview mode: {}", mode_str), ratatui_toaster::ToastType::Info)));
             }
             _ => {}
         }

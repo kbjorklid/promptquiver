@@ -47,6 +47,9 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Char('6') => messages.push(AppMessage::SetTab(Tab::Settings)),
         KeyCode::Char('u') => messages.push(AppMessage::Undo),
         KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => messages.push(AppMessage::Redo),
+        KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            messages.push(AppMessage::CyclePreviewMode);
+        }
         KeyCode::Char('j') | KeyCode::Down => messages.push(AppMessage::MoveDown),
         KeyCode::Char('k') | KeyCode::Up => messages.push(AppMessage::MoveUp),
         KeyCode::Char('s') => messages.push(AppMessage::StageSelected),

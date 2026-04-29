@@ -52,6 +52,14 @@ impl Prompt {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum PreviewMode {
+    #[default]
+    Bottom,
+    Side,
+    Hidden,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,
@@ -59,6 +67,7 @@ pub struct Settings {
     pub enable_claude_commands: bool,
     pub use_nerd_font: bool,
     pub theme_name: Option<String>,
+    pub preview_mode: PreviewMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

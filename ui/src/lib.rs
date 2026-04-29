@@ -1,4 +1,4 @@
-use contracts::{Tab};
+use contracts::{Tab, PreviewMode};
 use ratatui::layout::{Layout, Constraint, Direction};
 use ratatui::widgets::{Paragraph, Block};
 use ratatui::style::Style;
@@ -41,84 +41,34 @@ pub fn render(
     // Render global background to ensure theme background covers everything
     f.render_widget(Block::default().bg(palette.bg), f.area());
 
-    let show_preview = state.mode != Mode::Editor 
-        && state.mode != Mode::ConfirmDiscard 
-        && state.nav.active_tab != Tab::Settings;
-
     let is_searching = state.mode == Mode::Search;
     
-    let mut available_for_main = f.area().height.saturating_sub(4); // 1 for header, 1 for statusline, 2 for footer
+    // 1. Vertical Split for Header, Main, Search, Footer, Statusline
+    let mut v_constraints = vec![
+        Constraint::Length(1), // Header
+        Constraint::Min(5),    // Main content
+    ];
     if is_searching {
-        available_for_main = available_for_main.saturating_sub(1);
+        v_constraints.push(Constraint::Length(1));
     }
+    v_constraints.push(Constraint::Length(2)); // Footer
+    v_constraints.push(Constraint::Length(1)); // Statusline
 
-    let mut constraints = vec![Constraint::Length(1)]; // Header
+    let v_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(v_constraints)
+        .split(f.area());
 
-    let content_chunk;
-    let mut preview_chunk = None;
-    let mut search_chunk = None;
-    let statusline_chunk;
-    let footer_chunk;
-    let header_chunk;
-
-    if show_preview && available_for_main >= 10 {
-        let preview_h = if available_for_main > 15 {
-            10
-        } else {
-            available_for_main - 5
-        };
-        constraints.push(Constraint::Min(5));
-        constraints.push(Constraint::Length(preview_h));
-        if is_searching {
-            constraints.push(Constraint::Length(1));
-        }
-        constraints.push(Constraint::Length(2)); // Footer (max 2 lines)
-        constraints.push(Constraint::Length(1)); // Statusline
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(constraints)
-            .split(f.area());
-
-        header_chunk = chunks[0];
-        content_chunk = chunks[1];
-        preview_chunk = Some(chunks[2]);
-        if is_searching {
-            search_chunk = Some(chunks[3]);
-            footer_chunk = chunks[4];
-            statusline_chunk = chunks[5];
-        } else {
-            footer_chunk = chunks[3];
-            statusline_chunk = chunks[4];
-        }
+    let header_chunk = v_chunks[0];
+    let main_chunk = v_chunks[1];
+    
+    let (search_chunk, footer_chunk, statusline_chunk) = if is_searching {
+        (Some(v_chunks[2]), v_chunks[3], v_chunks[4])
     } else {
-        constraints.push(Constraint::Min(5));
-        if is_searching {
-            constraints.push(Constraint::Length(1));
-        }
-        constraints.push(Constraint::Length(2)); // Footer
-        constraints.push(Constraint::Length(1)); // Statusline
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(constraints)
-            .split(f.area());
-
-        header_chunk = chunks[0];
-        content_chunk = chunks[1];
-        if is_searching {
-            search_chunk = Some(chunks[2]);
-            footer_chunk = chunks[3];
-            statusline_chunk = chunks[4];
-        } else {
-            footer_chunk = chunks[2];
-            statusline_chunk = chunks[3];
-        }
-    }
+        (None, v_chunks[2], v_chunks[3])
+    };
 
     header::render(f, header_chunk, state.nav.active_tab, state.settings);
-
-    let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
 
     if let Some(s_chunk) = search_chunk {
         let query = &state.nav.search_query;
@@ -128,6 +78,46 @@ pub fn render(
         f.render_widget(paragraph, s_chunk);
     }
 
+    // 2. Main Chunk Layout (List + Preview)
+    let show_preview = state.mode != Mode::Editor 
+        && state.mode != Mode::ConfirmDiscard 
+        && state.nav.active_tab != Tab::Settings
+        && state.settings.preview_mode != PreviewMode::Hidden;
+
+    let content_chunk;
+    let mut preview_chunk = None;
+
+    if show_preview {
+        match state.settings.preview_mode {
+            PreviewMode::Side => {
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(main_chunk);
+                content_chunk = chunks[0];
+                preview_chunk = Some(chunks[1]);
+            }
+            PreviewMode::Bottom => {
+                // Check if there's enough height
+                if main_chunk.height >= 10 {
+                    let preview_h = if main_chunk.height > 15 { 10 } else { main_chunk.height - 5 };
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Min(5), Constraint::Length(preview_h)])
+                        .split(main_chunk);
+                    content_chunk = chunks[0];
+                    preview_chunk = Some(chunks[1]);
+                } else {
+                    content_chunk = main_chunk;
+                }
+            }
+            PreviewMode::Hidden => {
+                content_chunk = main_chunk;
+            }
+        }
+    } else {
+        content_chunk = main_chunk;
+    }
 
     let mut editor_content_area = None;
 

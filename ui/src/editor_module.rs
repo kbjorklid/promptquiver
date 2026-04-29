@@ -47,6 +47,7 @@ impl<'a> EditorModule<'a> {
         use contracts::Tab;
         match msg {
             AppMessage::SaveEditor => {
+                // ... (rest of SaveEditor unchanged)
                 let text = self.textarea.lines().join("\n");
 
                 if ctx.active_tab == Tab::Settings {
@@ -92,11 +93,7 @@ impl<'a> EditorModule<'a> {
             AppMessage::SelectSuggestion => self.select_suggestion(),
             AppMessage::EditorInput(key) => {
                  if self.title_focused && ctx.active_tab == Tab::Snippets {
-                    if !self.title_textarea.input(key) {
-                        if let crossterm::event::KeyCode::Char(c) = key.code {
-                            self.title_textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
-                        }
-                    }
+                    Self::input_with_fallback(&mut self.title_textarea, key);
                     if self.title_textarea.lines().len() > 1 {
                         let joined = self.title_textarea.lines().join("");
                         self.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
@@ -105,20 +102,12 @@ impl<'a> EditorModule<'a> {
                 } else {
                     if ctx.active_tab == Tab::Settings {
                         if key.code != crossterm::event::KeyCode::Enter {
-                            if !self.textarea.input(key) {
-                                if let crossterm::event::KeyCode::Char(c) = key.code {
-                                    self.textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
-                                }
-                            }
+                            Self::input_with_fallback(&mut self.textarea, key);
                             // Trigger autocomplete update
                             return Ok(Some(AppMessage::UpdateAutocomplete));
                         }
                     } else {
-                        if !self.textarea.input(key) {
-                            if let crossterm::event::KeyCode::Char(c) = key.code {
-                                self.textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
-                            }
-                        }
+                        Self::input_with_fallback(&mut self.textarea, key);
                         return Ok(Some(AppMessage::UpdateAutocomplete));
                     }
                 }
@@ -126,6 +115,26 @@ impl<'a> EditorModule<'a> {
             _ => {}
         }
         Ok(None)
+    }
+
+    fn input_with_fallback(textarea: &mut TextArea<'a>, key: crossterm::event::KeyEvent) {
+        use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
+        if !textarea.input(key) {
+            if let KeyCode::Char(c) = key.code {
+                let is_control = key.modifiers.contains(KeyModifiers::CONTROL);
+                let is_alt = key.modifiers.contains(KeyModifiers::ALT);
+                let is_altgr = is_control && is_alt;
+
+                // Only fallback to typing the character if:
+                // 1. It's AltGr (Ctrl+Alt) - used on Windows/Linux for special chars like @, $
+                // 2. No control/alt modifiers are present (except Shift which is fine)
+                // This prevents leaking shortcuts (like Ctrl-Left) as characters when the shortcut 
+                // doesn't move the cursor (e.g. already at the end of the line).
+                if is_altgr || (!is_control && !is_alt) {
+                    textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                }
+            }
+        }
     }
 
     pub fn is_dirty(&self) -> bool {
