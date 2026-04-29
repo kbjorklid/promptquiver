@@ -65,6 +65,22 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Background Database Poller (Sync multiple instances)
+    let (db_sync_tx, mut db_sync_rx) = tokio::sync::mpsc::channel(1);
+    let storage_clone = storage.clone();
+    tokio::spawn(async move {
+        let mut last_version = storage_clone.get_data_version().await.unwrap_or(0);
+        loop {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if let Ok(current_version) = storage_clone.get_data_version().await {
+                if current_version != last_version {
+                    last_version = current_version;
+                    let _ = db_sync_tx.send(()).await;
+                }
+            }
+        }
+    });
+
     // Terminal
     let backend = ratatui::backend::CrosstermBackend::new(io::stdout());
     let terminal = Terminal::new(backend)?;
@@ -83,6 +99,10 @@ async fn main() -> Result<()> {
         // Handle background updates
         if let Ok(branch) = branch_rx.try_recv() {
             app.current_branch = branch;
+        }
+
+        if let Ok(_) = db_sync_rx.try_recv() {
+            handle_error!(app, app.handle_message(ui::AppMessage::ReloadPrompts).await);
         }
 
         while let Ok((query, results)) = file_result_rx.try_recv() {

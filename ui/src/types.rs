@@ -56,6 +56,7 @@ pub enum AppMessage {
     SetTheme(Option<String>),
     SelectTheme,
     CyclePreviewMode,
+    ReloadPrompts,
 }
 
 pub struct UpdateContext<'a> {

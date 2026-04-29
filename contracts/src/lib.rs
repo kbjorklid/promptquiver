@@ -164,6 +164,8 @@ pub trait Storage: Send + Sync {
 
     async fn get_settings(&self) -> Result<Settings>;
     async fn save_settings(&self, settings: Settings) -> Result<()>;
+
+    async fn get_data_version(&self) -> Result<u32>;
 }
 
 

@@ -98,6 +98,9 @@ impl App<'_> {
                     self.mode = Mode::List;
                 }
                 AppMessage::SelectTheme => self.mode = Mode::ThemePicker,
+                AppMessage::ReloadPrompts => {
+                    self.load_prompts().await?;
+                }
                 _ => {}
             }
             break;

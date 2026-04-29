@@ -110,6 +110,10 @@ impl Storage for InMemoryStorage {
         *s = settings;
         Ok(())
     }
+
+    async fn get_data_version(&self) -> Result<u32> {
+        Ok(0)
+    }
 }
 
 #[derive(Debug)]
@@ -128,6 +132,8 @@ impl SqliteStorage {
         let conn = rusqlite::Connection::open(&self.db_path)
             .map_err(|e| contracts::Error::Storage(e.to_string()))?;
         
+        conn.execute("PRAGMA journal_mode=WAL", []).ok();
+
         conn.execute(
             "CREATE TABLE IF NOT EXISTS prompts (
                 id TEXT PRIMARY KEY,
@@ -163,6 +169,19 @@ impl SqliteStorage {
         ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
         Ok(())
+    }
+
+    async fn increment_data_version(&self) -> Result<()> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let current: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            conn.execute(&format!("PRAGMA user_version = {}", current + 1), [])
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 }
 
@@ -281,8 +300,9 @@ impl Storage for SqliteStorage {
                     prompt.updated_at.to_rfc3339(),
                 ],
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        self.increment_data_version().await
     }
 
     async fn delete_prompt(&self, id: Uuid) -> Result<()> {
@@ -292,8 +312,9 @@ impl Storage for SqliteStorage {
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute("DELETE FROM prompts WHERE id = ?", [id.to_string()])
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        self.increment_data_version().await
     }
 
     async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo> {
@@ -327,8 +348,9 @@ impl Storage for SqliteStorage {
                  ON CONFLICT(folder) DO UPDATE SET data=excluded.data",
                 rusqlite::params![folder, data],
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        self.increment_data_version().await
     }
 
     async fn get_settings(&self) -> Result<Settings> {
@@ -360,7 +382,19 @@ impl Storage for SqliteStorage {
                  ON CONFLICT(id) DO UPDATE SET data=excluded.data",
                 rusqlite::params![data],
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok(())
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        self.increment_data_version().await
+    }
+
+    async fn get_data_version(&self) -> Result<u32> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok(version)
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 }

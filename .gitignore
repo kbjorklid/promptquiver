@@ -4,3 +4,5 @@ debug.log
 .env
 *.profraw
 *.profdata
+
+lcov.info

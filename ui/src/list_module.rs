@@ -1,4 +1,4 @@
-use contracts::{Prompt, Tab, Storage, Result, PreviewMode, PromptFilter, PromptType};
+use contracts::{Prompt, Tab, Storage, Result, PreviewMode, PromptFilter};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
