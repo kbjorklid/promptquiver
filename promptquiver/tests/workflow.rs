@@ -1,6 +1,6 @@
 mod common;
 use common::setup_app;
-use contracts::{Storage, Clipboard};
+use contracts::{Storage, Clipboard, PromptFilter, Tab};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -62,9 +62,11 @@ async fn test_quit_event() {
 async fn test_staging() {
     let (mut app, storage, clipboard, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, None, None);
-    let p2 = contracts::Prompt::new("P2".to_string(), contracts::PromptType::Prompt, None, None);
-    storage.save_project_prompts(common::TEST_PATH, vec![p1, p2]).await.unwrap();
+    let p2 = contracts::Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    storage.save_prompt(p2).await.unwrap();
+    storage.save_prompt(p1).await.unwrap();
 
     app.load_prompts().await.unwrap();
 
@@ -80,7 +82,7 @@ async fn test_staging() {
     assert!(app.nav.prompts[0].staged);
     assert_eq!(clipboard.paste().await.unwrap(), "P2");
 
-    let archive = storage.get_project_archive(common::TEST_PATH).await.unwrap();
+    let archive = storage.get_prompts(PromptFilter { folder: Some(common::TEST_PATH.to_string()), tab: Some(Tab::Archive), ..Default::default() }).await.unwrap();
     assert_eq!(archive.len(), 1);
     assert_eq!(archive[0].text, "P1");
 }
@@ -89,9 +91,9 @@ async fn test_staging() {
 async fn test_unstaging() {
     let (mut app, storage, _, _) = setup_app();
     
-    let mut p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, None, None);
+    let mut p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
     p1.staged = true;
-    storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
+    storage.save_prompt(p1).await.unwrap();
 
     app.load_prompts().await.unwrap();
     assert!(app.nav.prompts[0].staged);
@@ -101,7 +103,7 @@ async fn test_unstaging() {
     assert!(!app.nav.prompts[0].staged, "Should be unstaged in memory");
 
     // Verify persistence
-    let stored = storage.get_project_prompts(common::TEST_PATH).await.unwrap();
+    let stored = storage.get_prompts(PromptFilter { folder: Some(common::TEST_PATH.to_string()), tab: Some(Tab::Prompts), ..Default::default() }).await.unwrap();
     assert!(!stored[0].staged, "Should be unstaged in storage");
 }
 
@@ -109,8 +111,8 @@ async fn test_unstaging() {
 async fn test_archive_delete() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, None, None);
-    storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    storage.save_prompt(p1).await.unwrap();
 
     app.load_prompts().await.unwrap();
 
@@ -124,7 +126,6 @@ async fn test_archive_delete() {
     app.archive_selected().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 0);
     
-    let archive = storage.get_project_archive(common::TEST_PATH).await.unwrap();
+    let archive = storage.get_prompts(PromptFilter { folder: Some(common::TEST_PATH.to_string()), tab: Some(Tab::Archive), ..Default::default() }).await.unwrap();
     assert_eq!(archive.len(), 0);
 }
-

@@ -1,5 +1,5 @@
 use ratatui_textarea::TextArea;
-use contracts::{Prompt, Tab, PromptType};
+use contracts::{Prompt, Tab, PromptType, PromptFilter};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use uuid::Uuid;
@@ -84,7 +84,7 @@ impl<'a> EditorModule<'a> {
                 }
             }
             AppMessage::UpdateAutocomplete => {
-                let snippets = ctx.storage.get_global_snippets().await?;
+                let snippets = ctx.storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await?;
                 self.update_autocomplete(snippets, ctx.settings, current_path, file_search_tx).await?;
             }
             AppMessage::MoveSuggestionDown => self.move_suggestion_down(),
@@ -263,7 +263,7 @@ impl<'a> EditorModule<'a> {
                     let mut scored_suggestions: Vec<(i64, Prompt)> = settings.slash_commands
                         .iter()
                         .filter_map(|cmd| {
-                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, Some(cmd.clone()))))
+                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()))))
                         })
                         .collect();
                         

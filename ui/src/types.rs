@@ -43,6 +43,7 @@ pub enum AppMessage {
     SelectSuggestion,
     ToggleSetting,
     ToggleBranchFilter,
+    ToggleFolderFilter,
     Search(String),
     Notify(String, ratatui_toaster::ToastType),
     EditSetting,

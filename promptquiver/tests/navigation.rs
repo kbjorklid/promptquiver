@@ -21,11 +21,11 @@ async fn test_tab_navigation() {
 async fn test_list_navigation() {
     let (mut app, storage, _, _) = setup_app();
 
-    let prompts = vec![
-        contracts::Prompt::new("Prompt 1".to_string(), contracts::PromptType::Prompt, None, None),
-        contracts::Prompt::new("Prompt 2".to_string(), contracts::PromptType::Prompt, None, None),
-    ];
-    storage.save_project_prompts(common::TEST_PATH, prompts).await.unwrap();
+    let p1 = contracts::Prompt::new("Prompt 1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p2 = contracts::Prompt::new("Prompt 2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    
+    storage.save_prompt(p1).await.unwrap();
+    storage.save_prompt(p2).await.unwrap();
 
     app.load_prompts().await.unwrap();
 
@@ -43,13 +43,11 @@ async fn test_list_navigation() {
 async fn test_tab_specific_content() {
     let (mut app, storage, _, _) = setup_app();
     
-    storage.save_project_prompts(common::TEST_PATH, vec![
-        contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, None, None)
-    ]).await.unwrap();
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let n1 = contracts::Prompt::new("N1".to_string(), contracts::PromptType::Note, Some(common::TEST_PATH.to_string()), None, None);
     
-    storage.save_project_notes(common::TEST_PATH, vec![
-        contracts::Prompt::new("N1".to_string(), contracts::PromptType::Note, None, None)
-    ]).await.unwrap();
+    storage.save_prompt(p1).await.unwrap();
+    storage.save_prompt(n1).await.unwrap();
 
     app.load_prompts().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 1);
@@ -60,4 +58,3 @@ async fn test_tab_specific_content() {
     assert_eq!(app.nav.prompts.len(), 1);
     assert_eq!(app.nav.prompts[0].text, "N1");
 }
-

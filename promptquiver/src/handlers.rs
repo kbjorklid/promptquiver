@@ -65,6 +65,7 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         }
         KeyCode::Char('i') => messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index)),
         KeyCode::Char('b') => messages.push(AppMessage::ToggleBranchFilter),
+        KeyCode::Char('f') => messages.push(AppMessage::ToggleFolderFilter),
         KeyCode::Char('/') => {
             messages.push(AppMessage::Search(String::new()));
         }

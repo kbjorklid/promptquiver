@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use contracts::{AppService, Clipboard, Prompt, Result, Storage, Tab, Tab::*, Processor};
+use contracts::{AppService, Clipboard, Prompt, Result, Storage, Tab, Tab::*, Processor, PromptFilter};
 use std::sync::Arc;
 use uuid;
 use chrono;
@@ -20,26 +20,13 @@ impl RealAppService {
         Self { storage, clipboard }
     }
 
-    async fn clear_all_last_copied(&self, project_path: &str) -> Result<()> {
-        let mut prompts = self.storage.get_project_prompts(project_path).await?;
-        let mut notes = self.storage.get_project_notes(project_path).await?;
-        let mut snippets = self.storage.get_global_snippets().await?;
-        let mut canned = self.storage.get_global_canned().await?;
-        let mut archive = self.storage.get_project_archive(project_path).await?;
-
-        let mut changed = false;
-        for p in &mut prompts { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut notes { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut snippets { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut canned { if p.last_copied { p.last_copied = false; changed = true; } }
-        for p in &mut archive { if p.last_copied { p.last_copied = false; changed = true; } }
-
-        if changed {
-            self.storage.save_project_prompts(project_path, prompts).await?;
-            self.storage.save_project_notes(project_path, notes).await?;
-            self.storage.save_global_snippets(snippets).await?;
-            self.storage.save_global_canned(canned).await?;
-            self.storage.save_project_archive(project_path, archive).await?;
+    async fn clear_all_last_copied(&self) -> Result<()> {
+        let all = self.storage.get_prompts(PromptFilter::default()).await?;
+        for mut p in all {
+            if p.last_copied {
+                p.last_copied = false;
+                self.storage.save_prompt(p).await?;
+            }
         }
         Ok(())
     }
@@ -47,14 +34,15 @@ impl RealAppService {
 
 #[async_trait]
 impl AppService for RealAppService {
-    async fn stage_item(&self, project_path: &str, tab: Tab, item: Prompt) -> Result<()> {
+    async fn stage_item(&self, _folder: &str, tab: Tab, mut item: Prompt) -> Result<()> {
         if tab == Settings {
             return Ok(());
         }
 
+        let snippets = self.storage.get_prompts(PromptFilter { tab: Some(Snippets), ..Default::default() }).await?;
+
         // Alias for Notes and Snippets: they cannot be staged anymore
         if tab == Notes || tab == Snippets {
-            let snippets = self.storage.get_global_snippets().await?;
             let processed_text = Processor::process(&item.text, &snippets);
             self.clipboard.copy(processed_text).await?;
             return Ok(());
@@ -62,76 +50,29 @@ impl AppService for RealAppService {
 
         if item.staged {
             // Un-stage
-            let mut current_list = match tab {
-                Prompts => self.storage.get_project_prompts(project_path).await?,
-                Canned => self.storage.get_global_canned().await?,
-                _ => return Ok(()),
-            };
-
-            if let Some(p) = current_list.iter_mut().find(|p| p.id == item.id) {
-                p.staged = false;
-            }
-
-            match tab {
-                Prompts => self.storage.save_project_prompts(project_path, current_list).await?,
-                Canned => self.storage.save_global_canned(current_list).await?,
-                _ => {},
-            }
+            item.staged = false;
+            self.storage.save_prompt(item).await?;
         } else {
             // Stage
-            let mut prompts = self.storage.get_project_prompts(project_path).await?;
-            let mut archive = self.storage.get_project_archive(project_path).await?;
-            let mut canned = self.storage.get_global_canned().await?;
-
-            let mut to_archive = Vec::new();
-
-            for p in &mut prompts {
-                if p.staged {
+            // Unstage and archive other staged items in the same scope?
+            // Old behavior: "Remove archived items from their original lists. Add to archive (to the top)"
+            let all_in_scope = self.storage.get_prompts(PromptFilter { folder: item.folder.clone(), ..Default::default() }).await?;
+            for mut p in all_in_scope {
+                if p.r#type == contracts::PromptType::Prompt && p.staged && p.id != item.id {
                     p.staged = false;
-                    to_archive.push(p.clone());
+                    p.is_archived = true;
+                    self.storage.save_prompt(p).await?;
                 }
-            }
-            
-            for p in &mut canned {
-                if p.staged {
-                    p.staged = false;
-                }
-            }
-
-            // Remove archived items from their original lists
-            prompts.retain(|p| !to_archive.iter().any(|a| a.id == p.id));
-
-            // Add to archive (to the top)
-            for mut p in to_archive {
-                p.staged = false;
-                archive.insert(0, p);
             }
 
             // Set target to staged
-            match tab {
-                Prompts => {
-                    if let Some(p) = prompts.iter_mut().find(|p| p.id == item.id) {
-                        p.staged = true;
-                    }
-                }
-                Canned => {
-                    if let Some(p) = canned.iter_mut().find(|p| p.id == item.id) {
-                        p.staged = true;
-                    }
-                }
-                _ => {}
-            }
-
-            // Save affected lists
-            self.storage.save_project_prompts(project_path, prompts).await?;
-            self.storage.save_project_archive(project_path, archive).await?;
-            self.storage.save_global_canned(canned).await?;
+            item.staged = true;
+            self.storage.save_prompt(item.clone()).await?;
 
             // Clear last_copied for all when staging
-            self.clear_all_last_copied(project_path).await?;
+            self.clear_all_last_copied().await?;
 
             // Process text before copying
-            let snippets = self.storage.get_global_snippets().await?;
             let processed_text = Processor::process(&item.text, &snippets);
             self.clipboard.copy(processed_text).await?;
         }
@@ -139,75 +80,31 @@ impl AppService for RealAppService {
         Ok(())
     }
 
-    async fn archive_item(&self, project_path: &str, tab: Tab, item: Prompt) -> Result<()> {
+    async fn archive_item(&self, _folder: &str, tab: Tab, mut item: Prompt) -> Result<()> {
         if tab == Settings {
             return Ok(());
         }
 
         if tab == Archive {
             // Permanent delete
-            let mut archive = self.storage.get_project_archive(project_path).await?;
-            archive.retain(|p| p.id != item.id);
-            self.storage.save_project_archive(project_path, archive).await?;
+            self.storage.delete_prompt(item.id).await?;
         } else {
             // Move to archive
-            let mut current_list = match tab {
-                Prompts => self.storage.get_project_prompts(project_path).await?,
-                Notes => self.storage.get_project_notes(project_path).await?,
-                Canned => self.storage.get_global_canned().await?,
-                Snippets => self.storage.get_global_snippets().await?,
-                _ => return Ok(()),
-            };
-
-            if let Some(mut p) = current_list.iter().find(|p| p.id == item.id).cloned() {
-                current_list.retain(|p| p.id != item.id);
-                p.staged = false;
-
-                let mut archive = self.storage.get_project_archive(project_path).await?;
-                archive.insert(0, p);
-
-                self.storage.save_project_archive(project_path, archive).await?;
-                
-                match tab {
-                    Prompts => self.storage.save_project_prompts(project_path, current_list).await?,
-                    Notes => self.storage.save_project_notes(project_path, current_list).await?,
-                    Canned => self.storage.save_global_canned(current_list).await?,
-                    Snippets => self.storage.save_global_snippets(current_list).await?,
-                    _ => {},
-                }
-            }
+            item.is_archived = true;
+            item.staged = false;
+            self.storage.save_prompt(item).await?;
         }
         Ok(())
     }
 
-    async fn restore_item(&self, project_path: &str, item: Prompt) -> Result<()> {
-        let mut archive = self.storage.get_project_archive(project_path).await?;
-        if let Some(p) = archive.iter().find(|p| p.id == item.id).cloned() {
-            archive.retain(|p| p.id != item.id);
-            self.storage.save_project_archive(project_path, archive).await?;
-
-            match p.r#type {
-                contracts::PromptType::Prompt => {
-                    let mut prompts = self.storage.get_project_prompts(project_path).await?;
-                    prompts.insert(0, p);
-                    self.storage.save_project_prompts(project_path, prompts).await?;
-                }
-                contracts::PromptType::Note => {
-                    let mut notes = self.storage.get_project_notes(project_path).await?;
-                    notes.insert(0, p);
-                    self.storage.save_project_notes(project_path, notes).await?;
-                }
-                contracts::PromptType::Snippet => {
-                    let mut snippets = self.storage.get_global_snippets().await?;
-                    snippets.insert(0, p);
-                    self.storage.save_global_snippets(snippets).await?;
-                }
-            }
-        }
+    async fn restore_item(&self, _folder: &str, mut item: Prompt) -> Result<()> {
+        item.is_archived = false;
+        item.staged = false;
+        self.storage.save_prompt(item).await?;
         Ok(())
     }
 
-    async fn duplicate_item(&self, project_path: &str, tab: Tab, item: Prompt) -> Result<Option<Prompt>> {
+    async fn duplicate_item(&self, _folder: &str, tab: Tab, item: Prompt) -> Result<Option<Prompt>> {
         if tab == Settings {
             return Ok(None);
         }
@@ -215,123 +112,46 @@ impl AppService for RealAppService {
         let mut p = item.clone();
         p.id = uuid::Uuid::new_v4();
         p.staged = false;
+        p.is_archived = false;
         p.created_at = chrono::Utc::now();
         p.updated_at = p.created_at;
 
-        let mut current_list = match tab {
-            Prompts => self.storage.get_project_prompts(project_path).await?,
-            Notes => self.storage.get_project_notes(project_path).await?,
-            Archive => self.storage.get_project_archive(project_path).await?,
-            Canned => self.storage.get_global_canned().await?,
-            Snippets => self.storage.get_global_snippets().await?,
-            _ => return Ok(None),
-        };
-
-        // Find index of original item to insert after it
-        if let Some(pos) = current_list.iter().position(|i| i.id == item.id) {
-            current_list.insert(pos + 1, p.clone());
-        } else {
-            current_list.push(p.clone());
-        }
-
-        match tab {
-            Prompts => self.storage.save_project_prompts(project_path, current_list).await?,
-            Notes => self.storage.save_project_notes(project_path, current_list).await?,
-            Archive => self.storage.save_project_archive(project_path, current_list).await?,
-            Canned => self.storage.save_global_canned(current_list).await?,
-            Snippets => self.storage.save_global_snippets(current_list).await?,
-            _ => {},
-        }
-
+        self.storage.save_prompt(p.clone()).await?;
         Ok(Some(p))
     }
 
-    async fn copy_item(&self, project_path: &str, tab: Tab, item: Prompt) -> Result<()> {
+    async fn copy_item(&self, _folder: &str, tab: Tab, item: Prompt) -> Result<()> {
         if tab == Settings {
             return Ok(());
         }
 
         // 1. Clear all
-        self.clear_all_last_copied(project_path).await?;
+        self.clear_all_last_copied().await?;
 
-        // 2. Mark current as last_copied in its original list
-        match tab {
-            Prompts => {
-                let mut list = self.storage.get_project_prompts(project_path).await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == item.id) { p.last_copied = true; }
-                self.storage.save_project_prompts(project_path, list).await?;
-            }
-            Notes => {
-                let mut list = self.storage.get_project_notes(project_path).await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == item.id) { p.last_copied = true; }
-                self.storage.save_project_notes(project_path, list).await?;
-            }
-            Canned => {
-                let mut list = self.storage.get_global_canned().await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == item.id) { p.last_copied = true; }
-                self.storage.save_global_canned(list).await?;
-            }
-            Snippets => {
-                let mut list = self.storage.get_global_snippets().await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == item.id) { p.last_copied = true; }
-                self.storage.save_global_snippets(list).await?;
-            }
-            Archive => {
-                let mut list = self.storage.get_project_archive(project_path).await?;
-                if let Some(p) = list.iter_mut().find(|p| p.id == item.id) { p.last_copied = true; }
-                self.storage.save_project_archive(project_path, list).await?;
-            }
-            _ => {}
-        }
+        // 2. Mark current as last_copied
+        let mut p = item.clone();
+        p.last_copied = true;
+        self.storage.save_prompt(p).await?;
 
         // 3. Process and copy
-        let snippets = self.storage.get_global_snippets().await?;
+        let snippets = self.storage.get_prompts(PromptFilter { tab: Some(Snippets), ..Default::default() }).await?;
         let processed_text = Processor::process(&item.text, &snippets);
         self.clipboard.copy(processed_text).await?;
 
         Ok(())
     }
 
-    async fn save_item(&self, project_path: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, insert_index: Option<usize>, branch: Option<String>) -> Result<()> {
+    async fn save_item(&self, folder: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, _insert_index: Option<usize>, branch: Option<String>) -> Result<()> {
         if let Some(id) = id {
-            match tab {
-                Tab::Prompts => {
-                    let mut list = self.storage.get_project_prompts(project_path).await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_project_prompts(project_path, list).await?;
-                }
-                Tab::Notes => {
-                    let mut list = self.storage.get_project_notes(project_path).await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_project_notes(project_path, list).await?;
-                }
-                Tab::Canned => {
-                    let mut list = self.storage.get_global_canned().await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_global_canned(list).await?;
-                }
-                Tab::Snippets => {
-                    let mut list = self.storage.get_global_snippets().await?;
-                    if let Some(p) = list.iter_mut().find(|p| p.id == id) {
-                        p.text = text;
-                        p.name = title;
-                        p.updated_at = chrono::Utc::now();
-                    }
-                    self.storage.save_global_snippets(list).await?;
-                }
-                _ => {}
+            // We need to find the prompt to update it
+            // Actually, we can just fetch all and find it, or we need a get_prompt_by_id?
+            // For now, let's fetch all.
+            let all = self.storage.get_prompts(PromptFilter::default()).await?;
+            if let Some(mut p) = all.into_iter().find(|p| p.id == id) {
+                p.text = text;
+                p.name = title;
+                p.updated_at = chrono::Utc::now();
+                self.storage.save_prompt(p).await?;
             }
         } else {
             let r#type = match tab {
@@ -340,31 +160,12 @@ impl AppService for RealAppService {
                 _ => contracts::PromptType::Prompt,
             };
             
-            let prompt = contracts::Prompt::new(text, r#type, branch, title);
-            
-            match tab {
-                Tab::Prompts => {
-                    let mut list = self.storage.get_project_prompts(project_path).await?;
-                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
-                    self.storage.save_project_prompts(project_path, list).await?;
-                }
-                Tab::Notes => {
-                    let mut list = self.storage.get_project_notes(project_path).await?;
-                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
-                    self.storage.save_project_notes(project_path, list).await?;
-                }
-                Tab::Canned => {
-                    let mut list = self.storage.get_global_canned().await?;
-                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
-                    self.storage.save_global_canned(list).await?;
-                }
-                Tab::Snippets => {
-                    let mut list = self.storage.get_global_snippets().await?;
-                    if let Some(idx) = insert_index { list.insert(idx, prompt); } else { list.push(prompt); }
-                    self.storage.save_global_snippets(list).await?;
-                }
-                _ => {}
+            let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch, title);
+            if tab == Tab::Canned {
+                prompt.folder = None;
             }
+            
+            self.storage.save_prompt(prompt).await?;
         }
         Ok(())
     }
@@ -397,7 +198,7 @@ impl AppService for RealAppService {
                         if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
                             let mut final_score = score;
                             if path_lower.contains(query_normalized) { final_score += 100; }
-                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, Some(relative_path))));
+                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(relative_path))));
                         }
                     }
                 }

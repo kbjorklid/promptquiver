@@ -103,3 +103,58 @@ pub fn highlight_text(text: &str) -> Vec<Line<'_>> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::style::Color;
+
+    #[test]
+    fn test_get_palette() {
+        let p = get_palette(Some("Dracula"));
+        assert_eq!(p.accent, Color::Rgb(189, 147, 249)); // Dracula accent
+
+        let p_default = get_palette(None);
+        assert_eq!(p_default.accent, Color::Rgb(189, 147, 249)); // Default is Dracula
+    }
+
+    #[test]
+    fn test_get_zebra_color() {
+        let dark = Color::Rgb(10, 10, 10);
+        let lightened = get_zebra_color(dark);
+        assert!(matches!(lightened, Color::Rgb(r, g, b) if r > 10));
+
+        let mid = Color::Rgb(100, 100, 100);
+        let mid_lightened = get_zebra_color(mid);
+        assert!(matches!(mid_lightened, Color::Rgb(r, g, b) if r > 100));
+
+        let bright = Color::Rgb(200, 200, 200);
+        let darkened = get_zebra_color(bright);
+        assert!(matches!(darkened, Color::Rgb(r, g, b) if r < 200));
+
+        assert_eq!(get_zebra_color(Color::Red), Color::Red);
+    }
+
+    #[test]
+    fn test_centered_rect() {
+        let r = Rect::new(0, 0, 100, 100);
+        let centered = centered_rect(50, 50, r);
+        assert_eq!(centered.width, 50);
+        assert_eq!(centered.height, 50);
+        assert_eq!(centered.x, 25);
+        assert_eq!(centered.y, 25);
+    }
+
+    #[test]
+    fn test_highlight_text() {
+        let lines = highlight_text("-- comment\nHello $$snippet world");
+        assert_eq!(lines.len(), 2);
+        
+        // Line 1: comment
+        assert_eq!(lines[0].spans.len(), 1);
+        
+        // Line 2: snippet
+        assert_eq!(lines[1].spans.len(), 3); // "Hello ", "$$snippet", " world"
+        assert_eq!(lines[1].spans[1].content, "$$snippet");
+    }
+}

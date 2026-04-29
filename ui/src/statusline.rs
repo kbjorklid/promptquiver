@@ -11,6 +11,7 @@ pub fn render(
     current_path: &str,
     current_branch: Option<&str>,
     prompts_count: usize,
+    folder_filter_enabled: bool,
     settings: &contracts::Settings,
 ) {
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
@@ -18,7 +19,15 @@ pub fn render(
     let formatted_path = format_path(current_path);
     let branch_name = current_branch.unwrap_or("no branch");
     
+    let filter_mode = if folder_filter_enabled { "GLOBAL" } else { "LOCAL" };
+    let filter_style = if folder_filter_enabled {
+        Style::default().fg(palette.bg).bg(palette.accent)
+    } else {
+        Style::default().fg(palette.secondary)
+    };
+
     let line = Line::from(vec![
+        Span::styled(format!(" {} ", filter_mode), filter_style),
         Span::styled(format!(" {} ", formatted_path), Style::default().fg(palette.secondary)),
         Span::styled(format!("  {} ", branch_name), Style::default().fg(palette.warning)),
         Span::styled(format!(" [{}] Items ", prompts_count), Style::default().fg(palette.muted)),

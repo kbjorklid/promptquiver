@@ -9,16 +9,17 @@ async fn test_list_scrolling() {
     let (mut app, storage, _, _) = setup_app();
 
     // Create 50 prompts to ensure they don't all fit in the view
-    let mut prompts = Vec::new();
-    for i in 1..=50 {
-        prompts.push(contracts::Prompt::new(
+    // Create in reverse order so Prompt 50 is oldest and Prompt 01 is newest
+    for i in (1..=50).rev() {
+        let p = contracts::Prompt::new(
             format!("Prompt {i:02}"),
             contracts::PromptType::Prompt,
+            Some(common::TEST_PATH.to_string()),
             None,
             None,
-        ));
+        );
+        storage.save_prompt(p).await.unwrap();
     }
-    storage.save_project_prompts(common::TEST_PATH, prompts).await.unwrap();
 
     app.load_prompts().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 50);
@@ -73,4 +74,3 @@ async fn test_list_scrolling() {
     
     assert!(found_last_prompt, "Last prompt 'Prompt 50' should be visible when selected");
 }
-

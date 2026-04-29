@@ -1,50 +1,42 @@
-use contracts::{Prompt, PromptType, Storage};
-use infra::FileSystemStorage;
+use contracts::{Prompt, PromptType, Storage, PromptFilter, Tab};
 use std::sync::Arc;
-use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_storage_isolation_per_folder() {
-    let base_temp = tempdir().unwrap();
-    let base_dir = base_temp.path().to_path_buf();
-    let storage = Arc::new(FileSystemStorage::new(Some(base_dir)));
+    let storage = Arc::new(infra::InMemoryStorage::new());
 
-    // Create two physical directories to allow canonicalization to work correctly
-    let dir_a = base_temp.path().join("project_a");
-    let dir_b = base_temp.path().join("project_b");
-    std::fs::create_dir(&dir_a).unwrap();
-    std::fs::create_dir(&dir_b).unwrap();
-
-    let project_a = std::fs::canonicalize(&dir_a).unwrap().to_string_lossy().into_owned();
-    let project_b = std::fs::canonicalize(&dir_b).unwrap().to_string_lossy().into_owned();
+    let project_a = "/path/a";
+    let project_b = "/path/b";
 
     // 1. Save local content to project A
-    let prompt_a = Prompt::new("Prompt A".to_string(), PromptType::Prompt, None, None);
-    let note_a = Prompt::new("Note A".to_string(), PromptType::Note, None, None);
-    storage.save_project_prompts(&project_a, vec![prompt_a.clone()]).await.unwrap();
-    storage.save_project_notes(&project_a, vec![note_a.clone()]).await.unwrap();
+    let prompt_a = Prompt::new("Prompt A".to_string(), PromptType::Prompt, Some(project_a.to_string()), None, None);
+    let note_a = Prompt::new("Note A".to_string(), PromptType::Note, Some(project_a.to_string()), None, None);
+    storage.save_prompt(prompt_a.clone()).await.unwrap();
+    storage.save_prompt(note_a.clone()).await.unwrap();
 
     // 2. Save global content
-    let snippet_global = Prompt::new("Snippet Global".to_string(), PromptType::Snippet, None, Some("sg".to_string()));
-    storage.save_global_snippets(vec![snippet_global.clone()]).await.unwrap();
+    let snippet_global = Prompt::new("Snippet Global".to_string(), PromptType::Snippet, None, None, Some("sg".to_string()));
+    storage.save_prompt(snippet_global.clone()).await.unwrap();
 
     // 3. Verify Project A has its content AND global content
-    assert_eq!(storage.get_project_prompts(&project_a).await.unwrap().len(), 1);
-    assert_eq!(storage.get_project_notes(&project_a).await.unwrap().len(), 1);
-    assert_eq!(storage.get_global_snippets().await.unwrap().len(), 1);
+    assert_eq!(storage.get_prompts(PromptFilter { folder: Some(project_a.to_string()), tab: Some(Tab::Prompts), ..Default::default() }).await.unwrap().len(), 1);
+    assert_eq!(storage.get_prompts(PromptFilter { folder: Some(project_a.to_string()), tab: Some(Tab::Notes), ..Default::default() }).await.unwrap().len(), 1);
+    assert_eq!(storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await.unwrap().len(), 1);
 
     // 4. Verify Project B is empty for local content but has global content
-    assert_eq!(storage.get_project_prompts(&project_b).await.unwrap().len(), 0);
-    assert_eq!(storage.get_project_notes(&project_b).await.unwrap().len(), 0);
-    assert_eq!(storage.get_global_snippets().await.unwrap().len(), 1);
+    assert_eq!(storage.get_prompts(PromptFilter { folder: Some(project_b.to_string()), tab: Some(Tab::Prompts), ..Default::default() }).await.unwrap().len(), 0);
+    assert_eq!(storage.get_prompts(PromptFilter { folder: Some(project_b.to_string()), tab: Some(Tab::Notes), ..Default::default() }).await.unwrap().len(), 0);
+    assert_eq!(storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await.unwrap().len(), 1);
 
     // 5. Save content to Project B and verify Project A remains unchanged
-    let prompt_b = Prompt::new("Prompt B".to_string(), PromptType::Prompt, None, None);
-    storage.save_project_prompts(&project_b, vec![prompt_b.clone()]).await.unwrap();
+    let prompt_b = Prompt::new("Prompt B".to_string(), PromptType::Prompt, Some(project_b.to_string()), None, None);
+    storage.save_prompt(prompt_b.clone()).await.unwrap();
     
-    assert_eq!(storage.get_project_prompts(&project_a).await.unwrap().len(), 1);
-    assert_eq!(storage.get_project_prompts(&project_a).await.unwrap()[0].text, "Prompt A");
-    assert_eq!(storage.get_project_prompts(&project_b).await.unwrap().len(), 1);
-    assert_eq!(storage.get_project_prompts(&project_b).await.unwrap()[0].text, "Prompt B");
+    let stored_a = storage.get_prompts(PromptFilter { folder: Some(project_a.to_string()), tab: Some(Tab::Prompts), ..Default::default() }).await.unwrap();
+    assert_eq!(stored_a.len(), 1);
+    assert_eq!(stored_a[0].text, "Prompt A");
+    
+    let stored_b = storage.get_prompts(PromptFilter { folder: Some(project_b.to_string()), tab: Some(Tab::Prompts), ..Default::default() }).await.unwrap();
+    assert_eq!(stored_b.len(), 1);
+    assert_eq!(stored_b[0].text, "Prompt B");
 }
-

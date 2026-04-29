@@ -6,9 +6,10 @@ use contracts::{Prompt, PromptType, Storage, Clipboard};
 async fn test_copy_indication() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = Prompt::new("P1".to_string(), PromptType::Prompt, None, None);
-    let p2 = Prompt::new("P2".to_string(), PromptType::Prompt, None, None);
-    storage.save_project_prompts(common::TEST_PATH, vec![p1.clone(), p2.clone()]).await.unwrap();
+    let p1 = Prompt::new("P1".to_string(), PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p2 = Prompt::new("P2".to_string(), PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    storage.save_prompt(p1.clone()).await.unwrap();
+    storage.save_prompt(p2.clone()).await.unwrap();
 
     app.load_prompts().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 2);
@@ -38,8 +39,8 @@ async fn test_copy_indication() {
 async fn test_copy_via_y_key() {
     let (mut app, storage, clipboard, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("Copy this text".to_string(), contracts::PromptType::Prompt, None, None);
-    storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
+    let p1 = contracts::Prompt::new("Copy this text".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    storage.save_prompt(p1).await.unwrap();
 
     app.load_prompts().await.unwrap();
     
@@ -59,8 +60,8 @@ async fn test_copy_via_y_key() {
 async fn test_copy_via_y_key_canned_tab() {
     let (mut app, storage, clipboard, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("Canned prompt text".to_string(), contracts::PromptType::Prompt, None, None);
-    storage.save_global_canned(vec![p1]).await.unwrap();
+    let p1 = contracts::Prompt::new("Canned prompt text".to_string(), contracts::PromptType::Prompt, None, None, None);
+    storage.save_prompt(p1).await.unwrap();
 
     app.set_tab(contracts::Tab::Canned);
     app.load_prompts().await.unwrap();
@@ -81,8 +82,8 @@ async fn test_copy_via_y_key_canned_tab() {
 async fn test_copy_icon_rendering() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = Prompt::new("P1".to_string(), PromptType::Prompt, None, Some("Name1".to_string()));
-    storage.save_project_prompts(common::TEST_PATH, vec![p1]).await.unwrap();
+    let p1 = Prompt::new("P1".to_string(), PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, Some("Name1".to_string()));
+    storage.save_prompt(p1).await.unwrap();
 
     app.load_prompts().await.unwrap();
     app.copy_selected().await.unwrap();

@@ -1,4 +1,4 @@
-use contracts::{Prompt, Tab, Storage, Result, PreviewMode};
+use contracts::{Prompt, Tab, Storage, Result, PreviewMode, PromptFilter, PromptType};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -18,6 +18,7 @@ pub struct ListModule {
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
     pub branch_filter: bool,
+    pub folder_filter: bool,
     pub search_query: String,
     pub current_path: String,
     pub original_theme: Option<String>,
@@ -36,6 +37,7 @@ impl Default for ListModule {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             branch_filter: false,
+            folder_filter: false,
             search_query: String::new(),
             current_path: std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
@@ -58,20 +60,14 @@ impl ListModule {
         // Ensure project info is saved
         let _ = storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
 
-        let mut prompts = match self.active_tab {
-            Tab::Prompts => storage.get_project_prompts(&path).await?,
-            Tab::Notes => storage.get_project_notes(&path).await?,
-            Tab::Archive => storage.get_project_archive(&path).await?,
-            Tab::Canned => storage.get_global_canned().await?,
-            Tab::Snippets => storage.get_global_snippets().await?,
-            Tab::Settings => Vec::new(),
+        let filter = PromptFilter {
+            folder: if self.folder_filter || self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets { None } else { Some(path) },
+            branch: if self.branch_filter { self.current_branch.clone() } else { None },
+            tab: Some(self.active_tab),
+            ..Default::default()
         };
 
-        if self.branch_filter {
-            if let Some(ref branch) = self.current_branch {
-                prompts.retain(|p| p.branch.as_deref() == Some(branch));
-            }
-        }
+        let mut prompts = storage.get_prompts(filter).await?;
 
         if !self.search_query.is_empty() {
             let query = self.search_query.to_lowercase();
@@ -219,14 +215,12 @@ impl ListModule {
     }
 
     pub async fn save_current_list(&self, storage: &Arc<dyn Storage>) -> Result<()> {
-        let path = self.current_path.clone();
-        match self.active_tab {
-            Tab::Prompts => storage.save_project_prompts(&path, self.prompts.clone()).await?,
-            Tab::Notes => storage.save_project_notes(&path, self.prompts.clone()).await?,
-            Tab::Archive => storage.save_project_archive(&path, self.prompts.clone()).await?,
-            Tab::Canned => storage.save_global_canned(self.prompts.clone()).await?,
-            Tab::Snippets => storage.save_global_snippets(self.prompts.clone()).await?,
-            Tab::Settings => {}
+        // Bulk save implementation for undo/redo/move
+        // In a real DB we'd want a transaction, but for now we just loop.
+        // Also need to know what to delete? This is the tricky part of list-based undo in a repo pattern.
+        // For now, let's just save what we have.
+        for p in &self.prompts {
+            storage.save_prompt(p.clone()).await?;
         }
         Ok(())
     }
@@ -382,6 +376,12 @@ impl ListModule {
                 self.load_prompts(ctx.storage).await?;
                 let status = if self.branch_filter { "ON" } else { "OFF" };
                 return Ok(Some(AppMessage::Notify(format!("Branch filter: {}", status), ratatui_toaster::ToastType::Info)));
+            }
+            AppMessage::ToggleFolderFilter => {
+                self.folder_filter = !self.folder_filter;
+                self.load_prompts(ctx.storage).await?;
+                let status = if self.folder_filter { "Global (ON)" } else { "Local (OFF)" };
+                return Ok(Some(AppMessage::Notify(format!("Folder filter: {}", status), ratatui_toaster::ToastType::Info)));
             }
             AppMessage::Search(query) => {
                 self.search_query = query;

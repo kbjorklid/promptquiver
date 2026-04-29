@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn test_expand_snippets() {
         let snippets = vec![
-            Prompt::new("expanded_content".to_string(), PromptType::Snippet, None, Some("mysnip".to_string())),
+            Prompt::new("expanded_content".to_string(), PromptType::Snippet, None, None, Some("mysnip".to_string())),
         ];
         let text = "Use $$mysnip here";
         assert_eq!(Processor::expand_snippets(text, &snippets), "Use expanded_content here");

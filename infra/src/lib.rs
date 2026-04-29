@@ -1,18 +1,16 @@
 use async_trait::async_trait;
-use contracts::{Clipboard, Git, ProjectInfo, Prompt, Result, Settings, Storage};
-use serde::{Deserialize, Serialize};
+use contracts::{Clipboard, Git, ProjectInfo, Prompt, Result, Settings, Storage, PromptFilter, Tab, PromptType};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::sync::RwLock;
+use uuid::Uuid;
+use chrono::{DateTime, Utc};
+use rusqlite::OptionalExtension;
 
 #[derive(Debug)]
 pub struct InMemoryStorage {
-    project_prompts: RwLock<HashMap<String, Vec<Prompt>>>,
-    project_notes: RwLock<HashMap<String, Vec<Prompt>>>,
-    project_archive: RwLock<HashMap<String, Vec<Prompt>>>,
+    prompts: RwLock<Vec<Prompt>>,
     project_info: RwLock<HashMap<String, ProjectInfo>>,
-    global_canned: RwLock<Vec<Prompt>>,
-    global_snippets: RwLock<Vec<Prompt>>,
     settings: RwLock<Settings>,
 }
 
@@ -20,12 +18,8 @@ impl InMemoryStorage {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            project_prompts: RwLock::new(HashMap::new()),
-            project_notes: RwLock::new(HashMap::new()),
-            project_archive: RwLock::new(HashMap::new()),
+            prompts: RwLock::new(Vec::new()),
             project_info: RwLock::new(HashMap::new()),
-            global_canned: RwLock::new(Vec::new()),
-            global_snippets: RwLock::new(Vec::new()),
             settings: RwLock::new(Settings::default()),
         }
     }
@@ -39,68 +33,76 @@ impl Default for InMemoryStorage {
 
 #[async_trait]
 impl Storage for InMemoryStorage {
-    async fn get_project_prompts(&self, project_path: &str) -> Result<Vec<Prompt>> {
-        let prompts = self.project_prompts.read().await;
-        Ok(prompts.get(project_path).cloned().unwrap_or_default())
+    async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>> {
+        let prompts = self.prompts.read().await;
+        let mut filtered: Vec<Prompt> = prompts.iter().cloned().collect();
+
+        if let Some(folder) = filter.folder {
+            filtered.retain(|p| p.folder.as_deref() == Some(&folder));
+        }
+        if let Some(project) = filter.project {
+            filtered.retain(|p| p.project.as_deref() == Some(&project));
+        }
+        if let Some(branch) = filter.branch {
+            filtered.retain(|p| p.branch.as_deref() == Some(&branch));
+        }
+        if let Some(tab) = filter.tab {
+            match tab {
+                Tab::Prompts => {
+                    filtered.retain(|p| p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_some());
+                }
+                Tab::Canned => {
+                    filtered.retain(|p| p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_none());
+                }
+                Tab::Notes => {
+                    filtered.retain(|p| p.r#type == PromptType::Note && !p.is_archived);
+                }
+                Tab::Snippets => {
+                    filtered.retain(|p| p.r#type == PromptType::Snippet && !p.is_archived);
+                }
+                Tab::Archive => {
+                    filtered.retain(|p| p.is_archived);
+                }
+                Tab::Settings => {
+                    filtered.clear();
+                }
+            }
+        }
+        
+        // Sort by created_at DESC (mimic DB behavior)
+        filtered.sort_by_key(|p| std::cmp::Reverse(p.created_at));
+
+        Ok(filtered)
     }
 
-    async fn get_project_notes(&self, project_path: &str) -> Result<Vec<Prompt>> {
-        let notes = self.project_notes.read().await;
-        Ok(notes.get(project_path).cloned().unwrap_or_default())
+    async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
+        let mut prompts = self.prompts.write().await;
+        if let Some(p) = prompts.iter_mut().find(|p| p.id == prompt.id) {
+            *p = prompt;
+        } else {
+            prompts.push(prompt);
+        }
+        Ok(())
     }
 
-    async fn get_project_archive(&self, project_path: &str) -> Result<Vec<Prompt>> {
-        let archive = self.project_archive.read().await;
-        Ok(archive.get(project_path).cloned().unwrap_or_default())
+    async fn delete_prompt(&self, id: Uuid) -> Result<()> {
+        let mut prompts = self.prompts.write().await;
+        prompts.retain(|p| p.id != id);
+        Ok(())
     }
 
-    async fn get_project_info(&self, project_path: &str) -> Result<ProjectInfo> {
+    async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo> {
         let info = self.project_info.read().await;
-        Ok(info.get(project_path).cloned().unwrap_or_default())
+        Ok(info.get(folder).cloned().unwrap_or_default())
     }
 
-    async fn save_project_prompts(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
-        self.project_prompts.write().await.insert(project_path.to_string(), prompts);
+    async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()> {
+        self.project_info.write().await.insert(folder.to_string(), info);
         Ok(())
-    }
-
-    async fn save_project_notes(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
-        self.project_notes.write().await.insert(project_path.to_string(), prompts);
-        Ok(())
-    }
-
-    async fn save_project_archive(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
-        self.project_archive.write().await.insert(project_path.to_string(), prompts);
-        Ok(())
-    }
-
-    async fn save_project_info(&self, project_path: &str, info: ProjectInfo) -> Result<()> {
-        self.project_info.write().await.insert(project_path.to_string(), info);
-        Ok(())
-    }
-
-    async fn get_global_canned(&self) -> Result<Vec<Prompt>> {
-        Ok(self.global_canned.read().await.clone())
-    }
-
-    async fn get_global_snippets(&self) -> Result<Vec<Prompt>> {
-        Ok(self.global_snippets.read().await.clone())
     }
 
     async fn get_settings(&self) -> Result<Settings> {
         Ok(self.settings.read().await.clone())
-    }
-
-    async fn save_global_canned(&self, prompts: Vec<Prompt>) -> Result<()> {
-        let mut global = self.global_canned.write().await;
-        *global = prompts;
-        Ok(())
-    }
-
-    async fn save_global_snippets(&self, prompts: Vec<Prompt>) -> Result<()> {
-        let mut global = self.global_snippets.write().await;
-        *global = prompts;
-        Ok(())
     }
 
     async fn save_settings(&self, settings: Settings) -> Result<()> {
@@ -111,216 +113,255 @@ impl Storage for InMemoryStorage {
 }
 
 #[derive(Debug)]
-pub struct FileSystemStorage {
-    base_dir: PathBuf,
-    last_read_times: RwLock<HashMap<PathBuf, std::time::SystemTime>>,
+pub struct SqliteStorage {
+    db_path: PathBuf,
 }
 
-impl FileSystemStorage {
-    pub fn new(base_dir: Option<PathBuf>) -> Self {
-        let base_dir = base_dir.unwrap_or_else(|| {
-            directories::ProjectDirs::from("", "", "promptquiver").map_or_else(|| PathBuf::from("."), |d| d.data_dir().to_path_buf())
-        });
-        
-        // Ensure data directory exists
-        if !base_dir.exists() {
-            let _ = std::fs::create_dir_all(&base_dir);
-        }
-        
-        Self { 
-            base_dir,
-            last_read_times: RwLock::new(HashMap::new()),
-        }
+impl SqliteStorage {
+    pub fn new(db_path: PathBuf) -> Self {
+        let storage = Self { db_path };
+        storage.init().expect("Failed to initialize database");
+        storage
     }
 
-    pub fn get_base_dir(&self) -> PathBuf {
-        self.base_dir.clone()
-    }
-
-    fn global_path(&self) -> PathBuf {
-        self.base_dir.join("common.toml")
-    }
-
-    fn project_path(&self, project_path: &str) -> PathBuf {
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(project_path.as_bytes());
-        let hash = format!("{:x}", hasher.finalize());
-        let filename = format!("{}.toml", &hash[..8]);
-        
-        let projects_dir = self.base_dir.join("projects");
-        if !projects_dir.exists() {
-            let _ = std::fs::create_dir_all(&projects_dir);
-        }
-        
-        projects_dir.join(filename)
-    }
-
-    async fn read_toml<T: serde::de::DeserializeOwned>(&self, path: PathBuf) -> Result<T> {
-        if !path.exists() {
-            return Err(contracts::Error::NotFound);
-        }
-        let content = tokio::fs::read_to_string(&path)
-            .await
+    fn init(&self) -> Result<()> {
+        let conn = rusqlite::Connection::open(&self.db_path)
             .map_err(|e| contracts::Error::Storage(e.to_string()))?;
         
-        // Update last read time
-        if let Ok(metadata) = std::fs::metadata(&path) {
-            if let Ok(mtime) = metadata.modified() {
-                self.last_read_times.write().await.insert(path.clone(), mtime);
-            }
-        }
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS prompts (
+                id TEXT PRIMARY KEY,
+                text TEXT NOT NULL,
+                type TEXT NOT NULL,
+                folder TEXT,
+                project TEXT,
+                branch TEXT,
+                name TEXT,
+                staged BOOLEAN NOT NULL DEFAULT 0,
+                last_copied BOOLEAN NOT NULL DEFAULT 0,
+                is_archived BOOLEAN NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+            [],
+        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
-        serde_toml::from_str(&content).map_err(|e| contracts::Error::Storage(e.to_string()))
-    }
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS project_info (
+                folder TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            )",
+            [],
+        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
-    async fn write_toml<T: serde::Serialize>(&self, path: PathBuf, data: &T) -> Result<()> {
-        // Conflict check
-        if path.exists() {
-            if let Ok(metadata) = std::fs::metadata(&path) {
-                if let Ok(current_mtime) = metadata.modified() {
-                    let last_times = self.last_read_times.read().await;
-                    if let Some(&last_mtime) = last_times.get(&path) {
-                        // Allow some grace period (e.g. 100ms) or just direct comparison
-                        // Given user assumption of 1s, direct comparison is fine.
-                        // But note that some file systems have low resolution.
-                        if current_mtime > last_mtime {
-                            return Err(contracts::Error::Conflict("File has been modified by another instance. Please reload.".to_string()));
-                        }
-                    }
-                }
-            }
-        }
-
-        let content = serde_toml::to_string_pretty(data)
-            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-        
-        let temp_path = path.with_extension("tmp");
-        tokio::fs::write(&temp_path, content)
-            .await
-            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-        
-        tokio::fs::rename(&temp_path, &path)
-            .await
-            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-        
-        // Update last read time after write
-        if let Ok(metadata) = std::fs::metadata(&path) {
-            if let Ok(mtime) = metadata.modified() {
-                self.last_read_times.write().await.insert(path, mtime);
-            }
-        }
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                data TEXT NOT NULL
+            )",
+            [],
+        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
         Ok(())
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct ProjectFile {
-    #[serde(default)]
-    info: ProjectInfo,
-    #[serde(default)]
-    main: Vec<Prompt>,
-    #[serde(default)]
-    notes: Vec<Prompt>,
-    #[serde(default)]
-    archive: Vec<Prompt>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct GlobalFile {
-    #[serde(default)]
-    canned: Vec<Prompt>,
-    #[serde(default)]
-    snippets: Vec<Prompt>,
-    #[serde(default)]
-    settings: Settings,
-}
-
 #[async_trait]
-impl Storage for FileSystemStorage {
-    async fn get_project_prompts(&self, project_path: &str) -> Result<Vec<Prompt>> {
-        let file: ProjectFile = self.read_toml(self.project_path(project_path)).await.unwrap_or_default();
-        Ok(file.main)
+impl Storage for SqliteStorage {
+    async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            let mut query = "SELECT id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at FROM prompts WHERE 1=1".to_string();
+            let mut params: Vec<String> = Vec::new();
+
+            if let Some(folder) = filter.folder {
+                query.push_str(" AND folder = ?");
+                params.push(folder);
+            }
+            if let Some(project) = filter.project {
+                query.push_str(" AND project = ?");
+                params.push(project);
+            }
+            if let Some(branch) = filter.branch {
+                query.push_str(" AND branch = ?");
+                params.push(branch);
+            }
+            
+            if let Some(tab) = filter.tab {
+                match tab {
+                    Tab::Prompts => {
+                        query.push_str(" AND type = 'Prompt' AND is_archived = 0 AND folder IS NOT NULL");
+                    }
+                    Tab::Canned => {
+                        query.push_str(" AND type = 'Prompt' AND is_archived = 0 AND folder IS NULL");
+                    }
+                    Tab::Notes => {
+                        query.push_str(" AND type = 'Note' AND is_archived = 0");
+                    }
+                    Tab::Snippets => {
+                        query.push_str(" AND type = 'Snippet' AND is_archived = 0");
+                    }
+                    Tab::Archive => {
+                        query.push_str(" AND is_archived = 1");
+                    }
+                    Tab::Settings => {
+                        return Ok(Vec::new());
+                    }
+                }
+            }
+
+            query.push_str(" ORDER BY created_at DESC");
+
+            let mut stmt = conn.prepare(&query).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            let prompt_iter = stmt.query_map(rusqlite::params_from_iter(params), |row| {
+                Ok(Prompt {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    text: row.get(1)?,
+                    r#type: match row.get::<_, String>(2)?.as_str() {
+                        "Note" => PromptType::Note,
+                        "Snippet" => PromptType::Snippet,
+                        _ => PromptType::Prompt,
+                    },
+                    folder: row.get(3)?,
+                    project: row.get(4)?,
+                    branch: row.get(5)?,
+                    name: row.get(6)?,
+                    staged: row.get(7)?,
+                    last_copied: row.get(8)?,
+                    is_archived: row.get(9)?,
+                    created_at: row.get::<_, String>(10)?.parse::<DateTime<Utc>>().unwrap(),
+                    updated_at: row.get::<_, String>(11)?.parse::<DateTime<Utc>>().unwrap(),
+                })
+            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+            let mut prompts = Vec::new();
+            for prompt in prompt_iter {
+                prompts.push(prompt.map_err(|e| contracts::Error::Storage(e.to_string()))?);
+            }
+            Ok(prompts)
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
-    async fn get_project_notes(&self, project_path: &str) -> Result<Vec<Prompt>> {
-        let file: ProjectFile = self.read_toml(self.project_path(project_path)).await.unwrap_or_default();
-        Ok(file.notes)
+    async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            conn.execute(
+                "INSERT INTO prompts (id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 ON CONFLICT(id) DO UPDATE SET
+                    text=excluded.text,
+                    type=excluded.type,
+                    folder=excluded.folder,
+                    project=excluded.project,
+                    branch=excluded.branch,
+                    name=excluded.name,
+                    staged=excluded.staged,
+                    last_copied=excluded.last_copied,
+                    is_archived=excluded.is_archived,
+                    updated_at=excluded.updated_at",
+                rusqlite::params![
+                    prompt.id.to_string(),
+                    prompt.text,
+                    format!("{:?}", prompt.r#type),
+                    prompt.folder,
+                    prompt.project,
+                    prompt.branch,
+                    prompt.name,
+                    prompt.staged,
+                    prompt.last_copied,
+                    prompt.is_archived,
+                    prompt.created_at.to_rfc3339(),
+                    prompt.updated_at.to_rfc3339(),
+                ],
+            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
-    async fn get_project_archive(&self, project_path: &str) -> Result<Vec<Prompt>> {
-        let file: ProjectFile = self.read_toml(self.project_path(project_path)).await.unwrap_or_default();
-        Ok(file.archive)
+    async fn delete_prompt(&self, id: Uuid) -> Result<()> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            conn.execute("DELETE FROM prompts WHERE id = ?", [id.to_string()])
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
-    async fn get_project_info(&self, project_path: &str) -> Result<ProjectInfo> {
-        let file: ProjectFile = self.read_toml(self.project_path(project_path)).await.unwrap_or_default();
-        Ok(file.info)
+    async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo> {
+        let db_path = self.db_path.clone();
+        let folder = folder.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let mut stmt = conn.prepare("SELECT data FROM project_info WHERE folder = ?")
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let data: Option<String> = stmt.query_row([folder], |row| row.get(0)).optional()
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            if let Some(d) = data {
+                serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string()))
+            } else {
+                Ok(ProjectInfo::default())
+            }
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
-    async fn save_project_prompts(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
-        let path = self.project_path(project_path);
-        let mut file: ProjectFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.main = prompts;
-        self.write_toml(path, &file).await
-    }
-
-    async fn save_project_notes(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
-        let path = self.project_path(project_path);
-        let mut file: ProjectFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.notes = prompts;
-        self.write_toml(path, &file).await
-    }
-
-    async fn save_project_archive(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()> {
-        let path = self.project_path(project_path);
-        let mut file: ProjectFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.archive = prompts;
-        self.write_toml(path, &file).await
-    }
-
-    async fn save_project_info(&self, project_path: &str, info: ProjectInfo) -> Result<()> {
-        let path = self.project_path(project_path);
-        let mut file: ProjectFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.info = info;
-        self.write_toml(path, &file).await
-    }
-
-    async fn get_global_canned(&self) -> Result<Vec<Prompt>> {
-        let file: GlobalFile = self.read_toml(self.global_path()).await.unwrap_or_default();
-        Ok(file.canned)
-    }
-
-    async fn get_global_snippets(&self) -> Result<Vec<Prompt>> {
-        let file: GlobalFile = self.read_toml(self.global_path()).await.unwrap_or_default();
-        Ok(file.snippets)
+    async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()> {
+        let db_path = self.db_path.clone();
+        let folder = folder.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let data = serde_json::to_string(&info).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            conn.execute(
+                "INSERT INTO project_info (folder, data) VALUES (?1, ?2)
+                 ON CONFLICT(folder) DO UPDATE SET data=excluded.data",
+                rusqlite::params![folder, data],
+            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
     async fn get_settings(&self) -> Result<Settings> {
-        let file: GlobalFile = self.read_toml(self.global_path()).await.unwrap_or_default();
-        Ok(file.settings)
-    }
-
-    async fn save_global_canned(&self, prompts: Vec<Prompt>) -> Result<()> {
-        let path = self.global_path();
-        let mut file: GlobalFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.canned = prompts;
-        self.write_toml(path, &file).await
-    }
-
-    async fn save_global_snippets(&self, prompts: Vec<Prompt>) -> Result<()> {
-        let path = self.global_path();
-        let mut file: GlobalFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.snippets = prompts;
-        self.write_toml(path, &file).await
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let mut stmt = conn.prepare("SELECT data FROM settings WHERE id = 1")
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let data: Option<String> = stmt.query_row([], |row| row.get(0)).optional()
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            if let Some(d) = data {
+                serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string()))
+            } else {
+                Ok(Settings::default())
+            }
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
     async fn save_settings(&self, settings: Settings) -> Result<()> {
-        let path = self.global_path();
-        let mut file: GlobalFile = self.read_toml(path.clone()).await.unwrap_or_default();
-        file.settings = settings;
-        self.write_toml(path, &file).await
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let data = serde_json::to_string(&settings).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            conn.execute(
+                "INSERT INTO settings (id, data) VALUES (1, ?1)
+                 ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+                rusqlite::params![data],
+            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 }
 
@@ -467,14 +508,15 @@ impl Git for RealGit {
 mod tests {
     use super::*;
     use contracts::PromptType;
+    use rusqlite::OptionalExtension;
 
     #[tokio::test]
     async fn test_in_memory_storage() {
         let storage = InMemoryStorage::new();
-        let prompt = Prompt::new("test".to_string(), PromptType::Prompt, None, None);
+        let prompt = Prompt::new("test".to_string(), PromptType::Prompt, Some("path".to_string()), None, None);
 
-        storage.save_project_prompts("path", vec![prompt.clone()]).await.unwrap();
-        let loaded = storage.get_project_prompts("path").await.unwrap();
+        storage.save_prompt(prompt.clone()).await.unwrap();
+        let loaded = storage.get_prompts(PromptFilter { folder: Some("path".to_string()), ..Default::default() }).await.unwrap();
 
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].text, "test");
@@ -497,23 +539,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_file_system_storage() {
+    async fn test_sqlite_storage() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path().to_path_buf();
-        let storage = FileSystemStorage::new(Some(base_dir));
+        let db_path = temp_dir.path().join("test.db");
+        let storage = SqliteStorage::new(db_path);
 
-        let prompt = Prompt::new("test".to_string(), contracts::PromptType::Prompt, None, None);
-        let project_path = temp_dir.path().to_str().unwrap();
-
-        storage.save_project_prompts(project_path, vec![prompt.clone()]).await.unwrap();
-        let loaded = storage.get_project_prompts(project_path).await.unwrap();
+        let prompt = Prompt::new("sqlite test".to_string(), contracts::PromptType::Prompt, Some("/path/to/project".to_string()), Some("main".to_string()), None);
+        
+        storage.save_prompt(prompt.clone()).await.unwrap();
+        let loaded = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
 
         assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].text, "test");
-
-        // Global
-        storage.save_global_snippets(vec![prompt.clone()]).await.unwrap();
-        let loaded_global = storage.get_global_snippets().await.unwrap();
-        assert_eq!(loaded_global.len(), 1);
+        assert_eq!(loaded[0].text, "sqlite test");
+        assert_eq!(loaded[0].branch.as_deref(), Some("main"));
+        
+        // Test update
+        let mut updated = loaded[0].clone();
+        updated.text = "updated".to_string();
+        storage.save_prompt(updated).await.unwrap();
+        
+        let loaded_updated = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
+        assert_eq!(loaded_updated.len(), 1);
+        assert_eq!(loaded_updated[0].text, "updated");
+        
+        // Test delete
+        storage.delete_prompt(prompt.id).await.unwrap();
+        let loaded_deleted = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
+        assert_eq!(loaded_deleted.len(), 0);
     }
 }

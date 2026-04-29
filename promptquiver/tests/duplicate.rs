@@ -1,13 +1,13 @@
 mod common;
 use common::setup_app;
-use contracts::Storage;
+use contracts::{PromptFilter, Tab, Storage};
 
 #[tokio::test]
 async fn test_duplicate_prompt() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("Original Prompt".to_string(), contracts::PromptType::Prompt, None, Some("Name".to_string()));
-    storage.save_project_prompts(common::TEST_PATH, vec![p1.clone()]).await.unwrap();
+    let p1 = contracts::Prompt::new("Original Prompt".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, Some("Name".to_string()));
+    storage.save_prompt(p1.clone()).await.unwrap();
 
     app.load_prompts().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 1);
@@ -27,7 +27,7 @@ async fn test_duplicate_prompt() {
     assert!(!app.nav.prompts[1].last_copied);
 
     // Verify persistence
-    let stored = storage.get_project_prompts(common::TEST_PATH).await.unwrap();
+    let stored = storage.get_prompts(PromptFilter { folder: Some(common::TEST_PATH.to_string()), tab: Some(Tab::Prompts), ..Default::default() }).await.unwrap();
     assert_eq!(stored.len(), 2);
 }
 

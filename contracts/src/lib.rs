@@ -22,10 +22,13 @@ pub struct Prompt {
     pub id: Uuid,
     pub text: String,
     pub r#type: PromptType,
+    pub folder: Option<String>,
+    pub project: Option<String>,
     pub branch: Option<String>,
     pub name: Option<String>,
     pub staged: bool,
     pub last_copied: bool,
+    pub is_archived: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -34,6 +37,7 @@ impl Prompt {
     pub fn new(
         text: String,
         r#type: PromptType,
+        folder: Option<String>,
         branch: Option<String>,
         name: Option<String>,
     ) -> Self {
@@ -42,10 +46,13 @@ impl Prompt {
             id: Uuid::new_v4(),
             text,
             r#type,
+            folder,
+            project: None,
             branch,
             name,
             staged: false,
             last_copied: false,
+            is_archived: false,
             created_at: now,
             updated_at: now,
         }
@@ -138,24 +145,24 @@ impl Tab {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct PromptFilter {
+    pub folder: Option<String>,
+    pub project: Option<String>,
+    pub branch: Option<String>,
+    pub tab: Option<Tab>,
+}
+
 #[async_trait]
 pub trait Storage: Send + Sync {
-    async fn get_project_prompts(&self, project_path: &str) -> Result<Vec<Prompt>>;
-    async fn get_project_notes(&self, project_path: &str) -> Result<Vec<Prompt>>;
-    async fn get_project_archive(&self, project_path: &str) -> Result<Vec<Prompt>>;
-    async fn get_project_info(&self, project_path: &str) -> Result<ProjectInfo>;
-    
-    async fn save_project_prompts(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()>;
-    async fn save_project_notes(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()>;
-    async fn save_project_archive(&self, project_path: &str, prompts: Vec<Prompt>) -> Result<()>;
-    async fn save_project_info(&self, project_path: &str, info: ProjectInfo) -> Result<()>;
+    async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>>;
+    async fn save_prompt(&self, prompt: Prompt) -> Result<()>;
+    async fn delete_prompt(&self, id: Uuid) -> Result<()>;
 
-    async fn get_global_canned(&self) -> Result<Vec<Prompt>>;
-    async fn get_global_snippets(&self) -> Result<Vec<Prompt>>;
+    async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo>;
+    async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()>;
+
     async fn get_settings(&self) -> Result<Settings>;
-    
-    async fn save_global_canned(&self, prompts: Vec<Prompt>) -> Result<()>;
-    async fn save_global_snippets(&self, prompts: Vec<Prompt>) -> Result<()>;
     async fn save_settings(&self, settings: Settings) -> Result<()>;
 }
 

@@ -34,6 +34,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("Ctrl+e", "Preview"),
                 Shortcut::new("y/c", "Copy"),
                 Shortcut::new("b", "Branch Filter"),
+                Shortcut::new("f", "Folder Filter"),
             ]);
             if tab_name == "Archive" {
                 shortcuts.push(Shortcut::new("r", "Restore"));

@@ -191,6 +191,7 @@ pub fn render(
         &state.nav.current_path,
         state.current_branch,
         state.nav.prompts.len(),
+        state.nav.folder_filter,
         state.settings,
     );
 
