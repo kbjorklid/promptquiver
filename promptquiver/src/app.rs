@@ -49,7 +49,245 @@ impl fmt::Debug for App<'_> {
     }
 }
 
+use uuid::Uuid;
+
+#[derive(Debug, Clone)]
+pub enum AppMessage {
+    Quit,
+    NextTab,
+    PrevTab,
+    SetTab(Tab),
+    Undo,
+    Redo,
+    MoveDown,
+    MoveUp,
+    MoveToTop,
+    MoveToBottom,
+    MoveItemUp,
+    MoveItemDown,
+    StageSelected,
+    ArchiveSelected,
+    DuplicateSelected,
+    RestoreSelected,
+    EnterEditor(String, Option<Uuid>),
+    EnterEditorBefore(String, usize),
+    ExitEditor,
+    SaveEditor,
+    SaveAndStageEditor,
+    UpdateAutocomplete,
+    MoveSuggestionDown,
+    MoveSuggestionUp,
+    SelectSuggestion,
+    ToggleSetting,
+    ToggleBranchFilter,
+    Search(String),
+    GlobalSearch(String),
+    Notify(String, ratatui_toaster::ToastType),
+    EditSetting,
+    ConfirmDiscard,
+    CancelDiscard,
+    EditorInput(crossterm::event::KeyEvent),
+    SearchInput(crossterm::event::KeyEvent),
+    GlobalSearchInput(crossterm::event::KeyEvent),
+    ToggleMoveMode,
+    ThemePickerInput(crossterm::event::KeyEvent),
+    SetTheme(Option<String>),
+    SelectTheme,
+}
+
 impl App<'_> {
+    pub async fn handle_message(&mut self, msg: AppMessage) -> contracts::Result<()> {
+        match msg {
+            AppMessage::Quit => self.quit(),
+            AppMessage::NextTab => { self.next_tab(); self.load_prompts().await?; }
+            AppMessage::PrevTab => { self.prev_tab(); self.load_prompts().await?; }
+            AppMessage::SetTab(tab) => { self.set_tab(tab); self.load_prompts().await?; }
+            AppMessage::Undo => self.undo().await?,
+            AppMessage::Redo => self.redo().await?,
+            AppMessage::MoveDown => self.move_down(),
+            AppMessage::MoveUp => self.move_up(),
+            AppMessage::MoveToTop => self.move_to_top(),
+            AppMessage::MoveToBottom => self.move_to_bottom(),
+            AppMessage::MoveItemUp => self.move_item_up().await?,
+            AppMessage::MoveItemDown => self.move_item_down().await?,
+            AppMessage::StageSelected => self.stage_selected().await?,
+            AppMessage::ArchiveSelected => self.archive_selected().await?,
+            AppMessage::DuplicateSelected => self.duplicate_selected().await?,
+            AppMessage::RestoreSelected => self.restore_selected().await?,
+            AppMessage::EnterEditor(text, id) => self.enter_editor(text, id),
+            AppMessage::EnterEditorBefore(text, index) => self.enter_editor_before(text, index),
+            AppMessage::ExitEditor => self.exit_editor(),
+            AppMessage::SaveEditor => self.save_editor().await?,
+            AppMessage::SaveAndStageEditor => self.save_and_stage_editor().await?,
+            AppMessage::UpdateAutocomplete => self.update_autocomplete().await?,
+            AppMessage::MoveSuggestionDown => self.move_suggestion_down(),
+            AppMessage::MoveSuggestionUp => self.move_suggestion_up(),
+            AppMessage::SelectSuggestion => self.select_suggestion(),
+            AppMessage::ToggleSetting => self.toggle_setting().await?,
+            AppMessage::ToggleBranchFilter => {
+                self.nav.branch_filter = !self.nav.branch_filter;
+                self.load_prompts().await?;
+                let status = if self.nav.branch_filter { "ON" } else { "OFF" };
+                self.notify(format!("Branch filter: {}", status), ratatui_toaster::ToastType::Info);
+            }
+            AppMessage::Search(query) => {
+                self.nav.search_query = query;
+                self.load_prompts().await?;
+            }
+            AppMessage::GlobalSearch(query) => {
+                self.search_all(query).await?;
+            }
+            AppMessage::Notify(msg, kind) => self.notify(msg, kind),
+            AppMessage::EditSetting => self.edit_setting(),
+            AppMessage::ConfirmDiscard => {
+                self.mode = Mode::ConfirmDiscard;
+            }
+            AppMessage::CancelDiscard => {
+                self.mode = Mode::Editor;
+            }
+            AppMessage::EditorInput(key) => {
+                if self.editor.title_focused && self.nav.active_tab == Tab::Snippets {
+                    if !self.editor.title_textarea.input(key) {
+                        if let crossterm::event::KeyCode::Char(c) = key.code {
+                            self.editor.title_textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                        }
+                    }
+                    if self.editor.title_textarea.lines().len() > 1 {
+                        let joined = self.editor.title_textarea.lines().join("");
+                        self.editor.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
+                        self.editor.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
+                    }
+                } else {
+                    if self.nav.active_tab == Tab::Settings {
+                        if key.code != crossterm::event::KeyCode::Enter {
+                            if !self.editor.textarea.input(key) {
+                                if let crossterm::event::KeyCode::Char(c) = key.code {
+                                    self.editor.textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                                }
+                            }
+                            self.update_autocomplete().await?;
+                        }
+                    } else {
+                        if !self.editor.textarea.input(key) {
+                            if let crossterm::event::KeyCode::Char(c) = key.code {
+                                self.editor.textarea.input(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty()));
+                            }
+                        }
+                        self.update_autocomplete().await?;
+                    }
+                }
+            }
+            AppMessage::SearchInput(key) => {
+                match key.code {
+                    crossterm::event::KeyCode::Esc => {
+                        self.mode = Mode::List;
+                        self.nav.search_query.clear();
+                        self.load_prompts().await?;
+                    }
+                    crossterm::event::KeyCode::Enter => { self.mode = Mode::List; }
+                    crossterm::event::KeyCode::Char('\u{7f}') => {
+                        if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                            if let Some(pos) = self.nav.search_query.trim_end().rfind(' ') {
+                                self.nav.search_query.truncate(pos + 1);
+                            } else {
+                                self.nav.search_query.clear();
+                            }
+                        } else {
+                            self.nav.search_query.pop();
+                        }
+                        self.load_prompts().await?;
+                    }
+                    crossterm::event::KeyCode::Char(c) => {
+                        self.nav.search_query.push(c);
+                        self.load_prompts().await?;
+                    }
+                    crossterm::event::KeyCode::Backspace => {
+                        self.nav.search_query.pop();
+                        self.load_prompts().await?;
+                    }
+                    _ => {}
+                }
+            }
+            AppMessage::GlobalSearchInput(key) => {
+                match key.code {
+                    crossterm::event::KeyCode::Esc => {
+                        self.mode = Mode::List;
+                        self.nav.global_search_query.clear();
+                        self.load_prompts().await?;
+                    }
+                    crossterm::event::KeyCode::Enter => {
+                        self.mode = Mode::List;
+                        self.search_all(self.nav.global_search_query.clone()).await?;
+                    }
+                    crossterm::event::KeyCode::Char('\u{7f}') => {
+                        if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                            if let Some(pos) = self.nav.global_search_query.trim_end().rfind(' ') {
+                                self.nav.global_search_query.truncate(pos + 1);
+                            } else {
+                                self.nav.global_search_query.clear();
+                            }
+                        } else {
+                            self.nav.global_search_query.pop();
+                        }
+                        self.search_all(self.nav.global_search_query.clone()).await?;
+                    }
+                    crossterm::event::KeyCode::Char(c) => {
+                        self.nav.global_search_query.push(c);
+                    }
+                    crossterm::event::KeyCode::Backspace => {
+                        self.nav.global_search_query.pop();
+                    }
+                    _ => {}
+                }
+            }
+            AppMessage::ToggleMoveMode => {
+                self.mode = if self.mode == Mode::Move { Mode::List } else { Mode::Move };
+            }
+            AppMessage::ThemePickerInput(key) => {
+                match key.code {
+                    crossterm::event::KeyCode::Esc => {
+                        self.settings.theme_name = self.nav.original_theme.take();
+                        self.mode = Mode::List;
+                    }
+                    crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
+                        let themes = ratatui_themes::ThemeName::all();
+                        let current = self.nav.theme_list_state.selected().unwrap_or(0);
+                        if current < themes.len() - 1 {
+                            let new_idx = current + 1;
+                            self.nav.theme_list_state.select(Some(new_idx));
+                            self.settings.theme_name = Some(format!("{:?}", themes[new_idx]));
+                        }
+                    }
+                    crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                        let themes = ratatui_themes::ThemeName::all();
+                        let current = self.nav.theme_list_state.selected().unwrap_or(0);
+                        if current > 0 {
+                            let new_idx = current - 1;
+                            self.nav.theme_list_state.select(Some(new_idx));
+                            self.settings.theme_name = Some(format!("{:?}", themes[new_idx]));
+                        }
+                    }
+                    crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Char(' ') => {
+                        let themes = ratatui_themes::ThemeName::all();
+                        let selected = self.nav.theme_list_state.selected().unwrap_or(0);
+                        self.settings.theme_name = Some(format!("{:?}", themes[selected]));
+                        self.nav.original_theme = None;
+                        self.storage.save_settings(self.settings.clone()).await?;
+                        self.mode = Mode::List;
+                        self.notify("Theme updated!", ratatui_toaster::ToastType::Success);
+                    }
+                    _ => {}
+                }
+            }
+            AppMessage::SetTheme(theme) => {
+                self.settings.theme_name = theme;
+            }
+            AppMessage::SelectTheme => {
+                self.mode = Mode::ThemePicker;
+            }
+        }
+        Ok(())
+    }
     #[must_use]
     pub fn new(
         storage: Arc<dyn Storage>,
