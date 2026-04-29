@@ -4,6 +4,7 @@ use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use crate::editor::EditorModule;
+use crate::list_module::ListModule;
 
 use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,52 +18,6 @@ pub enum Mode {
     ThemePicker,
 }
 
-#[derive(Debug, Clone)]
-pub struct HistoryEntry {
-    pub tab: Tab,
-    pub prompts: Vec<Prompt>,
-}
-
-#[derive(Debug)]
-pub struct NavigationState {
-    pub active_tab: Tab,
-    pub prompts: Vec<Prompt>,
-    pub selected_index: usize,
-    pub list_state: ratatui::widgets::ListState,
-    pub settings_slash_list_state: ratatui::widgets::ListState,
-    pub theme_list_state: ratatui::widgets::ListState,
-    pub undo_stack: Vec<HistoryEntry>,
-    pub redo_stack: Vec<HistoryEntry>,
-    pub branch_filter: bool,
-    pub search_query: String,
-    pub global_search_query: String,
-    pub current_path: String,
-    pub original_theme: Option<String>,
-}
-
-impl Default for NavigationState {
-    fn default() -> Self {
-        Self {
-            active_tab: Tab::Prompts,
-            prompts: Vec::new(),
-            selected_index: 0,
-            list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            theme_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
-            branch_filter: false,
-            search_query: String::new(),
-            global_search_query: String::new(),
-            current_path: std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .to_string_lossy()
-                .into_owned(),
-            original_theme: None,
-        }
-    }
-}
-
 pub struct App<'a> {
     pub storage: Arc<dyn Storage>,
     pub clipboard: Arc<dyn Clipboard>,
@@ -70,7 +25,7 @@ pub struct App<'a> {
     pub service: Arc<dyn contracts::AppService>,
     pub should_quit: bool,
     pub mode: Mode,
-    pub nav: NavigationState,
+    pub nav: ListModule,
     pub editor: EditorModule<'a>,
     pub current_branch: Option<String>,
     pub toaster: Option<ToastEngine<ToastMessage>>,
@@ -109,7 +64,7 @@ impl App<'_> {
             service,
             should_quit: false,
             mode: Mode::List,
-            nav: NavigationState::default(),
+            nav: ListModule::default(),
             editor: EditorModule::default(),
             current_branch: None,
             toaster: None,
@@ -145,102 +100,55 @@ impl App<'_> {
     }
 
     pub fn next_tab(&mut self) {
-        self.nav.active_tab = self.nav.active_tab.next();
-        self.nav.selected_index = 0;
-        self.nav.list_state.select(Some(0));
+        self.nav.next_tab();
     }
 
     pub fn prev_tab(&mut self) {
-        self.nav.active_tab = self.nav.active_tab.prev();
-        self.nav.selected_index = 0;
-        self.nav.list_state.select(Some(0));
+        self.nav.prev_tab();
     }
 
     pub fn set_tab(&mut self, tab: Tab) {
-        self.nav.active_tab = tab;
-        self.nav.selected_index = 0;
-        self.nav.list_state.select(Some(0));
+        self.nav.set_tab(tab);
     }
 
     pub fn move_down(&mut self) {
-        if self.nav.active_tab == Tab::Settings {
-            let tabs_len = Tab::all().len();
-            let slash_len = self.settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 4; // tabs + slash commands + Add New + 3 advanced
-            if self.nav.selected_index < total_settings - 1 {
-                self.nav.selected_index += 1;
-                self.nav.list_state.select(Some(self.nav.selected_index));
-                
-                // Update slash list state
-                if self.nav.selected_index >= tabs_len && self.nav.selected_index <= tabs_len + slash_len {
-                    self.nav.settings_slash_list_state.select(Some(self.nav.selected_index - tabs_len));
-                } else {
-                    self.nav.settings_slash_list_state.select(None);
-                }
-            }
-        } else if !self.nav.prompts.is_empty() && self.nav.selected_index < self.nav.prompts.len() - 1 {
-            self.nav.selected_index += 1;
-            self.nav.list_state.select(Some(self.nav.selected_index));
-        }
+        self.nav.move_down(&self.settings);
     }
 
     pub fn move_up(&mut self) {
-        if self.nav.selected_index > 0 {
-            self.nav.selected_index -= 1;
-            self.nav.list_state.select(Some(self.nav.selected_index));
-
-            if self.nav.active_tab == Tab::Settings {
-                let tabs_len = Tab::all().len();
-                let slash_len = self.settings.slash_commands.len();
-                if self.nav.selected_index >= tabs_len && self.nav.selected_index <= tabs_len + slash_len {
-                    self.nav.settings_slash_list_state.select(Some(self.nav.selected_index - tabs_len));
-                } else {
-                    self.nav.settings_slash_list_state.select(None);
-                }
-            }
-        }
+        self.nav.move_up(&self.settings);
     }
 
     pub fn move_to_top(&mut self) {
-        self.nav.selected_index = 0;
-        self.nav.list_state.select(Some(0));
+        self.nav.move_to_top();
     }
 
     pub fn move_to_bottom(&mut self) {
-        if self.nav.active_tab == Tab::Settings {
-            let tabs_len = Tab::all().len();
-            let slash_len = self.settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 4;
-            self.nav.selected_index = total_settings - 1;
-            self.nav.list_state.select(Some(self.nav.selected_index));
-        } else if !self.nav.prompts.is_empty() {
-            self.nav.selected_index = self.nav.prompts.len() - 1;
-            self.nav.list_state.select(Some(self.nav.selected_index));
-        }
+        self.nav.move_to_bottom(&self.settings);
     }
 
     pub async fn move_item_up(&mut self) -> contracts::Result<()> {
         if self.nav.selected_index > 0 && !self.nav.prompts.is_empty() {
-            self.push_history();
+            self.nav.push_history();
             self.nav.prompts.swap(self.nav.selected_index, self.nav.selected_index - 1);
             self.nav.selected_index -= 1;
-            self.save_current_list().await?;
+            self.nav.save_current_list(&self.storage).await?;
         }
         Ok(())
     }
 
     pub async fn move_item_down(&mut self) -> contracts::Result<()> {
         if !self.nav.prompts.is_empty() && self.nav.selected_index < self.nav.prompts.len() - 1 {
-            self.push_history();
+            self.nav.push_history();
             self.nav.prompts.swap(self.nav.selected_index, self.nav.selected_index + 1);
             self.nav.selected_index += 1;
-            self.save_current_list().await?;
+            self.nav.save_current_list(&self.storage).await?;
         }
         Ok(())
     }
 
     pub async fn load_prompts(&mut self) -> contracts::Result<()> {
-        let path = self.current_project_path();
+        let path = self.nav.current_project_path();
         
         // Ensure project info is saved
         let _ = self.storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
@@ -280,67 +188,16 @@ impl App<'_> {
         Ok(())
     }
 
-    fn current_project_path(&self) -> String {
-        self.nav.current_path.clone()
-    }
-
-    pub fn push_history(&mut self) {
-        let entry = HistoryEntry {
-            tab: self.nav.active_tab,
-            prompts: self.nav.prompts.clone(),
-        };
-        self.nav.undo_stack.push(entry);
-        self.nav.redo_stack.clear();
-        
-        // Limit stack size
-        if self.nav.undo_stack.len() > 100 {
-            self.nav.undo_stack.remove(0);
-        }
-    }
-
     pub async fn undo(&mut self) -> contracts::Result<()> {
-        if let Some(entry) = self.nav.undo_stack.pop() {
-            let current = HistoryEntry {
-                tab: self.nav.active_tab,
-                prompts: self.nav.prompts.clone(),
-            };
-            self.nav.redo_stack.push(current);
-
-            self.nav.active_tab = entry.tab;
-            self.nav.prompts = entry.prompts;
-            
-            self.save_current_list().await?;
+        if self.nav.undo(&self.storage).await? {
             self.notify("Undo", ToastType::Info);
         }
         Ok(())
     }
 
     pub async fn redo(&mut self) -> contracts::Result<()> {
-        if let Some(entry) = self.nav.redo_stack.pop() {
-            let current = HistoryEntry {
-                tab: self.nav.active_tab,
-                prompts: self.nav.prompts.clone(),
-            };
-            self.nav.undo_stack.push(current);
-
-            self.nav.active_tab = entry.tab;
-            self.nav.prompts = entry.prompts;
-
-            self.save_current_list().await?;
+        if self.nav.redo(&self.storage).await? {
             self.notify("Redo", ToastType::Info);
-        }
-        Ok(())
-    }
-
-    async fn save_current_list(&mut self) -> contracts::Result<()> {
-        let path = self.current_project_path();
-        match self.nav.active_tab {
-            Tab::Prompts => self.storage.save_project_prompts(&path, self.nav.prompts.clone()).await?,
-            Tab::Notes => self.storage.save_project_notes(&path, self.nav.prompts.clone()).await?,
-            Tab::Archive => self.storage.save_project_archive(&path, self.nav.prompts.clone()).await?,
-            Tab::Canned => self.storage.save_global_canned(self.nav.prompts.clone()).await?,
-            Tab::Snippets => self.storage.save_global_snippets(self.nav.prompts.clone()).await?,
-            Tab::Settings => {}
         }
         Ok(())
     }
@@ -354,8 +211,8 @@ impl App<'_> {
         let is_staged = item.staged;
         let is_alias = self.nav.active_tab == Tab::Notes || self.nav.active_tab == Tab::Snippets;
 
-        self.push_history();
-        self.service.stage_item(&self.current_project_path(), self.nav.active_tab, item).await?;
+        self.nav.push_history();
+        self.service.stage_item(&self.nav.current_project_path(), self.nav.active_tab, item).await?;
 
         if is_alias {
             self.notify("Copied to clipboard!", ToastType::Success);
@@ -421,7 +278,7 @@ impl App<'_> {
 
     pub async fn save_editor(&mut self) -> contracts::Result<()> {
         let text = self.editor.textarea.lines().join("\n");
-        let path = self.current_project_path();
+        let path = self.nav.current_project_path();
 
         if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::all().len();
@@ -464,7 +321,7 @@ impl App<'_> {
             contracts::Processor::extract_title(&text).0
         };
 
-        self.push_history();
+        self.nav.push_history();
 
         if let Some(id) = self.editor.editing_id {
             match self.nav.active_tab {
@@ -584,10 +441,10 @@ impl App<'_> {
             return Ok(());
         }
 
-        self.push_history();
+        self.nav.push_history();
         let target = self.nav.prompts[self.nav.selected_index].clone();
 
-        self.service.archive_item(&self.current_project_path(), self.nav.active_tab, target).await?;
+        self.service.archive_item(&self.nav.current_project_path(), self.nav.active_tab, target).await?;
 
         if self.nav.active_tab == Tab::Archive {
             self.notify("Prompt deleted permanently", ToastType::Warning);
@@ -604,10 +461,10 @@ impl App<'_> {
             return Ok(());
         }
 
-        self.push_history();
+        self.nav.push_history();
         let target = self.nav.prompts[self.nav.selected_index].clone();
 
-        if let Some(new_prompt) = self.service.duplicate_item(&self.current_project_path(), self.nav.active_tab, target).await? {
+        if let Some(new_prompt) = self.service.duplicate_item(&self.nav.current_project_path(), self.nav.active_tab, target).await? {
             // Update in-memory list and selection
             self.nav.prompts.insert(self.nav.selected_index + 1, new_prompt);
             self.nav.selected_index += 1;
@@ -625,7 +482,7 @@ impl App<'_> {
 
         let target = self.nav.prompts[self.nav.selected_index].clone();
         
-        self.service.copy_item(&self.current_project_path(), self.nav.active_tab, target).await?;
+        self.service.copy_item(&self.nav.current_project_path(), self.nav.active_tab, target).await?;
 
         // Update in-memory state to reflect last_copied
         self.load_prompts().await?;
@@ -639,10 +496,10 @@ impl App<'_> {
             return Ok(());
         }
 
-        self.push_history();
+        self.nav.push_history();
         let target = self.nav.prompts[self.nav.selected_index].clone();
 
-        self.service.restore_item(&self.current_project_path(), target).await?;
+        self.service.restore_item(&self.nav.current_project_path(), target).await?;
 
         self.load_prompts().await?;
         self.notify("Prompt restored", ToastType::Success);
@@ -707,7 +564,7 @@ impl App<'_> {
     }
 
     pub async fn search_all(&mut self, query: String) -> contracts::Result<()> {
-        let path = self.current_project_path();
+        let path = self.nav.current_project_path();
         let query_lower = query.to_lowercase();
         
         let mut results = Vec::new();
