@@ -95,37 +95,14 @@ async fn main() -> Result<()> {
         }
 
         tui.terminal.draw(|f| {
-            let mode_str = match app.mode {
-                promptquiver::app::Mode::List => "List",
-                promptquiver::app::Mode::Editor => "Editor",
-                promptquiver::app::Mode::Move => "Move",
-                promptquiver::app::Mode::Search => "Search",
-                promptquiver::app::Mode::GlobalSearch => "Global Search",
-                promptquiver::app::Mode::ConfirmDiscard => "Confirm Discard",
-                promptquiver::app::Mode::ThemePicker => "Theme Picker",
-            };
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.nav.active_tab,
-                    prompts: &app.nav.prompts,
-                    selected_index: app.nav.selected_index,
-                    list_state: &mut app.nav.list_state,
-                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
-                    theme_list_state: &mut app.nav.theme_list_state,
-                    mode: mode_str,
-                    textarea: &mut app.editor.textarea,
-                    title_textarea: &mut app.editor.title_textarea,
-                    title_focused: app.editor.title_focused,
-                    current_branch: app.current_branch.as_deref(),
-                    current_path: &app.nav.current_path,
-                    suggestions: &app.editor.autocomplete.suggestions,
-                    suggestion_index: app.editor.autocomplete.index,
-                    autocomplete_open: app.editor.autocomplete.open,
-                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
-                    search_query: &app.nav.search_query,
-                    global_search_query: &app.nav.global_search_query,
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
                     settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
                 },
                 &mut app.toaster,
             );

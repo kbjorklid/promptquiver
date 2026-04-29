@@ -1,4 +1,4 @@
-use contracts::{Tab, Result};
+use contracts::{Tab};
 use uuid::Uuid;
 use std::sync::Arc;
 use contracts::{Storage, Clipboard, Git, AppService, Settings};

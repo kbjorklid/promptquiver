@@ -13,37 +13,14 @@ async fn test_dynamic_shortcut_hints() {
     // Helper to render and get footer text
     let mut get_footer = |app: &mut promptquiver::app::App<'_>| {
         terminal.draw(|f| {
-            let mode_str = match app.mode {
-                promptquiver::app::Mode::List => "List",
-                promptquiver::app::Mode::Editor => "Editor",
-                promptquiver::app::Mode::Move => "Move",
-                promptquiver::app::Mode::Search => "Search",
-                promptquiver::app::Mode::GlobalSearch => "Global Search",
-                promptquiver::app::Mode::ConfirmDiscard => "Confirm Discard",
-                promptquiver::app::Mode::ThemePicker => "Theme Picker",
-            };
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.nav.active_tab,
-                    prompts: &app.nav.prompts,
-                    selected_index: app.nav.selected_index,
-                    list_state: &mut app.nav.list_state,
-                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
-                    theme_list_state: &mut app.nav.theme_list_state,
-                    mode: mode_str,
-                    textarea: &mut app.editor.textarea,
-                    title_textarea: &mut app.editor.title_textarea,
-                    title_focused: app.editor.title_focused,
-                    current_branch: app.current_branch.as_deref(),
-                    current_path: &app.nav.current_path,
-                    suggestions: &app.editor.autocomplete.suggestions,
-                    suggestion_index: app.editor.autocomplete.index,
-                    autocomplete_open: app.editor.autocomplete.open,
-                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
-                    search_query: &app.nav.search_query,
-                    global_search_query: &app.nav.global_search_query,
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
                     settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
                 },
                 &mut None,
             );
@@ -74,21 +51,20 @@ async fn test_dynamic_shortcut_hints() {
     assert!(footer.contains("Ctrl+f: Global Search"), "List mode should show 'Ctrl+f: Global Search'");
 
     // 2. Test Move Mode
-    app.mode = promptquiver::app::Mode::Move;
+    app.mode = ui::Mode::Move;
     let footer = get_footer(&mut app);
     assert!(footer.contains("j/k: Move"), "Move mode should show 'j/k: Move'");
     assert!(footer.contains("Esc/m/Ent: Back"), "Move mode should show 'Esc/m/Ent: Back'");
 
     // 3. Test Editor Mode
-    app.mode = promptquiver::app::Mode::Editor;
+    app.mode = ui::Mode::Editor;
     let footer = get_footer(&mut app);
     assert!(footer.contains("Ctrl+s: Save"), "Editor mode should show 'Ctrl+s: Save'");
     assert!(footer.contains("Ctrl+g: Save & Stage"), "Editor mode should show 'Ctrl+g: Save & Stage'");
 
     // 4. Test Archive Tab (List Mode)
-    app.mode = promptquiver::app::Mode::List;
+    app.mode = ui::Mode::List;
     app.nav.active_tab = contracts::Tab::Archive;
     let footer = get_footer(&mut app);
     assert!(footer.contains("r: Restore"), "Archive tab should show 'r: Restore'");
 }
-

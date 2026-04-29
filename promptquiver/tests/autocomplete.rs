@@ -104,25 +104,11 @@ async fn test_autocomplete_slash_command_title() {
             ui::render(
                 f,
                 ui::RenderState {
-                    active_tab: app.nav.active_tab,
-                    prompts: &app.nav.prompts,
-                    selected_index: app.nav.selected_index,
-                    list_state: &mut app.nav.list_state,
-                    settings_slash_list_state: &mut app.nav.settings_slash_list_state,
-                    theme_list_state: &mut app.nav.theme_list_state,
-                    mode: "Editor",
-                    textarea: &mut app.editor.textarea,
-                    title_textarea: &mut app.editor.title_textarea,
-                    title_focused: app.editor.title_focused,
-                    current_branch: None,
-                    current_path: "",
-                    suggestions: &app.editor.autocomplete.suggestions,
-                    suggestion_index: app.editor.autocomplete.index,
-                    autocomplete_open: app.editor.autocomplete.open,
-                    autocomplete_list_state: &mut app.editor.autocomplete.list_state,
-                    search_query: "",
-                    global_search_query: "",
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
                     settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
                 },
                 &mut None,
             );
@@ -206,25 +192,11 @@ async fn test_autocomplete_positioning_below_cursor() {
 
     terminal.draw(|f| {
         ui::render(f, ui::RenderState {
-            active_tab: app.nav.active_tab,
-            prompts: &app.nav.prompts,
-            selected_index: app.nav.selected_index,
-            list_state: &mut app.nav.list_state,
-            settings_slash_list_state: &mut app.nav.settings_slash_list_state,
-            theme_list_state: &mut app.nav.theme_list_state,
-            mode: "Editor",
-            textarea: &mut app.editor.textarea,
-            title_textarea: &mut app.editor.title_textarea,
-            title_focused: app.editor.title_focused,
-            current_branch: None,
-            current_path: "",
-            suggestions: &app.editor.autocomplete.suggestions,
-            suggestion_index: app.editor.autocomplete.index,
-            autocomplete_open: app.editor.autocomplete.open,
-            autocomplete_list_state: &mut app.editor.autocomplete.list_state,
-            search_query: "",
-            global_search_query: "",
+            nav: &mut app.nav,
+            editor: &mut app.editor,
+            mode: app.mode,
             settings: &app.settings,
+            current_branch: app.current_branch.as_deref(),
         }, &mut None);
     }).unwrap();
     
@@ -294,25 +266,11 @@ async fn test_autocomplete_positioning_above_cursor() {
 
     terminal.draw(|f| {
         ui::render(f, ui::RenderState {
-            active_tab: app.nav.active_tab,
-            prompts: &app.nav.prompts,
-            selected_index: app.nav.selected_index,
-            list_state: &mut app.nav.list_state,
-            settings_slash_list_state: &mut app.nav.settings_slash_list_state,
-            theme_list_state: &mut app.nav.theme_list_state,
-            mode: "Editor",
-            textarea: &mut app.editor.textarea,
-            title_textarea: &mut app.editor.title_textarea,
-            title_focused: app.editor.title_focused,
-            current_branch: None,
-            current_path: "",
-            suggestions: &app.editor.autocomplete.suggestions,
-            suggestion_index: app.editor.autocomplete.index,
-            autocomplete_open: app.editor.autocomplete.open,
-            autocomplete_list_state: &mut app.editor.autocomplete.list_state,
-            search_query: "",
-            global_search_query: "",
+            nav: &mut app.nav,
+            editor: &mut app.editor,
+            mode: app.mode,
             settings: &app.settings,
+            current_branch: app.current_branch.as_deref(),
         }, &mut None);
     }).unwrap();
     

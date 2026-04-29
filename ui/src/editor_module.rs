@@ -44,7 +44,7 @@ impl<'a> EditorModule<'a> {
 
     pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>, current_path: String, file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>) -> contracts::Result<Option<crate::types::AppMessage>> {
         use crate::types::AppMessage;
-        use contracts::{PromptType, Tab, Processor};
+        use contracts::{Tab, Processor};
         match msg {
             AppMessage::SaveEditor => {
                 let text = self.textarea.lines().join("\n");
@@ -75,24 +75,13 @@ impl<'a> EditorModule<'a> {
                     return Ok(Some(AppMessage::ExitEditor));
                 }
 
-                let title = if ctx.active_tab == Tab::Snippets {
+                if ctx.active_tab == Tab::Snippets {
                     let t = self.title_textarea.lines().join("");
                     let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
                     if !re.is_match(&t) {
                          return Ok(Some(AppMessage::Notify("Snippet name must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error)));
                     }
-                    Some(t)
-                } else {
-                    Processor::extract_title(&text).0
-                };
-
-                // Saving logic (we need to return something or have access to list module)
-                // For now, let's return a "SaveResult" or just handle it here.
-                // But we don't have access to ListModule's push_history.
-                
-                // Maybe we should return a message that App handles to finish saving?
-                // Actually, let's keep the actual saving in App for now if it involves too much cross-module state.
-                // Or we return a specific AppMessage::SaveFinished(text, title, id, index).
+                }
             }
             AppMessage::UpdateAutocomplete => {
                 let snippets = ctx.storage.get_global_snippets().await?;

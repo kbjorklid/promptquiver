@@ -1,9 +1,7 @@
-use contracts::{Clipboard, Git, Storage, Tab, Prompt};
+use contracts::{Clipboard, Git, Storage, Tab};
 use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastPosition};
 use std::sync::Arc;
-use crate::editor::EditorModule;
-use crate::list_module::ListModule;
-pub use crate::types::{Mode, AppMessage, UpdateContext};
+pub use ui::{Mode, AppMessage, UpdateContext, ListModule, EditorModule};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 

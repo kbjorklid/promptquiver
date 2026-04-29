@@ -2277,15 +2277,18 @@ dependencies = [
  "anyhow",
  "contracts",
  "crossterm",
+ "fuzzy-matcher",
  "ratatui 0.30.0",
  "ratatui-textarea",
  "ratatui-themes",
  "ratatui-toaster",
+ "regex",
  "serde",
  "thiserror 2.0.18",
  "tokio",
  "tui-big-text",
  "tui-popup",
+ "uuid",
 ]
 
 [[package]]

@@ -393,8 +393,6 @@ impl ListModule {
                     crossterm::event::KeyCode::Esc => {
                         self.search_query.clear();
                         self.load_prompts(ctx.storage).await?;
-                        // This needs to change mode back to List. App will handle that if we return a message or handle it here if we had access to Mode.
-                        // But since Mode is in App, we might need a message.
                     }
                     crossterm::event::KeyCode::Enter => { /* Mode change to List by App */ }
                     crossterm::event::KeyCode::Char('\u{7f}') => {

@@ -1,10 +1,9 @@
-use contracts::{Prompt, Tab};
+use contracts::{Tab};
 use ratatui::layout::{Layout, Constraint, Direction};
 use ratatui::widgets::{Paragraph, Block};
 use ratatui::style::Style;
 use ratatui::Frame;
 use ratatui::prelude::Stylize;
-use ratatui_textarea::TextArea;
 use ratatui_toaster::{ToastEngine, ToastMessage};
 
 pub mod header;
@@ -15,28 +14,21 @@ pub mod utils;
 pub mod settings;
 pub mod statusline;
 pub mod shortcuts;
+pub mod types;
+pub mod list_module;
+pub mod editor_module;
+
+pub use types::{Mode, AppMessage, UpdateContext};
+pub use list_module::ListModule;
+pub use editor_module::EditorModule;
 
 #[derive(Debug)]
 pub struct RenderState<'a, 'b> {
-    pub active_tab: Tab,
-    pub prompts: &'a [Prompt],
-    pub selected_index: usize,
-    pub list_state: &'a mut ratatui::widgets::ListState,
-    pub settings_slash_list_state: &'a mut ratatui::widgets::ListState,
-    pub theme_list_state: &'a mut ratatui::widgets::ListState,
-    pub mode: &'a str,
-    pub textarea: &'a mut TextArea<'b>,
-    pub title_textarea: &'a mut TextArea<'b>,
-    pub title_focused: bool,
-    pub current_branch: Option<&'a str>,
-    pub current_path: &'a str,
-    pub suggestions: &'a [Prompt],
-    pub suggestion_index: usize,
-    pub autocomplete_open: bool,
-    pub autocomplete_list_state: &'a mut ratatui::widgets::ListState,
-    pub search_query: &'a str,
-    pub global_search_query: &'a str,
+    pub nav: &'a mut ListModule,
+    pub editor: &'a mut EditorModule<'b>,
+    pub mode: Mode,
     pub settings: &'a contracts::Settings,
+    pub current_branch: Option<&'a str>,
 }
 
 pub fn render(
@@ -49,11 +41,11 @@ pub fn render(
     // Render global background to ensure theme background covers everything
     f.render_widget(Block::default().bg(palette.bg), f.area());
 
-    let show_preview = state.mode != "Editor" 
-        && state.mode != "Confirm Discard" 
-        && state.active_tab != Tab::Settings;
+    let show_preview = state.mode != Mode::Editor 
+        && state.mode != Mode::ConfirmDiscard 
+        && state.nav.active_tab != Tab::Settings;
 
-    let is_searching = state.mode == "Search" || state.mode == "Global Search";
+    let is_searching = state.mode == Mode::Search || state.mode == Mode::GlobalSearch;
     
     let mut available_for_main = f.area().height.saturating_sub(4); // 1 for header, 1 for statusline, 2 for footer
     if is_searching {
@@ -124,13 +116,13 @@ pub fn render(
         }
     }
 
-    header::render(f, header_chunk, state.active_tab, state.settings);
+    header::render(f, header_chunk, state.nav.active_tab, state.settings);
 
     let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
 
     if let Some(s_chunk) = search_chunk {
-        let query = if state.mode == "Global Search" { state.global_search_query } else { state.search_query };
-        let prefix = if state.mode == "Global Search" { "Global Search: /" } else { "Search: /" };
+        let query = if state.mode == Mode::GlobalSearch { &state.nav.global_search_query } else { &state.nav.search_query };
+        let prefix = if state.mode == Mode::GlobalSearch { "Global Search: /" } else { "Search: /" };
         let text = format!("{}{}", prefix, query);
         let paragraph = Paragraph::new(text).style(Style::default().fg(palette.accent));
         f.render_widget(paragraph, s_chunk);
@@ -139,30 +131,30 @@ pub fn render(
 
     let mut editor_content_area = None;
 
-    if state.mode == "Editor" || state.mode == "Confirm Discard" || state.mode == "Theme Picker" {
-        if state.active_tab == Tab::Settings {
+    if state.mode == Mode::Editor || state.mode == Mode::ConfirmDiscard || state.mode == Mode::ThemePicker {
+        if state.nav.active_tab == Tab::Settings {
             settings::render(
                 f, 
                 content_chunk, 
                 state.settings, 
-                state.selected_index, 
-                if state.mode == "Editor" { Some(state.textarea) } else { None }, 
-                state.settings_slash_list_state,
-                state.theme_list_state,
-                state.mode == "Theme Picker"
+                state.nav.selected_index, 
+                if state.mode == Mode::Editor { Some(&mut state.editor.textarea) } else { None }, 
+                &mut state.nav.settings_slash_list_state,
+                &mut state.nav.theme_list_state,
+                state.mode == Mode::ThemePicker
             );
         } else {
             editor_content_area = Some(editor::render(
                 f,
                 content_chunk,
-                state.textarea,
-                state.title_textarea,
-                state.title_focused,
-                state.active_tab,
+                &mut state.editor.textarea,
+                &mut state.editor.title_textarea,
+                state.editor.title_focused,
+                state.nav.active_tab,
                 state.settings,
             ));
 
-            if state.mode == "Confirm Discard" {
+            if state.mode == Mode::ConfirmDiscard {
                 let text = ratatui::text::Text::from("\n  Are you sure you want to discard changes?  \n\n            (y) Yes, (n) No            ");
                 let popup = tui_popup::Popup::new(text)
                     .title(" Discard Changes? ")
@@ -172,18 +164,24 @@ pub fn render(
             }
         }
     } else {
-        if state.active_tab == Tab::Settings {
-            settings::render(f, content_chunk, state.settings, state.selected_index, None, state.settings_slash_list_state, state.theme_list_state, false);
+        if state.nav.active_tab == Tab::Settings {
+            settings::render(f, content_chunk, state.settings, state.nav.selected_index, None, &mut state.nav.settings_slash_list_state, &mut state.nav.theme_list_state, false);
         } else {
-            let display_query = if state.global_search_query.is_empty() {
-                state.search_query
+            let display_query = if state.nav.global_search_query.is_empty() {
+                &state.nav.search_query
             } else {
-                state.global_search_query
+                &state.nav.global_search_query
             };
-            list::render(f, content_chunk, state.active_tab, state.prompts, state.selected_index, state.mode, display_query, state.settings, state.list_state);
+            let mode_str = match state.mode {
+                Mode::Move => "Move",
+                Mode::Search => "Search",
+                Mode::GlobalSearch => "Global Search",
+                _ => "List",
+            };
+            list::render(f, content_chunk, state.nav.active_tab, &state.nav.prompts, state.nav.selected_index, mode_str, display_query, state.settings, &mut state.nav.list_state);
             
             if let Some(p_chunk) = preview_chunk {
-                let selected_prompt = state.prompts.get(state.selected_index);
+                let selected_prompt = state.nav.prompts.get(state.nav.selected_index);
                 list::render_preview(f, p_chunk, selected_prompt, state.settings);
             }
         }
@@ -193,11 +191,11 @@ pub fn render(
         editor::render_autocomplete(
             f, 
             area, 
-            state.textarea, 
-            state.suggestions, 
-            state.suggestion_index, 
-            state.autocomplete_open,
-            state.autocomplete_list_state, 
+            &state.editor.textarea, 
+            &state.editor.autocomplete.suggestions, 
+            state.editor.autocomplete.index, 
+            state.editor.autocomplete.open,
+            &mut state.editor.autocomplete.list_state, 
             state.settings
         );
     }
@@ -205,20 +203,28 @@ pub fn render(
     statusline::render(
         f,
         statusline_chunk,
-        state.current_path,
+        &state.nav.current_path,
         state.current_branch,
-        state.prompts.len(),
+        state.nav.prompts.len(),
         state.settings,
     );
 
     footer::render(
         f,
         footer_chunk,
-        state.mode,
-        state.active_tab,
-        state.prompts.len(),
-        state.selected_index,
-        !state.suggestions.is_empty(),
+        match state.mode {
+            Mode::List => "List",
+            Mode::Editor => "Editor",
+            Mode::Move => "Move",
+            Mode::Search => "Search",
+            Mode::GlobalSearch => "Global Search",
+            Mode::ConfirmDiscard => "Confirm Discard",
+            Mode::ThemePicker => "Theme Picker",
+        },
+        state.nav.active_tab,
+        state.nav.prompts.len(),
+        state.nav.selected_index,
+        !state.editor.autocomplete.suggestions.is_empty(),
         state.settings,
     );
 
