@@ -293,7 +293,7 @@ impl App<'_> {
         self.nav.push_history();
 
         let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
-        self.service.save_item(
+        let res = self.service.save_item(
             &path, 
             self.nav.active_tab, 
             text, 
@@ -301,11 +301,22 @@ impl App<'_> {
             self.editor.editing_id, 
             self.editor.insert_index,
             branch
-        ).await?;
+        ).await;
 
-        self.exit_editor();
-        self.load_prompts().await?;
-        self.notify("Prompt saved!", ToastType::Success);
+        match res {
+            Ok(_) => {
+                self.exit_editor();
+                self.load_prompts().await?;
+                self.notify("Prompt saved!", ToastType::Success);
+            }
+            Err(contracts::Error::Conflict(m)) => {
+                self.notify(format!("Conflict: {}. Changes NOT saved.", m), ToastType::Error);
+                // We stay in editor so user can copy their work or try again after reload
+            }
+            Err(e) => {
+                self.notify(format!("Error: {}", e), ToastType::Error);
+            }
+        }
         Ok(())
     }
 

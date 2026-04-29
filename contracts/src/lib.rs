@@ -93,6 +93,8 @@ pub struct ProjectInfo {
 pub enum Error {
     #[error("Storage error: {0}")]
     Storage(String),
+    #[error("Conflict: {0}")]
+    Conflict(String),
     #[error("Clipboard error: {0}")]
     Clipboard(String),
     #[error("Git error: {0}")]

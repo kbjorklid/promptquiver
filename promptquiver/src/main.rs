@@ -19,7 +19,8 @@ macro_rules! handle_error {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Infrastructure
-    let storage: Arc<dyn Storage> = Arc::new(FileSystemStorage::new(None));
+    let fs_storage = Arc::new(FileSystemStorage::new(None));
+    let storage: Arc<dyn Storage> = fs_storage.clone();
     let clipboard: Arc<dyn Clipboard> = Arc::new(RealClipboard::new());
     let git: Arc<dyn Git> = Arc::new(RealGit::new());
     let service: Arc<dyn contracts::AppService> = Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
@@ -58,6 +59,24 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Background File Watcher
+    let (file_event_tx, mut file_event_rx) = tokio::sync::mpsc::channel(10);
+    let watch_path = fs_storage.get_base_dir();
+    
+    use notify::{Watcher, RecursiveMode, Config};
+    let mut watcher = notify::RecommendedWatcher::new(move |res: notify::Result<notify::Event>| {
+        if let Ok(event) = res {
+            if event.kind.is_modify() || event.kind.is_create() {
+                // Check if it's a toml file
+                if event.paths.iter().any(|p| p.extension().map_or(false, |ext| ext == "toml")) {
+                    let _ = file_event_tx.blocking_send(());
+                }
+            }
+        }
+    }, Config::default())?;
+
+    watcher.watch(&watch_path, RecursiveMode::Recursive)?;
+
     // Terminal
     let backend = ratatui::backend::CrosstermBackend::new(io::stdout());
     let terminal = Terminal::new(backend)?;
@@ -76,6 +95,13 @@ async fn main() -> Result<()> {
         // Handle background updates
         if let Ok(branch) = branch_rx.try_recv() {
             app.current_branch = branch;
+        }
+
+        if let Ok(_) = file_event_rx.try_recv() {
+            // Reload prompts if we are not in the middle of editing
+            if app.mode == ui::Mode::List {
+                handle_error!(app, app.load_prompts().await);
+            }
         }
 
         while let Ok((query, results)) = file_result_rx.try_recv() {

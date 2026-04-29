@@ -113,6 +113,7 @@ impl Storage for InMemoryStorage {
 #[derive(Debug)]
 pub struct FileSystemStorage {
     base_dir: PathBuf,
+    last_read_times: RwLock<HashMap<PathBuf, std::time::SystemTime>>,
 }
 
 impl FileSystemStorage {
@@ -126,7 +127,14 @@ impl FileSystemStorage {
             let _ = std::fs::create_dir_all(&base_dir);
         }
         
-        Self { base_dir }
+        Self { 
+            base_dir,
+            last_read_times: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn get_base_dir(&self) -> PathBuf {
+        self.base_dir.clone()
     }
 
     fn global_path(&self) -> PathBuf {
@@ -155,10 +163,35 @@ impl FileSystemStorage {
         let content = tokio::fs::read_to_string(&path)
             .await
             .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+        
+        // Update last read time
+        if let Ok(metadata) = std::fs::metadata(&path) {
+            if let Ok(mtime) = metadata.modified() {
+                self.last_read_times.write().await.insert(path.clone(), mtime);
+            }
+        }
+
         serde_toml::from_str(&content).map_err(|e| contracts::Error::Storage(e.to_string()))
     }
 
     async fn write_toml<T: serde::Serialize>(&self, path: PathBuf, data: &T) -> Result<()> {
+        // Conflict check
+        if path.exists() {
+            if let Ok(metadata) = std::fs::metadata(&path) {
+                if let Ok(current_mtime) = metadata.modified() {
+                    let last_times = self.last_read_times.read().await;
+                    if let Some(&last_mtime) = last_times.get(&path) {
+                        // Allow some grace period (e.g. 100ms) or just direct comparison
+                        // Given user assumption of 1s, direct comparison is fine.
+                        // But note that some file systems have low resolution.
+                        if current_mtime > last_mtime {
+                            return Err(contracts::Error::Conflict("File has been modified by another instance. Please reload.".to_string()));
+                        }
+                    }
+                }
+            }
+        }
+
         let content = serde_toml::to_string_pretty(data)
             .map_err(|e| contracts::Error::Storage(e.to_string()))?;
         
@@ -171,6 +204,13 @@ impl FileSystemStorage {
             .await
             .map_err(|e| contracts::Error::Storage(e.to_string()))?;
         
+        // Update last read time after write
+        if let Ok(metadata) = std::fs::metadata(&path) {
+            if let Ok(mtime) = metadata.modified() {
+                self.last_read_times.write().await.insert(path, mtime);
+            }
+        }
+
         Ok(())
     }
 }

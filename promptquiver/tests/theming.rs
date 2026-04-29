@@ -66,9 +66,9 @@ async fn test_theme_picker_opening_and_dismissal() {
     app.load_prompts().await.unwrap();
 
     // 1. Verify opening theme picker via Enter
-    let tabs_len = Tab::all().len();
+    let tabs_len = 5; // Settings tab is hidden in visibility list
     let slash_len = app.settings.slash_commands.len();
-    let theme_idx = tabs_len + slash_len + 3; // theme item index
+    let theme_idx = tabs_len + slash_len + 3; // theme item index: 5 + slash + 1 (claude) + 1 (nerd) + 1 (theme) = 8 + slash
     app.nav.selected_index = theme_idx;
 
     let enter_key = KeyEvent {
