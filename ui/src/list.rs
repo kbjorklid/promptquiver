@@ -22,8 +22,6 @@ pub fn render(
     
     let title = if search_query.is_empty() {
         format!(" {active_tab:?} ")
-    } else if mode == "Global Search" {
-        format!(" {active_tab:?} (Global Search: {search_query}) ")
     } else {
         format!(" {active_tab:?} (Search: {search_query}) ")
     };

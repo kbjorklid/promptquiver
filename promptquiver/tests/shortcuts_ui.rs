@@ -48,7 +48,6 @@ async fn test_dynamic_shortcut_hints() {
     assert!(footer.contains("u: Undo"), "List mode should show 'u: Undo'");
     assert!(footer.contains("a/i: Add"), "List mode should show 'a/i: Add'");
     assert!(footer.contains("d/D: Del/Dupe"), "List mode should show 'd/D: Del/Dupe'");
-    assert!(footer.contains("Ctrl+f: Global Search"), "List mode should show 'Ctrl+f: Global Search'");
 
     // 2. Test Move Mode
     app.mode = ui::Mode::Move;

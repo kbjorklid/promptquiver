@@ -45,7 +45,7 @@ pub fn render(
         && state.mode != Mode::ConfirmDiscard 
         && state.nav.active_tab != Tab::Settings;
 
-    let is_searching = state.mode == Mode::Search || state.mode == Mode::GlobalSearch;
+    let is_searching = state.mode == Mode::Search;
     
     let mut available_for_main = f.area().height.saturating_sub(4); // 1 for header, 1 for statusline, 2 for footer
     if is_searching {
@@ -121,8 +121,8 @@ pub fn render(
     let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
 
     if let Some(s_chunk) = search_chunk {
-        let query = if state.mode == Mode::GlobalSearch { &state.nav.global_search_query } else { &state.nav.search_query };
-        let prefix = if state.mode == Mode::GlobalSearch { "Global Search: /" } else { "Search: /" };
+        let query = &state.nav.search_query;
+        let prefix = "Search: /";
         let text = format!("{}{}", prefix, query);
         let paragraph = Paragraph::new(text).style(Style::default().fg(palette.accent));
         f.render_widget(paragraph, s_chunk);
@@ -167,15 +167,10 @@ pub fn render(
         if state.nav.active_tab == Tab::Settings {
             settings::render(f, content_chunk, state.settings, state.nav.selected_index, None, &mut state.nav.settings_slash_list_state, &mut state.nav.theme_list_state, false);
         } else {
-            let display_query = if state.nav.global_search_query.is_empty() {
-                &state.nav.search_query
-            } else {
-                &state.nav.global_search_query
-            };
+            let display_query = &state.nav.search_query;
             let mode_str = match state.mode {
                 Mode::Move => "Move",
                 Mode::Search => "Search",
-                Mode::GlobalSearch => "Global Search",
                 _ => "List",
             };
             list::render(f, content_chunk, state.nav.active_tab, &state.nav.prompts, state.nav.selected_index, mode_str, display_query, state.settings, &mut state.nav.list_state);
@@ -217,7 +212,6 @@ pub fn render(
             Mode::Editor => "Editor",
             Mode::Move => "Move",
             Mode::Search => "Search",
-            Mode::GlobalSearch => "Global Search",
             Mode::ConfirmDiscard => "Confirm Discard",
             Mode::ThemePicker => "Theme Picker",
         },

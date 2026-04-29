@@ -54,7 +54,7 @@ impl App<'_> {
                 Mode::Editor | Mode::ConfirmDiscard => {
                     self.editor.update(msg.clone(), &mut ctx, self.nav.current_path.clone(), &self.file_search_tx).await?
                 }
-                Mode::List | Mode::Move | Mode::Search | Mode::GlobalSearch | Mode::ThemePicker => {
+                Mode::List | Mode::Move | Mode::Search | Mode::ThemePicker => {
                     self.nav.update(msg.clone(), &mut ctx).await?
                 }
             };
@@ -85,11 +85,7 @@ impl App<'_> {
                     self.mode = if self.mode == Mode::Move { Mode::List } else { Mode::Move };
                 }
                 AppMessage::Search(_) => self.mode = Mode::Search,
-                AppMessage::GlobalSearch(_) => self.mode = Mode::GlobalSearch,
                 AppMessage::SearchInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter => {
-                    self.mode = Mode::List;
-                }
-                AppMessage::GlobalSearchInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter => {
                     self.mode = Mode::List;
                 }
                 AppMessage::ThemePickerInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') => {
@@ -196,7 +192,6 @@ impl App<'_> {
 
     pub fn enter_editor(&mut self, text: String, id: Option<uuid::Uuid>) {
         self.nav.search_query.clear();
-        self.nav.global_search_query.clear();
         self.mode = Mode::Editor;
         
         let title = if self.nav.active_tab == Tab::Snippets {
@@ -214,7 +209,6 @@ impl App<'_> {
 
     pub fn enter_editor_before(&mut self, text: String, index: usize) {
         self.nav.search_query.clear();
-        self.nav.global_search_query.clear();
         self.mode = Mode::Editor;
         self.editor.enter(text, None, Some(String::new()), self.nav.active_tab, Some(index));
     }

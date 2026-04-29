@@ -9,7 +9,6 @@ pub async fn handle_key_event(app: &mut App<'_>, key: KeyEvent) {
         Mode::Editor => handle_editor_events(app, key),
         Mode::Move => handle_move_events(app, key),
         Mode::Search => handle_search_events(app, key),
-        Mode::GlobalSearch => handle_global_search_events(app, key),
         Mode::ConfirmDiscard => handle_confirm_discard_events(app, key),
         Mode::ThemePicker => handle_theme_picker_events(app, key),
     };
@@ -66,9 +65,6 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Char('/') => {
             messages.push(AppMessage::Search(String::new()));
         }
-        KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            messages.push(AppMessage::GlobalSearch(String::new()));
-        }
         KeyCode::Char('G') => messages.push(AppMessage::MoveToBottom),
         KeyCode::Char('g') => messages.push(AppMessage::MoveToTop),
         KeyCode::Char('e') | KeyCode::Enter => {
@@ -77,8 +73,7 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
                 let slash_len = app.settings.slash_commands.len();
                 let advanced_idx = tabs_len + slash_len + 1;
                 if app.nav.selected_index == advanced_idx + 2 {
-                    // This currently requires direct mutation or a specific message
-                    // Let's add Mode change to AppMessage
+                    messages.push(AppMessage::SelectTheme);
                 } else {
                     messages.push(AppMessage::EditSetting);
                 }
@@ -143,12 +138,6 @@ fn handle_move_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
 fn handle_search_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
     let mut messages = Vec::new();
     messages.push(AppMessage::SearchInput(key));
-    messages
-}
-
-fn handle_global_search_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    messages.push(AppMessage::GlobalSearchInput(key));
     messages
 }
 

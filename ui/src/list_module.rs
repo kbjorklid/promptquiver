@@ -19,7 +19,6 @@ pub struct ListModule {
     pub redo_stack: Vec<HistoryEntry>,
     pub branch_filter: bool,
     pub search_query: String,
-    pub global_search_query: String,
     pub current_path: String,
     pub original_theme: Option<String>,
     pub current_branch: Option<String>,
@@ -38,7 +37,6 @@ impl Default for ListModule {
             redo_stack: Vec::new(),
             branch_filter: false,
             search_query: String::new(),
-            global_search_query: String::new(),
             current_path: std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
                 .to_string_lossy()
@@ -385,9 +383,6 @@ impl ListModule {
                 self.search_query = query;
                 self.load_prompts(ctx.storage).await?;
             }
-            AppMessage::GlobalSearch(query) => {
-                self.search_all(query, ctx.storage).await?;
-            }
             AppMessage::SearchInput(key) => {
                 match key.code {
                     crossterm::event::KeyCode::Esc => {
@@ -418,33 +413,17 @@ impl ListModule {
                     _ => {}
                 }
             }
-            AppMessage::GlobalSearchInput(key) => {
-                 match key.code {
-                    crossterm::event::KeyCode::Esc => {
-                        self.global_search_query.clear();
-                        self.load_prompts(ctx.storage).await?;
+            AppMessage::SelectTheme => {
+                self.original_theme = ctx.settings.theme_name.clone();
+                let themes = ratatui_themes::ThemeName::all();
+                if let Some(ref current_name) = ctx.settings.theme_name {
+                    if let Some(pos) = themes.iter().position(|t| format!("{:?}", t) == *current_name) {
+                        self.theme_list_state.select(Some(pos));
+                    } else {
+                        self.theme_list_state.select(Some(0));
                     }
-                    crossterm::event::KeyCode::Enter => {
-                        self.search_all(self.global_search_query.clone(), ctx.storage).await?;
-                    }
-                    crossterm::event::KeyCode::Char('\u{7f}') => {
-                        if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
-                            if let Some(pos) = self.global_search_query.trim_end().rfind(' ') {
-                                self.global_search_query.truncate(pos + 1);
-                            } else {
-                                self.global_search_query.clear();
-                            }
-                        } else {
-                            self.global_search_query.pop();
-                        }
-                    }
-                    crossterm::event::KeyCode::Char(c) => {
-                        self.global_search_query.push(c);
-                    }
-                    crossterm::event::KeyCode::Backspace => {
-                        self.global_search_query.pop();
-                    }
-                    _ => {}
+                } else {
+                    self.theme_list_state.select(Some(0));
                 }
             }
             AppMessage::ThemePickerInput(key) => {
@@ -484,38 +463,6 @@ impl ListModule {
             _ => {}
         }
         Ok(None)
-    }
-
-    pub async fn search_all(&mut self, query: String, storage: &Arc<dyn Storage>) -> Result<()> {
-        let path = self.current_project_path();
-        let query_lower = query.to_lowercase();
-        
-        let mut results = Vec::new();
-        
-        // Search all sources
-        let prompts = storage.get_project_prompts(&path).await?;
-        let notes = storage.get_project_notes(&path).await?;
-        let archive = storage.get_project_archive(&path).await?;
-        let canned = storage.get_global_canned().await?;
-        let snippets = storage.get_global_snippets().await?;
-        
-        let mut all = prompts;
-        all.extend(notes);
-        all.extend(archive);
-        all.extend(canned);
-        all.extend(snippets);
-        
-        for p in all {
-            if p.text.to_lowercase().contains(&query_lower) || 
-               p.name.as_deref().unwrap_or("").to_lowercase().contains(&query_lower) {
-                results.push(p);
-            }
-        }
-        
-        self.prompts = results;
-        self.selected_index = 0;
-        self.list_state.select(Some(0));
-        Ok(())
     }
 
     pub fn current_project_path(&self) -> String {
