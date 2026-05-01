@@ -332,28 +332,21 @@ async fn test_autocomplete_esc_closes_popup() {
     app.enter_editor("".to_string(), None);
     
     // Type /
-    app.editor.textarea.input(crossterm::event::KeyEvent::new(
+    promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('/'),
         crossterm::event::KeyModifiers::empty(),
-    ));
+    )).await;
     app.update_autocomplete().await.unwrap();
     
     assert!(app.editor.autocomplete.open);
     assert!(!app.editor.autocomplete.suggestions.is_empty());
 
     // Type Esc
-    app.editor.textarea.input(crossterm::event::KeyEvent::new(
+    promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Esc,
         crossterm::event::KeyModifiers::empty(),
-    ));
+    )).await;
     
-    // NOTE: In main.rs, the event loop handles Esc. 
-    // In tests, we need to simulate what main.rs does.
-    if app.editor.autocomplete.open {
-        app.editor.autocomplete.open = false;
-        app.editor.autocomplete.suggestions.clear();
-    }
-
     assert!(!app.editor.autocomplete.open);
     assert!(app.editor.autocomplete.suggestions.is_empty());
 }

@@ -103,7 +103,7 @@ fn handle_editor_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
     match key.code {
         KeyCode::Esc => {
             if app.editor.autocomplete.open {
-                // Close autocomplete
+                messages.push(AppMessage::CloseAutocomplete);
             } else {
                 // Exit or confirm discard
                 messages.push(AppMessage::ExitEditor); // Or ConfirmDiscard

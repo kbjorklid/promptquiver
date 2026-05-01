@@ -38,6 +38,7 @@ pub enum AppMessage {
     SaveEditor,
     SaveAndStageEditor,
     UpdateAutocomplete,
+    CloseAutocomplete,
     MoveSuggestionDown,
     MoveSuggestionUp,
     SelectSuggestion,

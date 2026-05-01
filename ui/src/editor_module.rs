@@ -87,6 +87,10 @@ impl<'a> EditorModule<'a> {
                 let snippets = ctx.storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await?;
                 self.update_autocomplete(snippets, ctx.settings, current_path, file_search_tx).await?;
             }
+            AppMessage::CloseAutocomplete => {
+                self.autocomplete.open = false;
+                self.autocomplete.suggestions.clear();
+            }
             AppMessage::MoveSuggestionDown => self.move_suggestion_down(),
             AppMessage::MoveSuggestionUp => self.move_suggestion_up(),
             AppMessage::SelectSuggestion => self.select_suggestion(),
@@ -131,6 +135,21 @@ impl<'a> EditorModule<'a> {
 
     fn input_with_fallback(textarea: &mut TextArea<'a>, key: crossterm::event::KeyEvent) {
         use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
+
+        // Handle Ctrl+Backspace for word deletion
+        // Some terminals send Backspace + Control, some send Char(0x7f)
+        match (key.code, key.modifiers) {
+            (KeyCode::Backspace, m) if m.contains(KeyModifiers::CONTROL) => {
+                textarea.delete_word();
+                return;
+            }
+            (KeyCode::Char('\u{7f}'), _) => {
+                textarea.delete_word();
+                return;
+            }
+            _ => {}
+        }
+
         if !textarea.input(key) {
             if let KeyCode::Char(c) = key.code {
                 let is_control = key.modifiers.contains(KeyModifiers::CONTROL);

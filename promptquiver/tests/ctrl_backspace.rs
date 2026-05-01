@@ -21,18 +21,8 @@ async fn test_ctrl_backspace_deletes_word() {
         state: KeyEventState::empty(),
     };
 
-    // Simulate logic from main.rs
-    match event.code {
-        KeyCode::Backspace if event.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.editor.textarea.delete_word();
-        }
-        KeyCode::Char('\u{7f}') => {
-            app.editor.textarea.delete_word();
-        }
-        _ => {
-            app.editor.textarea.input(event);
-        }
-    }
+    // Use real application logic
+    app.handle_message(ui::AppMessage::EditorInput(event)).await.unwrap();
 
     // If it works, it should be "hello "
     // If it doesn't work, it will still be "hello world"
@@ -56,18 +46,8 @@ async fn test_ctrl_backspace_char_7f_deletes_word() {
         state: KeyEventState::empty(),
     };
 
-    // Simulate logic from main.rs
-    match event.code {
-        KeyCode::Backspace if event.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.editor.textarea.delete_word();
-        }
-        KeyCode::Char('\u{7f}') => {
-            app.editor.textarea.delete_word();
-        }
-        _ => {
-            app.editor.textarea.input(event);
-        }
-    }
+    // Use real application logic
+    app.handle_message(ui::AppMessage::EditorInput(event)).await.unwrap();
 
     assert_eq!(app.editor.textarea.lines()[0], "hello ", "KeyCode::Char('\\u{{7f}}') should delete the word 'world'");
 }
