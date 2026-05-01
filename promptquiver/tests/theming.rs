@@ -100,6 +100,37 @@ async fn test_theme_picker_opening_and_dismissal() {
     assert_eq!(app.mode, Mode::List, "Esc in Theme Picker should return to List mode");
 }
 
+#[tokio::test]
+async fn test_theme_preview_preserved_on_reload() {
+    use contracts::Storage;
+    let (mut app, storage, _, _) = common::setup_app();
+
+    // Set initial theme
+    app.settings.theme_name = Some("Default".to_string());
+    storage.save_settings(app.settings.clone()).await.unwrap();
+
+    // Enter theme picker
+    app.handle_message(ui::AppMessage::SelectTheme).await.unwrap();
+    assert_eq!(app.mode, Mode::ThemePicker);
+
+    // Simulate moving to a new theme (preview)
+    app.settings.theme_name = Some("Nord".to_string());
+    
+    // Simulate background reload
+    app.handle_message(ui::AppMessage::ReloadPrompts).await.unwrap();
+    
+    // Theme should still be Nord (the preview)
+    assert_eq!(app.settings.theme_name, Some("Nord".to_string()));
+    
+    // Exit theme picker (Esc) - should revert to original
+    app.handle_message(ui::AppMessage::ThemePickerInput(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Esc,
+        crossterm::event::KeyModifiers::empty(),
+    ))).await.unwrap();
+    
+    assert_eq!(app.settings.theme_name, Some("Default".to_string()));
+}
+
 fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'static> {
     ui::RenderState {
         nav: &mut app.nav,

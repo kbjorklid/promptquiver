@@ -69,8 +69,13 @@ impl Storage for InMemoryStorage {
             }
         }
         
-        // Sort by created_at DESC (mimic DB behavior)
-        filtered.sort_by_key(|p| std::cmp::Reverse(p.created_at));
+        // Sort by order_index ASC, created_at DESC (mimic DB behavior)
+        filtered.sort_by(|a, b| {
+            match a.order_index.cmp(&b.order_index) {
+                std::cmp::Ordering::Equal => b.created_at.cmp(&a.created_at),
+                other => other,
+            }
+        });
 
         Ok(filtered)
     }
@@ -81,6 +86,18 @@ impl Storage for InMemoryStorage {
             *p = prompt;
         } else {
             prompts.push(prompt);
+        }
+        Ok(())
+    }
+
+    async fn save_prompts(&self, prompts_to_save: Vec<Prompt>) -> Result<()> {
+        let mut prompts = self.prompts.write().await;
+        for p_to_save in prompts_to_save {
+            if let Some(p) = prompts.iter_mut().find(|p| p.id == p_to_save.id) {
+                *p = p_to_save;
+            } else {
+                prompts.push(p_to_save);
+            }
         }
         Ok(())
     }
@@ -147,10 +164,14 @@ impl SqliteStorage {
                 last_copied BOOLEAN NOT NULL DEFAULT 0,
                 is_archived BOOLEAN NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                order_index INTEGER NOT NULL DEFAULT 0
             )",
             [],
         ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+        // Migration for existing databases
+        let _ = conn.execute("ALTER TABLE prompts ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0", []);
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS project_info (
@@ -193,7 +214,7 @@ impl Storage for SqliteStorage {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             
-            let mut query = "SELECT id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at FROM prompts WHERE 1=1".to_string();
+            let mut query = "SELECT id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index FROM prompts WHERE 1=1".to_string();
             let mut params: Vec<String> = Vec::new();
 
             if let Some(folder) = filter.folder {
@@ -232,7 +253,7 @@ impl Storage for SqliteStorage {
                 }
             }
 
-            query.push_str(" ORDER BY created_at DESC");
+            query.push_str(" ORDER BY order_index ASC, created_at DESC");
 
             let mut stmt = conn.prepare(&query).map_err(|e| contracts::Error::Storage(e.to_string()))?;
             
@@ -254,6 +275,7 @@ impl Storage for SqliteStorage {
                     is_archived: row.get(9)?,
                     created_at: row.get::<_, String>(10)?.parse::<DateTime<Utc>>().unwrap(),
                     updated_at: row.get::<_, String>(11)?.parse::<DateTime<Utc>>().unwrap(),
+                    order_index: row.get(12)?,
                 })
             }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
@@ -267,13 +289,13 @@ impl Storage for SqliteStorage {
 
     async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
         let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
+        let changed = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             
             conn.execute(
-                "INSERT INTO prompts (id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                "INSERT INTO prompts (id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                  ON CONFLICT(id) DO UPDATE SET
                     text=excluded.text,
                     type=excluded.type,
@@ -284,7 +306,12 @@ impl Storage for SqliteStorage {
                     staged=excluded.staged,
                     last_copied=excluded.last_copied,
                     is_archived=excluded.is_archived,
-                    updated_at=excluded.updated_at",
+                    updated_at=excluded.updated_at,
+                    order_index=excluded.order_index
+                 WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
+                    OR project IS NOT excluded.project OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
+                    OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
+                    OR order_index != excluded.order_index",
                 rusqlite::params![
                     prompt.id.to_string(),
                     prompt.text,
@@ -298,11 +325,75 @@ impl Storage for SqliteStorage {
                     prompt.is_archived,
                     prompt.created_at.to_rfc3339(),
                     prompt.updated_at.to_rfc3339(),
+                    prompt.order_index,
                 ],
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<(), contracts::Error>(())
+            Ok::<bool, contracts::Error>(conn.changes() > 0)
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        self.increment_data_version().await
+        
+        if changed {
+            self.increment_data_version().await?;
+        }
+        Ok(())
+    }
+
+    async fn save_prompts(&self, prompts: Vec<Prompt>) -> Result<()> {
+        let db_path = self.db_path.clone();
+        let changed = tokio::task::spawn_blocking(move || {
+            let mut conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let mut any_changed = false;
+
+            for prompt in prompts {
+                tx.execute(
+                    "INSERT INTO prompts (id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                     ON CONFLICT(id) DO UPDATE SET
+                        text=excluded.text,
+                        type=excluded.type,
+                        folder=excluded.folder,
+                        project=excluded.project,
+                        branch=excluded.branch,
+                        name=excluded.name,
+                        staged=excluded.staged,
+                        last_copied=excluded.last_copied,
+                        is_archived=excluded.is_archived,
+                        updated_at=excluded.updated_at,
+                        order_index=excluded.order_index
+                     WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
+                        OR project IS NOT excluded.project OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
+                        OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
+                        OR order_index != excluded.order_index",
+                    rusqlite::params![
+                        prompt.id.to_string(),
+                        prompt.text,
+                        format!("{:?}", prompt.r#type),
+                        prompt.folder,
+                        prompt.project,
+                        prompt.branch,
+                        prompt.name,
+                        prompt.staged,
+                        prompt.last_copied,
+                        prompt.is_archived,
+                        prompt.created_at.to_rfc3339(),
+                        prompt.updated_at.to_rfc3339(),
+                        prompt.order_index,
+                    ],
+                ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+                if tx.changes() > 0 {
+                    any_changed = true;
+                }
+            }
+            tx.commit().map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok::<bool, contracts::Error>(any_changed)
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
+        if changed {
+            self.increment_data_version().await?;
+        }
+        Ok(())
     }
 
     async fn delete_prompt(&self, id: Uuid) -> Result<()> {
@@ -339,18 +430,22 @@ impl Storage for SqliteStorage {
     async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()> {
         let db_path = self.db_path.clone();
         let folder = folder.to_string();
-        tokio::task::spawn_blocking(move || {
+        let changed = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             let data = serde_json::to_string(&info).map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute(
                 "INSERT INTO project_info (folder, data) VALUES (?1, ?2)
-                 ON CONFLICT(folder) DO UPDATE SET data=excluded.data",
+                 ON CONFLICT(folder) DO UPDATE SET data=excluded.data WHERE data != excluded.data",
                 rusqlite::params![folder, data],
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<(), contracts::Error>(())
+            Ok::<bool, contracts::Error>(conn.changes() > 0)
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        self.increment_data_version().await
+        
+        if changed {
+            self.increment_data_version().await?;
+        }
+        Ok(())
     }
 
     async fn get_settings(&self) -> Result<Settings> {
@@ -373,18 +468,22 @@ impl Storage for SqliteStorage {
 
     async fn save_settings(&self, settings: Settings) -> Result<()> {
         let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
+        let changed = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             let data = serde_json::to_string(&settings).map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute(
                 "INSERT INTO settings (id, data) VALUES (1, ?1)
-                 ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+                 ON CONFLICT(id) DO UPDATE SET data=excluded.data WHERE data != excluded.data",
                 rusqlite::params![data],
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<(), contracts::Error>(())
+            Ok::<bool, contracts::Error>(conn.changes() > 0)
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        self.increment_data_version().await
+        
+        if changed {
+            self.increment_data_version().await?;
+        }
+        Ok(())
     }
 
     async fn get_data_version(&self) -> Result<u32> {

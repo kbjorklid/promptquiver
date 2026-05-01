@@ -215,13 +215,11 @@ impl ListModule {
     }
 
     pub async fn save_current_list(&self, storage: &Arc<dyn Storage>) -> Result<()> {
-        // Bulk save implementation for undo/redo/move
-        // In a real DB we'd want a transaction, but for now we just loop.
-        // Also need to know what to delete? This is the tricky part of list-based undo in a repo pattern.
-        // For now, let's just save what we have.
-        for p in &self.prompts {
-            storage.save_prompt(p.clone()).await?;
+        let mut prompts = self.prompts.clone();
+        for (i, p) in prompts.iter_mut().enumerate() {
+            p.order_index = i as i32;
         }
+        storage.save_prompts(prompts).await?;
         Ok(())
     }
 

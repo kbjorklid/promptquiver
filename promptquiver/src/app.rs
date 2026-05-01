@@ -159,7 +159,11 @@ impl App<'_> {
     }
 
     pub async fn load_prompts(&mut self) -> contracts::Result<()> {
+        let old_theme = self.settings.theme_name.clone();
         self.settings = self.storage.get_settings().await.unwrap_or_default();
+        if self.mode == Mode::ThemePicker {
+            self.settings.theme_name = old_theme;
+        }
         self.nav.current_branch = self.current_branch.clone();
         self.nav.load_prompts(&self.storage).await
     }

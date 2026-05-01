@@ -31,6 +31,7 @@ pub struct Prompt {
     pub is_archived: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub order_index: i32,
 }
 
 impl Prompt {
@@ -55,6 +56,7 @@ impl Prompt {
             is_archived: false,
             created_at: now,
             updated_at: now,
+            order_index: 0,
         }
     }
 }
@@ -157,6 +159,7 @@ pub struct PromptFilter {
 pub trait Storage: Send + Sync {
     async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>>;
     async fn save_prompt(&self, prompt: Prompt) -> Result<()>;
+    async fn save_prompts(&self, prompts: Vec<Prompt>) -> Result<()>;
     async fn delete_prompt(&self, id: Uuid) -> Result<()>;
 
     async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo>;
