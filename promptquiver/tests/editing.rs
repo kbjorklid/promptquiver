@@ -78,43 +78,33 @@ async fn test_snippet_name_enter_moves_focus() {
     let (mut app, _, _, _) = setup_app();
     use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
     use contracts::Tab;
+    use ui::types::AppMessage;
     
     // Switch to Snippets tab
-    app.nav.active_tab = Tab::Snippets;
+    app.handle_message(AppMessage::SetTab(Tab::Snippets)).await.unwrap();
     
     // Enter editor
-    app.enter_editor("Snippet content".to_string(), None);
+    app.handle_message(AppMessage::EnterEditor(String::new(), None)).await.unwrap();
     
     // Verify initial state
     assert!(app.editor.title_focused, "Title should be focused initially for snippets");
-    assert_eq!(app.editor.title_textarea.lines()[0], "", "Title should be empty");
 
     // Simulate typing "mysnip"
     for c in "mysnip".chars() {
-        app.editor.title_textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+        app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()))).await.unwrap();
     }
     assert_eq!(app.editor.title_textarea.lines()[0], "mysnip");
 
     // Simulate pressing Enter
-    let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))).await.unwrap();
     
-    // Explicitly handle Enter for title_focused snippet (Logic from main.rs)
-    if app.editor.title_focused && app.nav.active_tab == Tab::Snippets && event.code == KeyCode::Enter {
-        app.editor.title_focused = false;
-    } else {
-        app.editor.title_textarea.input(event);
-    }
-    
-    // Verify behavior after fix
+    // Verify focus moved
     assert!(!app.editor.title_focused, "Focus should move to content field");
     assert_eq!(app.editor.title_textarea.lines().len(), 1, "Snippet name should remain single-line");
     assert_eq!(app.editor.title_textarea.lines()[0], "mysnip", "Snippet name should not have been modified");
 
     // Test Tab key still works
-    let tab_event = KeyEvent::new(KeyCode::Tab, KeyModifiers::empty());
-    if tab_event.code == KeyCode::Tab && app.nav.active_tab == Tab::Snippets {
-        app.editor.title_focused = !app.editor.title_focused;
-    }
+    app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()))).await.unwrap();
     assert!(app.editor.title_focused, "Tab should move focus back to title");
 }
 

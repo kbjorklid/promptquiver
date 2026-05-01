@@ -91,7 +91,18 @@ impl<'a> EditorModule<'a> {
             AppMessage::MoveSuggestionUp => self.move_suggestion_up(),
             AppMessage::SelectSuggestion => self.select_suggestion(),
             AppMessage::EditorInput(key) => {
-                 if self.title_focused && ctx.active_tab == Tab::Snippets {
+                if ctx.active_tab == Tab::Snippets {
+                    if key.code == crossterm::event::KeyCode::Tab {
+                        self.title_focused = !self.title_focused;
+                        return Ok(None);
+                    }
+                    if self.title_focused && key.code == crossterm::event::KeyCode::Enter {
+                        self.title_focused = false;
+                        return Ok(None);
+                    }
+                }
+
+                if self.title_focused && ctx.active_tab == Tab::Snippets {
                     Self::input_with_fallback(&mut self.title_textarea, key);
                     if self.title_textarea.lines().len() > 1 {
                         let joined = self.title_textarea.lines().join("");

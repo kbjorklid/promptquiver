@@ -101,9 +101,6 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
 fn handle_editor_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
     let mut messages = Vec::new();
     match key.code {
-        KeyCode::Tab if app.nav.active_tab == Tab::Snippets => {
-            // Toggle title focus - I'll add a message for this
-        }
         KeyCode::Esc => {
             if app.editor.autocomplete.open {
                 // Close autocomplete
