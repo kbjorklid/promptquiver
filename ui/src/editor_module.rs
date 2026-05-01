@@ -3,6 +3,7 @@ use contracts::{Prompt, Tab, PromptType, PromptFilter};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use uuid::Uuid;
+use std::sync::Arc;
 
 #[derive(Debug, Default)]
 pub struct AutocompleteState {
@@ -21,6 +22,7 @@ pub struct EditorModule<'a> {
     pub insert_index: Option<usize>,
     pub original_text: String,
     pub autocomplete: AutocompleteState,
+    pub snippet_cache: Vec<Prompt>,
 }
 
 impl Default for EditorModule<'_> {
@@ -33,6 +35,7 @@ impl Default for EditorModule<'_> {
             insert_index: None,
             original_text: String::new(),
             autocomplete: AutocompleteState::default(),
+            snippet_cache: Vec::new(),
         }
     }
 }
@@ -84,8 +87,7 @@ impl<'a> EditorModule<'a> {
                 }
             }
             AppMessage::UpdateAutocomplete => {
-                let snippets = ctx.storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await?;
-                self.update_autocomplete(snippets, ctx.settings, current_path, file_search_tx).await?;
+                self.update_autocomplete(ctx.storage.clone(), ctx.settings, current_path, file_search_tx).await?;
             }
             AppMessage::CloseAutocomplete => {
                 self.autocomplete.open = false;
@@ -94,6 +96,15 @@ impl<'a> EditorModule<'a> {
             AppMessage::MoveSuggestionDown => self.move_suggestion_down(),
             AppMessage::MoveSuggestionUp => self.move_suggestion_up(),
             AppMessage::SelectSuggestion => self.select_suggestion(),
+            AppMessage::Paste(content) => {
+                if self.title_focused && ctx.active_tab == Tab::Snippets {
+                    let single_line = content.replace(['\n', '\r'], "");
+                    self.title_textarea.insert_str(single_line);
+                } else {
+                    self.textarea.insert_str(content);
+                }
+                return Ok(Some(AppMessage::UpdateAutocomplete));
+            }
             AppMessage::EditorInput(key) => {
                 if ctx.active_tab == Tab::Snippets {
                     if key.code == crossterm::event::KeyCode::Tab {
@@ -181,6 +192,7 @@ impl<'a> EditorModule<'a> {
         self.insert_index = None;
         self.original_text = String::new();
         self.autocomplete = AutocompleteState::default();
+        self.snippet_cache.clear();
     }
 
     pub fn enter(&mut self, text: String, id: Option<Uuid>, title: Option<String>, tab: Tab, insert_index: Option<usize>) {
@@ -258,18 +270,29 @@ impl<'a> EditorModule<'a> {
 
     pub async fn update_autocomplete(
         &mut self, 
-        global_snippets: Vec<Prompt>, 
+        storage: Arc<dyn contracts::Storage>,
         settings: &contracts::Settings,
         current_path: String,
         file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>
     ) -> contracts::Result<()> {
-        if let Some((trigger, query)) = self.get_current_autocomplete_query() {
+        let query_opt = self.get_current_autocomplete_query();
+        
+        if let Some((trigger, query)) = query_opt {
             let matcher = SkimMatcherV2::default();
             
             match trigger.as_str() {
                 "$" | "$$" => {
+                    // Only fetch snippets if we actually have a trigger
+                    let snippets = if !self.snippet_cache.is_empty() {
+                        self.snippet_cache.clone()
+                    } else {
+                        let s = storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await?;
+                        self.snippet_cache = s.clone();
+                        s
+                    };
+
                     let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = global_snippets
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
                         .into_iter()
                         .filter_map(|s| {
                             let text = s.name.as_deref().unwrap_or(&s.text);

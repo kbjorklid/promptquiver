@@ -387,6 +387,10 @@ impl ListModule {
                 self.search_query = query;
                 self.load_prompts(ctx.storage).await?;
             }
+            AppMessage::Paste(content) => {
+                self.search_query.push_str(&content.replace(['\n', '\r'], ""));
+                self.load_prompts(ctx.storage).await?;
+            }
             AppMessage::SearchInput(key) => {
                 match key.code {
                     crossterm::event::KeyCode::Esc => {

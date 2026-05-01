@@ -51,6 +51,7 @@ pub enum AppMessage {
     ConfirmDiscard,
     CancelDiscard,
     EditorInput(crossterm::event::KeyEvent),
+    Paste(String),
     SearchInput(crossterm::event::KeyEvent),
     ToggleMoveMode,
     ThemePickerInput(crossterm::event::KeyEvent),

@@ -23,7 +23,7 @@ impl<B: Backend> Tui<B> {
         B::Error: Send + Sync + 'static,
     {
         terminal::enable_raw_mode()?;
-        execute!(io::stdout(), EnterAlternateScreen, cursor::Hide)?;
+        execute!(io::stdout(), EnterAlternateScreen, cursor::Hide, event::EnableBracketedPaste)?;
         let panic_hook = panic::take_hook();
         panic::set_hook(Box::new(move |panic| {
             Self::reset().expect("failed to reset terminal");
@@ -36,7 +36,7 @@ impl<B: Backend> Tui<B> {
 
     pub fn reset() -> Result<()> {
         terminal::disable_raw_mode()?;
-        execute!(io::stdout(), LeaveAlternateScreen, cursor::Show)?;
+        execute!(io::stdout(), LeaveAlternateScreen, cursor::Show, event::DisableBracketedPaste)?;
         Ok(())
     }
 

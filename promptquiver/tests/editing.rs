@@ -108,3 +108,22 @@ async fn test_snippet_name_enter_moves_focus() {
     assert!(app.editor.title_focused, "Tab should move focus back to title");
 }
 
+#[tokio::test]
+async fn test_paste_in_editor() {
+    let (mut app, _, _, _) = setup_app();
+    use crossterm::event::Event;
+    
+    // Enter editor
+    app.enter_editor("".to_string(), None);
+    
+    // Simulate a paste event
+    let paste_content = "Pasted content".to_string();
+    let event = Event::Paste(paste_content.clone());
+    
+    // Handle the event
+    promptquiver::handlers::handle_event(&mut app, event).await;
+    
+    // Assert that the content was pasted
+    assert_eq!(app.editor.textarea.lines()[0], paste_content);
+}
+

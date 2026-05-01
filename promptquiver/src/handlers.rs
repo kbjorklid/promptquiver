@@ -1,23 +1,85 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, Event};
 use crate::app::{App, Mode, AppMessage};
 use contracts::Tab;
 use ratatui_toaster::ToastType;
 
-pub async fn handle_key_event(app: &mut App<'_>, key: KeyEvent) {
-    let messages = match app.mode {
-        Mode::List => handle_list_events(app, key),
-        Mode::Editor => handle_editor_events(app, key),
-        Mode::Move => handle_move_events(app, key),
-        Mode::Search => handle_search_events(app, key),
-        Mode::ConfirmDiscard => handle_confirm_discard_events(app, key),
-        Mode::ThemePicker => handle_theme_picker_events(app, key),
-    };
-
-    for msg in messages {
-        if let Err(e) = app.handle_message(msg).await {
-            app.notify(format!("Error: {}", e), ToastType::Error);
+pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
+    let mut i = 0;
+    while i < events.len() {
+        let event = &events[i];
+        
+        // Performance optimization: Batch sequential character inputs (simulated paste)
+        if let Event::Key(KeyEvent { code: KeyCode::Char(c), modifiers, kind, .. }) = event {
+            let is_press = *kind == crossterm::event::KeyEventKind::Press || *kind == crossterm::event::KeyEventKind::Repeat;
+            let is_simple_char = !modifiers.contains(KeyModifiers::CONTROL) && !modifiers.contains(KeyModifiers::ALT);
+            
+            if is_press && is_simple_char && app.mode == Mode::Editor && !app.editor.title_focused {
+                let mut content = String::from(*c);
+                let mut j = i + 1;
+                while j < events.len() {
+                    if let Event::Key(KeyEvent { code: KeyCode::Char(nc), modifiers: nm, kind: nk, .. }) = &events[j] {
+                        let is_next_press = *nk == crossterm::event::KeyEventKind::Press || *nk == crossterm::event::KeyEventKind::Repeat;
+                        let is_next_simple = !nm.contains(KeyModifiers::CONTROL) && !nm.contains(KeyModifiers::ALT);
+                        
+                        if is_next_press && is_next_simple {
+                            content.push(*nc);
+                            j += 1;
+                            continue;
+                        } else if !is_next_press {
+                            // Skip release events for the characters we've already handled or are handling
+                            j += 1;
+                            continue;
+                        }
+                    }
+                    break;
+                }
+                
+                if content.len() > 1 {
+                    // We found a burst of characters, process as a single Paste
+                    if let Err(e) = app.handle_message(AppMessage::Paste(content)).await {
+                        app.notify(format!("Error: {}", e), ToastType::Error);
+                    }
+                    i = j; // Skip all batched characters (including their release events)
+                    continue;
+                }
+            }
         }
+
+        // Normal event processing
+        let messages = match event {
+            Event::Key(key) => {
+                if key.kind == crossterm::event::KeyEventKind::Press || key.kind == crossterm::event::KeyEventKind::Repeat {
+                    match app.mode {
+                        Mode::List => handle_list_events(app, *key),
+                        Mode::Editor => handle_editor_events(app, *key),
+                        Mode::Move => handle_move_events(app, *key),
+                        Mode::Search => handle_search_events(app, *key),
+                        Mode::ConfirmDiscard => handle_confirm_discard_events(app, *key),
+                        Mode::ThemePicker => handle_theme_picker_events(app, *key),
+                    }
+                } else {
+                    Vec::new()
+                }
+            }
+            Event::Paste(content) => vec![AppMessage::Paste(content.clone())],
+            _ => Vec::new(),
+        };
+
+        for msg in messages {
+            if let Err(e) = app.handle_message(msg).await {
+                app.notify(format!("Error: {}", e), ToastType::Error);
+            }
+        }
+        i += 1;
     }
+}
+
+pub async fn handle_event(app: &mut App<'_>, event: Event) {
+    handle_events(app, vec![event]).await;
+}
+
+pub async fn handle_key_event(app: &mut App<'_>, key: KeyEvent) {
+    handle_event(app, Event::Key(key)).await;
 }
 
 fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {

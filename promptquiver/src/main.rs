@@ -6,7 +6,6 @@ use infra::{RealClipboard, RealGit, SqliteStorage};
 use ratatui::Terminal;
 use ratatui_toaster::{ToastEngineBuilder, ToastType};
 use std::{io, sync::Arc, time::Duration};
-use crossterm::event::{Event, KeyEventKind};
 
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
@@ -135,12 +134,22 @@ async fn main() -> Result<()> {
             );
         })?;
 
-        if let Some(event) = tui::next_event(Duration::from_millis(16))? {
-            if let Event::Key(key) = event {
-                if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
-                    promptquiver::handlers::handle_key_event(&mut app, key).await;
+        let mut events = Vec::new();
+        while let Some(event) = tui::next_event(Duration::from_millis(0))? {
+            events.push(event);
+        }
+
+        if events.is_empty() {
+            if let Some(event) = tui::next_event(Duration::from_millis(16))? {
+                events.push(event);
+                while let Some(e) = tui::next_event(Duration::from_millis(0))? {
+                    events.push(e);
                 }
             }
+        }
+
+        if !events.is_empty() {
+            promptquiver::handlers::handle_events(&mut app, events).await;
         }
 
         app.tick();
