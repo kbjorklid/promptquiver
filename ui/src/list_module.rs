@@ -23,6 +23,7 @@ pub struct ListModule {
     pub current_path: String,
     pub original_theme: Option<String>,
     pub current_branch: Option<String>,
+    pub settings_scroll_offset: u16,
 }
 
 impl Default for ListModule {
@@ -45,6 +46,7 @@ impl Default for ListModule {
                 .into_owned(),
             original_theme: None,
             current_branch: None,
+            settings_scroll_offset: 0,
         }
     }
 }

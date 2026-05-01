@@ -2,7 +2,7 @@ use contracts::{Settings, Tab};
 use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::{Style, Modifier};
 use ratatui::Frame;
-use ratatui::layout::{Rect, Layout, Constraint, Direction};
+use ratatui::layout::Rect;
 use ratatui_textarea::TextArea;
 use crate::utils::get_palette;
 
@@ -15,25 +15,58 @@ pub fn render(
     slash_list_state: &mut ratatui::widgets::ListState,
     theme_list_state: &mut ratatui::widgets::ListState,
     theme_picker_open: bool,
+    scroll_offset: &mut u16,
 ) {
     let palette = get_palette(settings.theme_name.as_deref());
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(8), // Tab Visibility
-            Constraint::Min(5),    // Slash Commands
-            Constraint::Length(5),  // Advanced (increased from 4 to 5)
-        ])
-        .split(area);
+    
+    // Calculate heights
+    let tabs: Vec<Tab> = Tab::all().into_iter().filter(|&t| t != Tab::Settings).collect();
+    let tabs_len = tabs.len();
+    let slash_len = settings.slash_commands.len();
+    
+    let tab_height = 8;
+    let slash_height = (slash_len + 3) as u16;
+    let advanced_height = 5;
+    let total_height = tab_height + slash_height + advanced_height;
+
+    // Determine current selected Y position (relative to start of settings)
+    let selected_y = if selected_index < tabs_len {
+        (selected_index as u16) + 1
+    } else if selected_index <= tabs_len + slash_len {
+        tab_height + (selected_index - tabs_len) as u16 + 1
+    } else {
+        tab_height + slash_height + (selected_index - (tabs_len + slash_len + 1)) as u16 + 1
+    };
+
+    // Keep selected item in view
+    if selected_y < *scroll_offset + 1 {
+        *scroll_offset = selected_y.saturating_sub(1);
+    } else if selected_y > *scroll_offset + area.height.saturating_sub(2) {
+        *scroll_offset = selected_y.saturating_sub(area.height.saturating_sub(2));
+    }
+
+    // Limit scroll offset
+    let max_scroll = total_height.saturating_sub(area.height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
+    }
 
     // Tab Visibility
-    let tabs: Vec<Tab> = Tab::all().into_iter().filter(|&t| t != Tab::Settings).collect();
+    let tabs_len = tabs.len();
+    let is_tab_focused = selected_index < tabs_len;
+    let tab_area = Rect {
+        x: area.x,
+        y: area.y.saturating_add(0).saturating_sub(*scroll_offset),
+        width: area.width,
+        height: tab_height,
+    };
+
     let items: Vec<ListItem<'_>> = tabs.iter().enumerate().map(|(i, t)| {
         let is_visible = settings.tab_visibility.get(t).copied().unwrap_or(true);
         let prefix = if i == selected_index { "> " } else { "  " };
         let status = if is_visible { "[x]" } else { "[ ]" };
         let style = if i == selected_index {
-            Style::default().fg(palette.accent).add_modifier(Modifier::BOLD)
+            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.fg)
         };
@@ -41,14 +74,29 @@ pub fn render(
     }).collect();
 
     let tab_list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Tab Visibility (Space to toggle) "))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(" Tab Visibility (Space to toggle) ")
+            .border_style(if is_tab_focused { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) }))
         .style(Style::default().bg(palette.bg));
-    f.render_widget(tab_list, chunks[0]);
+    
+    // Only render if visible
+    if tab_area.y < area.y + area.height && tab_area.y + tab_area.height > area.y {
+        let render_area = area.intersection(tab_area);
+        // We need to handle the fact that List doesn't support offset easily when rendered partially
+        // But intersection + clearing might work if we are careful.
+        // Actually, Ratatui clips automatically if we provide a smaller area.
+        f.render_widget(tab_list, render_area);
+    }
 
     // Slash Commands
-    let tabs_len = tabs.len();
-    let slash_len = settings.slash_commands.len();
-    
+    let slash_area = Rect {
+        x: area.x,
+        y: area.y.saturating_add(tab_height).saturating_sub(*scroll_offset),
+        width: area.width,
+        height: slash_height,
+    };
+
     let is_slash_focused = selected_index >= tabs_len && selected_index < tabs_len + slash_len + 1;
     let slash_block = Block::default()
         .borders(Borders::ALL)
@@ -59,7 +107,7 @@ pub fn render(
         let idx = tabs_len + i;
         let prefix = if idx == selected_index { "> " } else { "  " };
         let style = if idx == selected_index {
-            Style::default().fg(palette.accent).add_modifier(Modifier::BOLD)
+            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.fg)
         };
@@ -75,7 +123,7 @@ pub fn render(
     let add_idx = tabs_len + slash_len;
     let add_prefix = if add_idx == selected_index { "> " } else { "  " };
     let add_style = if add_idx == selected_index {
-        Style::default().fg(palette.accent).add_modifier(Modifier::BOLD)
+        Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(palette.muted)
     };
@@ -86,51 +134,44 @@ pub fn render(
     }
 
     let slash_list = List::new(slash_items).block(slash_block).style(Style::default().bg(palette.bg));
-    f.render_stateful_widget(slash_list, chunks[1], slash_list_state);
-
-    // Render scrollbar for slash commands
-    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .begin_symbol(Some("↑"))
-        .end_symbol(Some("↓"))
-        .style(Style::default().fg(palette.fg));
     
-    let mut scrollbar_state = ScrollbarState::new(slash_len + 1);
-    if is_slash_focused {
-        scrollbar_state = scrollbar_state.position(selected_index - tabs_len);
-    }
-        
-    f.render_stateful_widget(
-        scrollbar,
-        chunks[1].inner(ratatui::layout::Margin {
-            vertical: 1,
-            horizontal: 0,
-        }),
-        &mut scrollbar_state,
-    );
+    if slash_area.y < area.y + area.height && slash_area.y + slash_area.height > area.y {
+        let render_area = area.intersection(slash_area);
+        f.render_stateful_widget(slash_list, render_area, slash_list_state);
 
-    // Render TextArea in-line
-    if let Some(ta) = textarea {
-        if selected_index >= tabs_len && selected_index <= tabs_len + slash_len {
-            let offset = slash_list_state.offset();
-            let relative_idx = selected_index - tabs_len;
-            
-            if relative_idx >= offset {
-                let y_offset = (relative_idx - offset) as u16;
-                if y_offset < chunks[1].height.saturating_sub(2) {
-                    let area = Rect {
-                        x: chunks[1].x + 5,
-                        y: chunks[1].y + 1 + y_offset,
-                        width: chunks[1].width.saturating_sub(7),
-                        height: 1,
-                    };
-                    f.render_widget(Clear, area);
-                    f.render_widget(ta, area);
+        // Render TextArea in-line
+        if let Some(ta) = textarea {
+            if selected_index >= tabs_len && selected_index <= tabs_len + slash_len {
+                let offset = slash_list_state.offset();
+                let relative_idx = selected_index - tabs_len;
+                
+                if relative_idx >= offset {
+                    let y_offset = (relative_idx - offset) as u16;
+                    // Check if the line is within the visible portion of slash_area AND within the screen area
+                    let line_y = slash_area.y + 1 + y_offset;
+                    if line_y >= area.y && line_y < area.y + area.height {
+                        let ta_area = Rect {
+                            x: slash_area.x + 5,
+                            y: line_y,
+                            width: slash_area.width.saturating_sub(7),
+                            height: 1,
+                        };
+                        f.render_widget(Clear, ta_area);
+                        f.render_widget(ta, ta_area);
+                    }
                 }
             }
         }
     }
 
     // Advanced
+    let advanced_area = Rect {
+        x: area.x,
+        y: area.y.saturating_add(tab_height).saturating_add(slash_height).saturating_sub(*scroll_offset),
+        width: area.width,
+        height: advanced_height,
+    };
+
     let advanced_idx = tabs_len + slash_len + 1;
     let is_advanced_focused = selected_index >= advanced_idx;
     
@@ -145,15 +186,39 @@ pub fn render(
 
     let advanced_items = vec![
         ListItem::new(format!("{} Enable Claude Commands: {}", if selected_index == advanced_idx { ">" } else { " " }, claude_status))
-            .style(if selected_index == advanced_idx { Style::default().fg(palette.accent).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
+            .style(if selected_index == advanced_idx { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
         ListItem::new(format!("{} Use Nerd Font Icons: {}", if selected_index == advanced_idx + 1 { ">" } else { " " }, nerd_status))
-            .style(if selected_index == advanced_idx + 1 { Style::default().fg(palette.accent).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
+            .style(if selected_index == advanced_idx + 1 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
         ListItem::new(format!("{} Theme: {}", if selected_index == advanced_idx + 2 { ">" } else { " " }, current_theme))
-            .style(if selected_index == advanced_idx + 2 { Style::default().fg(palette.accent).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
+            .style(if selected_index == advanced_idx + 2 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
     ];
 
     let advanced_list = List::new(advanced_items).block(advanced_block).style(Style::default().bg(palette.bg));
-    f.render_widget(advanced_list, chunks[2]);
+    
+    if advanced_area.y < area.y + area.height && advanced_area.y + advanced_area.height > area.y {
+        let render_area = area.intersection(advanced_area);
+        f.render_widget(advanced_list, render_area);
+    }
+
+    // Render scrollbar for the whole settings view
+    if total_height > area.height {
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .style(Style::default().fg(palette.fg));
+        
+        let mut scrollbar_state = ScrollbarState::new(total_height as usize)
+            .position(*scroll_offset as usize);
+            
+        f.render_stateful_widget(
+            scrollbar,
+            area.inner(ratatui::layout::Margin {
+                vertical: 0,
+                horizontal: 0,
+            }),
+            &mut scrollbar_state,
+        );
+    }
 
     if theme_picker_open {
         use ratatui_themes::ThemeName;
@@ -168,8 +233,9 @@ pub fn render(
             .highlight_style(Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD))
             .highlight_symbol("> ");
 
-        let area = crate::utils::centered_rect(60, 60, f.area());
-        f.render_widget(Clear, area);
-        f.render_stateful_widget(list, area, theme_list_state);
+        let picker_area = crate::utils::centered_rect(60, 60, f.area());
+        f.render_widget(Clear, picker_area);
+        f.render_stateful_widget(list, picker_area, theme_list_state);
     }
 }
+

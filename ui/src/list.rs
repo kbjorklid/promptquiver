@@ -132,7 +132,7 @@ pub fn render_preview(
         .title(title_prefix);
 
     if let Some(prompt) = prompt {
-        let lines = crate::utils::highlight_text(&prompt.text);
+        let lines = crate::utils::highlight_text(&prompt.text, &palette);
         let paragraph = Paragraph::new(lines)
             .block(block)
             .wrap(ratatui::widgets::Wrap { trim: true });

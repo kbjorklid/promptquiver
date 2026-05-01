@@ -59,7 +59,7 @@ pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &co
     let tabs = Tabs::new(tab_titles)
         .divider("|")
         .select(visible_tabs.iter().position(|&t| t == active_tab).unwrap_or(0))
-        .highlight_style(Style::default().bg(palette.info).fg(palette.bg).add_modifier(Modifier::BOLD))
+        .highlight_style(Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD))
         .style(Style::default().fg(palette.fg).bg(palette.bg));
     
     f.render_widget(tabs, area);

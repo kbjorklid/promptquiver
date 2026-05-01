@@ -124,17 +124,17 @@ pub fn render(
     if state.mode == Mode::Editor || state.mode == Mode::ConfirmDiscard || state.mode == Mode::ThemePicker {
         if state.nav.active_tab == Tab::Settings {
             settings::render(
-                f, 
-                content_chunk, 
-                state.settings, 
-                state.nav.selected_index, 
-                if state.mode == Mode::Editor { Some(&mut state.editor.textarea) } else { None }, 
+                f,
+                content_chunk,
+                state.settings,
+                state.nav.selected_index,
+                if state.mode == Mode::Editor { Some(&mut state.editor.textarea) } else { None },
                 &mut state.nav.settings_slash_list_state,
                 &mut state.nav.theme_list_state,
-                state.mode == Mode::ThemePicker
+                state.mode == Mode::ThemePicker,
+                &mut state.nav.settings_scroll_offset,
             );
-        } else {
-            editor_content_area = Some(editor::render(
+        } else {            editor_content_area = Some(editor::render(
                 f,
                 content_chunk,
                 &mut state.editor.textarea,
@@ -155,7 +155,17 @@ pub fn render(
         }
     } else {
         if state.nav.active_tab == Tab::Settings {
-            settings::render(f, content_chunk, state.settings, state.nav.selected_index, None, &mut state.nav.settings_slash_list_state, &mut state.nav.theme_list_state, false);
+            settings::render(
+                f,
+                content_chunk,
+                state.settings,
+                state.nav.selected_index,
+                None,
+                &mut state.nav.settings_slash_list_state,
+                &mut state.nav.theme_list_state,
+                false,
+                &mut state.nav.settings_scroll_offset,
+            );
         } else {
             let display_query = &state.nav.search_query;
             let mode_str = match state.mode {

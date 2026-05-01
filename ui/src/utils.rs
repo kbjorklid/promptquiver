@@ -50,12 +50,12 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-pub fn highlight_text(text: &str) -> Vec<Line<'_>> {
+pub fn highlight_text<'a>(text: &'a str, palette: &ThemePalette) -> Vec<Line<'a>> {
     text.lines()
         .map(|line| {
             if line.starts_with("--") {
                 // Title or Comment
-                Line::from(Span::styled(line, Style::default().fg(Color::DarkGray)))
+                Line::from(Span::styled(line, Style::default().fg(palette.muted)))
             } else {
                 let mut spans = Vec::new();
                 let mut last_pos = 0;
@@ -86,7 +86,7 @@ pub fn highlight_text(text: &str) -> Vec<Line<'_>> {
                     // Highlight snippet
                     spans.push(Span::styled(
                         &line[absolute_pos..end_name],
-                        Style::default().fg(Color::Yellow),
+                        Style::default().fg(palette.warning),
                     ));
                     
                     last_pos = end_name;
@@ -147,7 +147,8 @@ mod tests {
 
     #[test]
     fn test_highlight_text() {
-        let lines = highlight_text("-- comment\nHello $$snippet world");
+        let palette = get_palette(None);
+        let lines = highlight_text("-- comment\nHello $$snippet world", &palette);
         assert_eq!(lines.len(), 2);
         
         // Line 1: comment
