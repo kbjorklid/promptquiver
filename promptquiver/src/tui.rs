@@ -18,6 +18,10 @@ impl<B: Backend> Tui<B> {
         Self { terminal }
     }
 
+    /// Enters the terminal's alternate screen and enables raw mode.
+    ///
+    /// # Errors
+    /// Returns an error if the terminal cannot be initialized.
     pub fn enter(&mut self) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
@@ -34,12 +38,20 @@ impl<B: Backend> Tui<B> {
         Ok(())
     }
 
+    /// Resets the terminal to its original state.
+    ///
+    /// # Errors
+    /// Returns an error if raw mode cannot be disabled or the alternate screen cannot be left.
     pub fn reset() -> Result<()> {
         terminal::disable_raw_mode()?;
         execute!(io::stdout(), LeaveAlternateScreen, cursor::Show, event::DisableBracketedPaste)?;
         Ok(())
     }
 
+    /// Exits the terminal's alternate screen and disables raw mode.
+    ///
+    /// # Errors
+    /// Returns an error if the terminal cannot be reset.
     pub fn exit(&mut self) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
@@ -50,6 +62,10 @@ impl<B: Backend> Tui<B> {
     }
 }
 
+/// Waits for the next terminal event.
+///
+/// # Errors
+/// Returns an error if event polling fails.
 pub fn next_event(timeout: Duration) -> Result<Option<Event>> {
     if event::poll(timeout)? {
         Ok(Some(event::read()?))

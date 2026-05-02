@@ -5,7 +5,7 @@ use ratatui_themes::{Theme, ThemeName, ThemePalette};
 
 pub fn get_palette(theme_name: Option<&str>) -> ThemePalette {
     let name = theme_name.and_then(|n| {
-        ThemeName::all().iter().find(|t| format!("{:?}", t) == n)
+        ThemeName::all().iter().find(|t| format!("{t:?}") == n)
     }).copied().unwrap_or(ThemeName::Dracula);
     
     Theme::new(name).palette()
@@ -14,7 +14,7 @@ pub fn get_palette(theme_name: Option<&str>) -> ThemePalette {
 pub fn get_zebra_color(color: Color) -> Color {
     match color {
         Color::Rgb(r, g, b) => {
-            let luminance = 0.2126 * f32::from(r) + 0.7152 * f32::from(g) + 0.0722 * f32::from(b);
+            let luminance = 0.0722f32.mul_add(f32::from(b), 0.2126f32.mul_add(f32::from(r), 0.7152 * f32::from(g)));
             if luminance < 40.0 {
                 // Very dark - lighten more
                 Color::Rgb(r.saturating_add(15), g.saturating_add(15), b.saturating_add(15))

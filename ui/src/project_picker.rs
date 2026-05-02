@@ -37,7 +37,7 @@ pub fn render_picker(
     }
     
     if let Some(name) = adding_name {
-        items.push(ListItem::new(format!("  [ New: {} ]  ", name))
+        items.push(ListItem::new(format!("  [ New: {name} ]  "))
             .fg(palette.accent)
             .add_modifier(Modifier::BOLD));
     } else {

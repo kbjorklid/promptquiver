@@ -53,7 +53,7 @@ pub fn render_tabs(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &co
                 Tab::Settings => "⚙️ ",
             }
         };
-        format!(" {}{} ", icon, format!("{:?}", t))
+        format!(" {icon}{t:?} ")
     }).collect::<Vec<_>>();
     
     let tabs = Tabs::new(tab_titles)

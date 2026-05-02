@@ -1,8 +1,11 @@
 use async_trait::async_trait;
-use contracts::{AppService, Clipboard, Prompt, Result, Storage, Tab, Tab::*, Processor, PromptFilter};
+use contracts::{AppService, Clipboard, Prompt, Result, Storage, Tab, Processor, PromptFilter};
+use contracts::Tab::{Archive, Notes, Prompts, Settings, Snippets};
 use std::sync::Arc;
 use uuid;
 use chrono;
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 
 pub struct RealAppService {
     storage: Arc<dyn Storage>,
@@ -20,6 +23,10 @@ impl RealAppService {
         Self { storage, clipboard }
     }
 
+    /// Clears the `last_copied` field for all prompts.
+    ///
+    /// # Errors
+    /// Returns an error if the storage cannot be accessed.
     async fn clear_all_last_copied(&self) -> Result<()> {
         let all = self.storage.get_prompts(PromptFilter::default()).await?;
         for mut p in all {
@@ -29,6 +36,46 @@ impl RealAppService {
             }
         }
         Ok(())
+    }
+}
+
+fn walk_recursive(base_dir: &std::path::Path, current_dir: &std::path::Path, query_normalized: &str, matcher: &SkimMatcherV2, results: &mut Vec<(i64, Prompt)>) {
+    if results.len() >= 1000 { return; }
+    if let Ok(entries) = std::fs::read_dir(current_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let relative_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
+            let path_normalized = relative_path.replace('\\', "/");
+            let path_lower = path_normalized.to_lowercase();
+
+            if path.is_dir() {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') { continue; }
+                }
+                
+                // Suggest the directory itself
+                let dir_path_normalized = if path_normalized.ends_with('/') || path_normalized.is_empty() { 
+                    path_normalized.clone() 
+                } else { 
+                    format!("{path_normalized}/") 
+                };
+                let dir_path_lower = dir_path_normalized.to_lowercase();
+                
+                if !dir_path_normalized.is_empty() {
+                    if let Some(score) = matcher.fuzzy_match(&dir_path_lower, query_normalized) {
+                        let mut final_score = score + 50; // Directory bonus
+                        if dir_path_lower.contains(query_normalized) { final_score += 100; }
+                        results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(dir_path_normalized), None)));
+                    }
+                }
+
+                walk_recursive(base_dir, &path, query_normalized, matcher, results);
+            } else if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
+                let mut final_score = score;
+                if path_lower.contains(query_normalized) { final_score += 100; }
+                results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(path_normalized), None)));
+            }
+        }
     }
 }
 
@@ -146,47 +193,51 @@ impl AppService for RealAppService {
         Ok(())
     }
 
-    async fn save_item(&self, folder: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, insert_index: Option<usize>, branch: Option<String>, project_id: Option<uuid::Uuid>) -> Result<()> {
-        if let Some(id) = id {
+    async fn save_item(&self, args: contracts::SaveItemArgs) -> Result<uuid::Uuid> {
+        if let Some(id) = args.id {
             // We need to find the prompt to update it
             let all = self.storage.get_prompts(contracts::PromptFilter::default()).await?;
             if let Some(mut p) = all.into_iter().find(|p| p.id == id) {
-                p.text = text;
-                p.name = title;
+                p.text = args.text;
+                p.name = args.title;
                 p.updated_at = chrono::Utc::now();
                 
                 // Unstage if it's a draft
-                if (tab == Prompts || tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&p.text).0) {
+                if (args.tab == Prompts || args.tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&p.text).0) {
                     p.staged = false;
                 }
 
                 self.storage.save_prompt(p).await?;
+                return Ok(id);
             }
+            Err(contracts::Error::NotFound)
         } else {
-            let r#type = match tab {
+            let r#type = match args.tab {
                 Tab::Notes => contracts::PromptType::Note,
                 Tab::Snippets => contracts::PromptType::Snippet,
                 _ => contracts::PromptType::Prompt,
             };
             
-            let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch.clone(), title, project_id);
-            if tab == Tab::Canned {
+            let mut prompt = contracts::Prompt::new(args.text, r#type, Some(args.project_path.clone()), args.branch.clone(), args.title, args.project_id);
+            if args.tab == Tab::Canned {
                 prompt.folder = None;
             }
 
             // A new item is never staged by default, but let's be safe
-            if (tab == Prompts || tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&prompt.text).0) {
+            if (args.tab == Prompts || args.tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&prompt.text).0) {
                 prompt.staged = false;
             }
 
-            if let Some(idx) = insert_index {
+            let saved_id = prompt.id;
+
+            if let Some(idx) = args.insert_index {
                 // Get all prompts for the current view to calculate order_index
                 let filter = contracts::PromptFilter {
-                    folder: if tab == Tab::Canned { None } else { Some(folder.to_string()) },
-                    project_id,
-                    branch: if tab == Tab::Prompts { branch } else { None },
-                    tab: Some(tab),
-                    project_filter: project_id.is_some(),
+                    folder: if args.tab == Tab::Canned { None } else { Some(args.project_path.clone()) },
+                    project_id: args.project_id,
+                    branch: if args.tab == Tab::Prompts { args.branch } else { None },
+                    tab: Some(args.tab),
+                    project_filter: args.project_id.is_some(),
                 };
                 let existing = self.storage.get_prompts(filter).await?;
                 
@@ -209,83 +260,33 @@ impl AppService for RealAppService {
                     } else {
                         prompt.order_index = 0;
                     }
-                    // Since it's at the bottom, we want it to be LAST.
-                    // If multiple have same order_index, newest is first.
-                    // So for bottom insertion, we MUST have a higher order_index.
                 } else {
                     // Insert between existing[idx-1] and existing[idx]
-                    // We'll re-index everything to ensure there's a gap or just use the mid point if we use larger gaps.
-                    // Let's just re-index everything starting from 0, with gaps of 10.
                     let mut new_list = Vec::new();
                     for (i, mut p) in existing.into_iter().enumerate() {
                         if i == idx {
-                            prompt.order_index = (i as i32) * 10;
+                            prompt.order_index = i32::try_from(i).unwrap_or(i32::MAX) * 10;
                             new_list.push(prompt.clone());
                         }
-                        p.order_index = ((i + if i >= idx { 1 } else { 0 }) as i32) * 10;
+                        p.order_index = i32::try_from(i + usize::from(i >= idx)).unwrap_or(i32::MAX) * 10;
                         new_list.push(p);
                     }
                     self.storage.save_prompts(new_list).await?;
-                    return Ok(());
+                    return Ok(saved_id);
                 }
             }
             
             self.storage.save_prompt(prompt).await?;
+            Ok(saved_id)
         }
-        Ok(())
     }
 
     async fn search_files(&self, base_dir: &str, query: &str) -> Result<Vec<Prompt>> {
-        use fuzzy_matcher::FuzzyMatcher;
-        use fuzzy_matcher::skim::SkimMatcherV2;
-
         let base_path = std::path::PathBuf::from(base_dir);
         let matcher = SkimMatcherV2::default();
         let query_normalized = query.replace('\\', "/").to_lowercase();
         
         let mut scored_results = Vec::new();
-
-        fn walk_recursive(base_dir: &std::path::Path, current_dir: &std::path::Path, query_normalized: &str, matcher: &SkimMatcherV2, results: &mut Vec<(i64, Prompt)>) {
-            if results.len() >= 1000 { return; }
-            if let Ok(entries) = std::fs::read_dir(current_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    let relative_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
-                    let path_normalized = relative_path.replace('\\', "/");
-                    let path_lower = path_normalized.to_lowercase();
-
-                    if path.is_dir() {
-                        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                            if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') { continue; }
-                        }
-                        
-                        // Suggest the directory itself
-                        let dir_path_normalized = if path_normalized.ends_with('/') || path_normalized.is_empty() { 
-                            path_normalized.clone() 
-                        } else { 
-                            format!("{}/", path_normalized) 
-                        };
-                        let dir_path_lower = dir_path_normalized.to_lowercase();
-                        
-                        if !dir_path_normalized.is_empty() {
-                            if let Some(score) = matcher.fuzzy_match(&dir_path_lower, query_normalized) {
-                                let mut final_score = score + 50; // Directory bonus
-                                if dir_path_lower.contains(query_normalized) { final_score += 100; }
-                                results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(dir_path_normalized), None)));
-                            }
-                        }
-
-                        walk_recursive(base_dir, &path, query_normalized, matcher, results);
-                    } else {
-                        if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
-                            let mut final_score = score;
-                            if path_lower.contains(query_normalized) { final_score += 100; }
-                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(path_normalized), None)));
-                        }
-                    }
-                }
-            }
-        }
 
         walk_recursive(&base_path, &base_path, &query_normalized, &matcher, &mut scored_results);
         scored_results.sort_by_key(|b| std::cmp::Reverse(b.0));

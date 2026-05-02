@@ -6,19 +6,15 @@ use ratatui::style::{Style, Modifier};
 use ratatui::prelude::Stylize;
 use contracts::Tab;
 use crate::shortcuts;
+use crate::types::RenderState;
 
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
-    mode: &str,
-    tab: Tab,
-    _prompts_len: usize,
-    _selected_index: usize,
-    has_suggestions: bool,
-    settings: &contracts::Settings,
+    state: &RenderState<'_, '_>,
 ) {
-    let palette = crate::utils::get_palette(settings.theme_name.as_deref());
-    let tab_name = match tab {
+    let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
+    let tab_name = match state.nav.active_tab {
         Tab::Prompts => "Prompts",
         Tab::Canned => "Canned",
         Tab::Notes => "Notes",
@@ -27,7 +23,19 @@ pub fn render(
         Tab::Settings => "Settings",
     };
 
-    let all_shortcuts = shortcuts::get_shortcuts(mode, tab_name, has_suggestions);
+    let mode_str = match state.mode {
+        crate::types::Mode::List => "List",
+        crate::types::Mode::Editor => "Editor",
+        crate::types::Mode::Move => "Move",
+        crate::types::Mode::Search => "Search",
+        crate::types::Mode::ConfirmDiscard => "Confirm Discard",
+        crate::types::Mode::ThemePicker => "Theme Picker",
+        crate::types::Mode::ProjectPicker => "Project Picker",
+        crate::types::Mode::AddProject => "Add Project",
+    };
+
+    let has_suggestions = !state.editor.autocomplete.suggestions.is_empty();
+    let all_shortcuts = shortcuts::get_shortcuts(mode_str, tab_name, has_suggestions);
     
     let mut lines = Vec::new();
     let mut current_line = Vec::new();

@@ -108,6 +108,37 @@ async fn test_unstaging() {
 }
 
 #[tokio::test]
+async fn test_archive_restore() {
+    let (mut app, storage, _, _) = setup_app();
+    
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
+    storage.save_prompt(p1).await.unwrap();
+
+    app.load_prompts().await.unwrap();
+    assert_eq!(app.nav.prompts.len(), 1);
+
+    // Archive
+    app.archive_selected().await.unwrap();
+    assert_eq!(app.nav.prompts.len(), 0);
+
+    // Go to Archive tab
+    app.set_tab(contracts::Tab::Archive);
+    app.load_prompts().await.unwrap();
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "P1");
+
+    // Restore
+    app.restore_selected().await.unwrap();
+    assert_eq!(app.nav.prompts.len(), 0);
+
+    // Go back to Prompts tab
+    app.set_tab(contracts::Tab::Prompts);
+    app.load_prompts().await.unwrap();
+    assert_eq!(app.nav.prompts.len(), 1);
+    assert_eq!(app.nav.prompts[0].text, "P1");
+}
+
+#[tokio::test]
 async fn test_archive_delete() {
     let (mut app, storage, _, _) = setup_app();
     

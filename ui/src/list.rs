@@ -5,21 +5,27 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::Stylize;
 use crate::utils::{get_palette, get_zebra_color};
+use crate::types::RenderState;
 
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
-    active_tab: Tab,
-    prompts: &[Prompt],
-    selected_index: usize,
-    mode: &str,
-    search_query: &str,
-    settings: &contracts::Settings,
-    list_state: &mut ratatui::widgets::ListState,
+    state: &mut RenderState<'_, '_>,
 ) {
+    let settings = state.settings;
     let palette = get_palette(settings.theme_name.as_deref());
     let zebra_bg = get_zebra_color(palette.bg);
     
+    let active_tab = state.nav.active_tab;
+    let search_query = &state.nav.search_query;
+    let prompts = &state.nav.prompts;
+    let selected_index = state.nav.selected_index;
+    let mode_str = match state.mode {
+        crate::types::Mode::Move => "Move",
+        crate::types::Mode::Search => "Search",
+        _ => "List",
+    };
+
     let title = if search_query.is_empty() {
         format!(" {active_tab:?} ")
     } else {
@@ -32,7 +38,7 @@ pub fn render(
 
         .map(|(i, p)| {
             let prefix = if i == selected_index {
-                if mode == "Move" {
+                if mode_str == "Move" {
                     if settings.use_nerd_font { "󰹹 " } else { "↕ " }
                 } else {
                     "> "
@@ -87,14 +93,14 @@ pub fn render(
     if prompts.is_empty() {
         let block = Block::default().borders(Borders::ALL).title(title)
             .style(Style::default().bg(palette.bg).fg(palette.fg));
-        let msg = format!("\n\n\n\n       ╭─────────────────────────╮\n       │   No items found here   │\n       │    Press 'a' to add     │\n       ╰─────────────────────────╯");
+        let msg = "\n\n\n\n       ╭─────────────────────────╮\n       │   No items found here   │\n       │    Press 'a' to add     │\n       ╰─────────────────────────╯".to_string();
         let empty_msg = Paragraph::new(msg)
             .style(Style::default().fg(palette.muted))
             .alignment(ratatui::layout::Alignment::Center)
             .block(block);
         f.render_widget(empty_msg, area);
     } else {
-        f.render_stateful_widget(list, area, list_state);
+        f.render_stateful_widget(list, area, &mut state.nav.list_state);
 
         // Render scrollbar
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -124,7 +130,7 @@ pub fn render_preview(
 ) {
     let palette = get_palette(settings.theme_name.as_deref()); 
 
-    let (color, mut title_prefix) = if let Some(p) = prompt {
+    let (color, mut title_prefix) = prompt.map_or_else(|| (palette.muted, " Preview ".to_string()), |p| {
         let prefix = match p.r#type {
             contracts::PromptType::Prompt => " Preview (Prompt) ",
             contracts::PromptType::Snippet => " Preview (Snippet) ",
@@ -136,9 +142,7 @@ pub fn render_preview(
             contracts::PromptType::Note => palette.info,
         };
         (color, prefix.to_string())
-    } else {
-        (palette.muted, " Preview ".to_string())
-    };
+    });
 
     if let Some(p) = prompt {
         if contracts::Processor::is_draft(&contracts::Processor::get_display_title(&p.text).0) {

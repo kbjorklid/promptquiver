@@ -1,26 +1,38 @@
-use contracts::{Prompt, Tab};
+use contracts::Tab;
 use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::Style;
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
-use ratatui_textarea::TextArea;
+use crate::types::RenderState;
 
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
-    textarea: &mut TextArea<'_>,
-    title_textarea: &mut TextArea<'_>,
-    title_focused: bool,
-    active_tab: Tab,
-    settings: &contracts::Settings,
+    state: &mut RenderState<'_, '_>,
 ) -> Rect {
+    let settings = state.settings;
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
+    let active_tab = state.nav.active_tab;
     let is_snippet = active_tab == Tab::Snippets;
+    let title_focused = state.editor.title_focused;
     
+    let textarea = &mut state.editor.textarea;
+    let title_textarea = &mut state.editor.title_textarea;
+    
+    let verb = if state.editor.editing_id.is_some() { "Edit" } else { "Create" };
+    
+    let noun = match active_tab {
+        Tab::Snippets => "Snippet",
+        Tab::Notes => "Note",
+        Tab::Archive => "Archived Item",
+        Tab::Settings => "Slash Command",
+        _ => "Prompt",
+    };
+
     let main_title = if is_snippet {
-        " Edit Snippet (Tab to switch, Ctrl+S to save, Esc to cancel) "
+        format!(" {verb} {noun} (Tab to switch, Ctrl+S to save, Esc to cancel) ")
     } else {
-        " Edit Prompt (Ctrl+S to save, Esc to cancel) "
+        format!(" {verb} {noun} (Ctrl+S to save, Esc to cancel) ")
     };
 
     let editor_area = if is_snippet {
@@ -86,14 +98,15 @@ pub fn render(
 pub fn render_autocomplete(
     f: &mut Frame<'_>,
     editor_area: Rect,
-    textarea: &TextArea<'_>,
-    suggestions: &[Prompt],
-    suggestion_index: usize,
-    autocomplete_open: bool,
-    autocomplete_list_state: &mut ratatui::widgets::ListState,
-    settings: &contracts::Settings,
+    state: &mut RenderState<'_, '_>,
 ) {
+    let settings = state.settings;
     let palette = crate::utils::get_palette(settings.theme_name.as_deref());
+    let textarea = &state.editor.textarea;
+    let suggestions = &state.editor.autocomplete.suggestions;
+    let suggestion_index = state.editor.autocomplete.index;
+    let autocomplete_open = state.editor.autocomplete.open;
+    let autocomplete_list_state = &mut state.editor.autocomplete.list_state;
     
     if autocomplete_open && !suggestions.is_empty() {
         let screen_cursor = textarea.screen_cursor();
@@ -101,11 +114,11 @@ pub fn render_autocomplete(
         let row = screen_cursor.row;
         
         let popup_width = 60;
-        let popup_height_pref = (suggestions.len() as u16 + 2).min(10);
+        let popup_height_pref = (u16::try_from(suggestions.len()).unwrap_or(u16::MAX).saturating_add(2)).min(10);
         
         // Absolute screen coordinates of the cursor
-        let cursor_x = editor_area.x.saturating_add(1).saturating_add(col as u16);
-        let cursor_y = editor_area.y.saturating_add(1).saturating_add(row as u16);
+        let cursor_x = editor_area.x.saturating_add(1).saturating_add(u16::try_from(col).unwrap_or(u16::MAX));
+        let cursor_y = editor_area.y.saturating_add(1).saturating_add(u16::try_from(row).unwrap_or(u16::MAX));
         
         // Define safe screen limits
         let top_limit = f.area().top().saturating_add(1);       // Row after header
@@ -147,13 +160,6 @@ pub fn render_autocomplete(
             popup_area.height = bottom_limit.saturating_sub(popup_area.y);
         }
 
-        /* 
-        // Debug positioning
-        let debug_text = format!("cy:{} sl:{} sa:{} y:{} h:{} bl:{}", 
-            cursor_y, space_below, space_above, popup_area.y, popup_area.height, bottom_limit);
-        f.render_widget(ratatui::widgets::Paragraph::new(debug_text).style(Style::default().bg(palette.accent).fg(palette.bg)), Rect::new(0, 0, 80, 1));
-        */
-        
         f.render_widget(Clear, popup_area);
         
         let items: Vec<ListItem<'_>> = suggestions

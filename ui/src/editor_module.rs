@@ -13,220 +13,114 @@ pub struct AutocompleteState {
     pub list_state: ratatui::widgets::ListState,
 }
 
-#[derive(Debug)]
-pub struct EditorModule<'a> {
-    pub textarea: TextArea<'a>,
-    pub title_textarea: TextArea<'a>,
-    pub title_focused: bool,
-    pub editing_id: Option<Uuid>,
-    pub insert_index: Option<usize>,
-    pub original_text: String,
-    pub autocomplete: AutocompleteState,
-    pub snippet_cache: Vec<Prompt>,
-}
-
-impl Default for EditorModule<'_> {
-    fn default() -> Self {
-        Self {
-            textarea: TextArea::default(),
-            title_textarea: TextArea::default(),
-            title_focused: false,
-            editing_id: None,
-            insert_index: None,
-            original_text: String::new(),
-            autocomplete: AutocompleteState::default(),
-            snippet_cache: Vec::new(),
-        }
-    }
-}
-
-impl<'a> EditorModule<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>, current_path: String, file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>) -> contracts::Result<Option<crate::types::AppMessage>> {
-        use crate::types::AppMessage;
-        use contracts::Tab;
-        match msg {
-            AppMessage::SaveEditor => {
-                let text = self.textarea.lines().join("\n");
-
-                if ctx.active_tab == Tab::Settings {
-                    let tabs_len = Tab::settings_display_len();
-                    let slash_len = ctx.settings.slash_commands.len();
-
-                    let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
-                    let trimmed = text.trim();
-                    if !trimmed.is_empty() && !re.is_match(trimmed) {
-                        return Ok(Some(AppMessage::Notify("Slash command must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error)));
-                    }
-
-                    if ctx.selected_index >= tabs_len && ctx.selected_index < tabs_len + slash_len {
-                        // Update existing
-                        let idx = ctx.selected_index - tabs_len;
-                        ctx.settings.slash_commands[idx] = trimmed.to_string();
-                        ctx.storage.save_settings(ctx.settings.clone()).await?;
-                    } else if ctx.selected_index == tabs_len + slash_len {
-                        // Add new
-                        let new_cmd = trimmed.to_string();
-                        if !new_cmd.is_empty() {
-                            ctx.settings.slash_commands.push(new_cmd);
-                            ctx.storage.save_settings(ctx.settings.clone()).await?;
-                        }
-                    }
-                    return Ok(Some(AppMessage::ExitEditor));
-                }
-
-                if ctx.active_tab == Tab::Snippets {
-                    let t = self.title_textarea.lines().join("");
-                    let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
-                    if !re.is_match(&t) {
-                         return Ok(Some(AppMessage::Notify("Snippet name must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error)));
-                    }
-                }
-            }
-            AppMessage::UpdateAutocomplete => {
-                self.update_autocomplete(ctx.storage.clone(), ctx.settings, current_path, file_search_tx).await?;
-            }
-            AppMessage::CloseAutocomplete => {
-                self.autocomplete.open = false;
-                self.autocomplete.suggestions.clear();
-            }
-            AppMessage::MoveSuggestionDown => self.move_suggestion_down(),
-            AppMessage::MoveSuggestionUp => self.move_suggestion_up(),
-            AppMessage::SelectSuggestion => self.select_suggestion(),
-            AppMessage::Paste(content) => {
-                if self.title_focused && ctx.active_tab == Tab::Snippets {
-                    let single_line = content.replace(['\n', '\r'], "");
-                    self.title_textarea.insert_str(single_line);
-                } else {
-                    self.textarea.insert_str(content);
-                }
-                return Ok(Some(AppMessage::UpdateAutocomplete));
-            }
-            AppMessage::EditorInput(key) => {
-                if ctx.active_tab == Tab::Snippets {
-                    if key.code == crossterm::event::KeyCode::Tab {
-                        self.title_focused = !self.title_focused;
-                        return Ok(None);
-                    }
-                    if self.title_focused && key.code == crossterm::event::KeyCode::Enter {
-                        self.title_focused = false;
-                        return Ok(None);
-                    }
-                }
-
-                if self.title_focused && ctx.active_tab == Tab::Snippets {
-                    Self::input_with_fallback(&mut self.title_textarea, key);
-                    if self.title_textarea.lines().len() > 1 {
-                        let joined = self.title_textarea.lines().join("");
-                        self.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
-                        self.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
-                    }
-                } else {
-                    if ctx.active_tab == Tab::Settings {
-                        if key.code == crossterm::event::KeyCode::Enter {
-                            return Ok(Some(AppMessage::SaveEditor));
-                        } else {
-                            Self::input_with_fallback(&mut self.textarea, key);
-                            // Trigger autocomplete update
-                            return Ok(Some(AppMessage::UpdateAutocomplete));
-                        }
-                    } else {
-                        Self::input_with_fallback(&mut self.textarea, key);
-                        return Ok(Some(AppMessage::UpdateAutocomplete));
-                    }
-                }
-            }
-            _ => {}
-        }
-        Ok(None)
-    }
-
-    fn input_with_fallback(textarea: &mut TextArea<'a>, key: crossterm::event::KeyEvent) {
-        use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
-
-        // Handle Ctrl+Backspace for word deletion
-        // Some terminals send Backspace + Control, some send Char(0x7f)
-        match (key.code, key.modifiers) {
-            (KeyCode::Backspace, m) if m.contains(KeyModifiers::CONTROL) => {
-                textarea.delete_word();
-                return;
-            }
-            (KeyCode::Char('\u{7f}'), _) => {
-                textarea.delete_word();
-                return;
-            }
-            _ => {}
-        }
-
-        if !textarea.input(key) {
-            if let KeyCode::Char(c) = key.code {
-                let is_control = key.modifiers.contains(KeyModifiers::CONTROL);
-                let is_alt = key.modifiers.contains(KeyModifiers::ALT);
-                let is_altgr = is_control && is_alt;
-
-                // Only fallback to typing the character if:
-                // 1. It's AltGr (Ctrl+Alt) - used on Windows/Linux for special chars like @, $
-                // 2. No control/alt modifiers are present (except Shift which is fine)
-                // This prevents leaking shortcuts (like Ctrl-Left) as characters when the shortcut 
-                // doesn't move the cursor (e.g. already at the end of the line).
-                if is_altgr || (!is_control && !is_alt) {
-                    textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
-                }
-            }
-        }
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        let current_text = self.textarea.lines().join("\n");
-        current_text != self.original_text
-    }
-
+impl AutocompleteState {
     pub fn clear(&mut self) {
-        self.textarea = TextArea::default();
-        self.title_textarea = TextArea::default();
-        self.title_focused = false;
-        self.editing_id = None;
-        self.insert_index = None;
-        self.original_text = String::new();
-        self.autocomplete = AutocompleteState::default();
-        self.snippet_cache.clear();
+        self.open = false;
+        self.suggestions.clear();
+        self.index = 0;
+        self.list_state = ratatui::widgets::ListState::default();
     }
 
-    pub fn enter(&mut self, text: String, id: Option<Uuid>, title: Option<String>, tab: Tab, insert_index: Option<usize>) {
-        self.clear();
-        self.textarea = TextArea::from(text.lines().map(String::from));
-        self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
-        self.original_text = text;
-        self.editing_id = id;
-        self.insert_index = insert_index;
-        
-        if let Some(t) = title {
-            self.title_textarea = TextArea::from(vec![t]);
-        }
-        
-        if tab == Tab::Snippets {
-            self.title_focused = true;
+    pub const fn move_down(&mut self) {
+        if !self.suggestions.is_empty() && self.index < self.suggestions.len() - 1 {
+            self.index += 1;
         }
     }
 
-    pub fn exit(&mut self) {
-        self.clear();
+    pub const fn move_up(&mut self) {
+        if self.index > 0 {
+            self.index -= 1;
+        }
     }
 
-    pub fn get_current_autocomplete_query(&self) -> Option<(String, String)> {
-        let cursor = self.textarea.cursor();
+    /// Updates the autocomplete suggestions based on the query.
+    ///
+    /// # Errors
+    /// Returns an error if storage or service operations fail.
+    pub async fn update(
+        &mut self, 
+        query_opt: Option<(String, String)>,
+        storage: Arc<dyn contracts::Storage>,
+        settings: &contracts::Settings,
+        current_path: String,
+        file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>,
+        snippet_cache: &mut Vec<Prompt>,
+    ) -> contracts::Result<()> {
+        if let Some((trigger, query)) = query_opt {
+            let matcher = SkimMatcherV2::default();
+            
+            match trigger.as_str() {
+                "$" | "$$" => {
+                    let snippets = if snippet_cache.is_empty() {
+                        let s = storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await?;
+                        snippet_cache.clone_from(&s);
+                        s
+                    } else {
+                        snippet_cache.clone()
+                    };
+
+                    let query_lower = query.to_lowercase();
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
+                        .into_iter()
+                        .filter_map(|s| {
+                            let text = s.name.as_deref().unwrap_or(&s.text);
+                            matcher.fuzzy_match(&text.to_lowercase(), &query_lower).map(|score| (score, s))
+                        })
+                        .collect();
+                    
+                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
+                    self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
+                }
+                "@" => {
+                    self.suggestions.clear();
+                    self.open = false;
+                    if let Some(tx) = file_search_tx {
+                        let _ = tx.try_send((current_path, query.clone()));
+                    }
+                    return Ok(());
+                }
+                "/" => {
+                    let query_lower = query.to_lowercase();
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = settings.slash_commands
+                        .iter()
+                        .filter_map(|cmd| {
+                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()), None)))
+                        })
+                        .collect();
+                        
+                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
+                    self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
+                }
+                _ => self.suggestions = Vec::new(),
+            }
+            
+            if self.suggestions.is_empty() {
+                self.open = false;
+            } else {
+                self.open = true;
+                if self.index >= self.suggestions.len() {
+                    self.index = 0;
+                }
+            }
+        } else {
+            self.open = false;
+            self.suggestions.clear();
+        }
+
+        Ok(())
+    }
+
+    fn get_current_query(textarea: &TextArea<'_>) -> Option<(String, String)> {
+        let cursor = textarea.cursor();
         let row = cursor.0;
         let col = cursor.1;
         
-        if row >= self.textarea.lines().len() {
+        if row >= textarea.lines().len() {
             return None;
         }
         
-        let line = &self.textarea.lines()[row];
-        let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
+        let line = &textarea.lines()[row];
+        let byte_col = line.char_indices().nth(col).map_or(line.len(), |(i, _)| i);
         let before_cursor = &line[..byte_col];
 
         let triggers = ["$$", "$", "@", "/"];
@@ -268,102 +162,16 @@ impl<'a> EditorModule<'a> {
         None
     }
 
-    pub async fn update_autocomplete(
-        &mut self, 
-        storage: Arc<dyn contracts::Storage>,
-        settings: &contracts::Settings,
-        current_path: String,
-        file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>
-    ) -> contracts::Result<()> {
-        let query_opt = self.get_current_autocomplete_query();
-        
-        if let Some((trigger, query)) = query_opt {
-            let matcher = SkimMatcherV2::default();
-            
-            match trigger.as_str() {
-                "$" | "$$" => {
-                    // Only fetch snippets if we actually have a trigger
-                    let snippets = if !self.snippet_cache.is_empty() {
-                        self.snippet_cache.clone()
-                    } else {
-                        let s = storage.get_prompts(PromptFilter { tab: Some(Tab::Snippets), ..Default::default() }).await?;
-                        self.snippet_cache = s.clone();
-                        s
-                    };
-
-                    let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
-                        .into_iter()
-                        .filter_map(|s| {
-                            let text = s.name.as_deref().unwrap_or(&s.text);
-                            matcher.fuzzy_match(&text.to_lowercase(), &query_lower).map(|score| (score, s))
-                        })
-                        .collect();
-                    
-                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.autocomplete.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
-                }
-                "@" => {
-                    self.autocomplete.suggestions.clear();
-                    self.autocomplete.open = false;
-                    if let Some(tx) = file_search_tx {
-                        let _ = tx.try_send((current_path, query.to_string()));
-                    }
-                    return Ok(());
-                }
-                "/" => {
-                    let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = settings.slash_commands
-                        .iter()
-                        .filter_map(|cmd| {
-                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()), None)))
-                        })
-                        .collect();
-                        
-                    scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
-                    self.autocomplete.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
-                }
-                _ => self.autocomplete.suggestions = Vec::new(),
-            }
-            
-            if self.autocomplete.suggestions.is_empty() {
-                self.autocomplete.open = false;
-            } else {
-                self.autocomplete.open = true;
-                if self.autocomplete.index >= self.autocomplete.suggestions.len() {
-                    self.autocomplete.index = 0;
-                }
-            }
-        } else {
-            self.autocomplete.open = false;
-            self.autocomplete.suggestions.clear();
-        }
-
-        Ok(())
-    }
-
-    pub fn move_suggestion_down(&mut self) {
-        if !self.autocomplete.suggestions.is_empty() && self.autocomplete.index < self.autocomplete.suggestions.len() - 1 {
-            self.autocomplete.index += 1;
-        }
-    }
-
-    pub fn move_suggestion_up(&mut self) {
-        if self.autocomplete.index > 0 {
-            self.autocomplete.index -= 1;
-        }
-    }
-
-    pub fn select_suggestion(&mut self) {
-        if !self.autocomplete.suggestions.is_empty() && self.autocomplete.open {
-            let snippet = &self.autocomplete.suggestions[self.autocomplete.index];
+    pub fn select_suggestion(&mut self, textarea: &mut TextArea<'_>) {
+        if !self.suggestions.is_empty() && self.open {
+            let snippet = &self.suggestions[self.index];
             let name = snippet.name.as_deref().unwrap_or(&snippet.text);
             
-            let cursor = self.textarea.cursor();
+            let cursor = textarea.cursor();
             let row = cursor.0;
             let col = cursor.1;
-            let line = self.textarea.lines()[row].clone();
-            let byte_col = line.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line.len());
+            let line = textarea.lines()[row].clone();
+            let byte_col = line.char_indices().nth(col).map_or(line.len(), |(i, _)| i);
             let before_cursor = &line[..byte_col];
             
             let triggers = ["$$", "$", "@", "/"];
@@ -406,15 +214,201 @@ impl<'a> EditorModule<'a> {
                 
                 let new_col = line[..best_pos].chars().count() + replacement.chars().count();
                 
-                self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, 0));
-                self.textarea.delete_line_by_end();
-                self.textarea.insert_str(&new_line);
-                self.textarea.move_cursor(ratatui_textarea::CursorMove::Jump(row as u16, new_col as u16));
+                textarea.move_cursor(ratatui_textarea::CursorMove::Jump(u16::try_from(row).unwrap_or(u16::MAX), 0));
+                textarea.delete_line_by_end();
+                textarea.insert_str(&new_line);
+                textarea.move_cursor(ratatui_textarea::CursorMove::Jump(u16::try_from(row).unwrap_or(u16::MAX), u16::try_from(new_col).unwrap_or(u16::MAX)));
             }
             
-            self.autocomplete.open = false;
-            self.autocomplete.suggestions.clear();
-            self.autocomplete.index = 0;
+            self.clear();
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct EditorModule<'a> {
+    pub textarea: TextArea<'a>,
+    pub title_textarea: TextArea<'a>,
+    pub title_focused: bool,
+    pub editing_id: Option<Uuid>,
+    pub insert_index: Option<usize>,
+    pub original_text: String,
+    pub autocomplete: AutocompleteState,
+    pub snippet_cache: Vec<Prompt>,
+}
+
+impl<'a> EditorModule<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Handles application messages and updates editor state.
+    ///
+    /// # Errors
+    /// Returns an error if storage or service operations fail.
+    pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>, current_path: String, file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>) -> contracts::Result<Option<crate::types::AppMessage>> {
+        use crate::types::AppMessage;
+        match msg {
+            AppMessage::SaveEditor => {
+                if let Some(msg) = self.handle_save(ctx) {
+                    return Ok(Some(msg));
+                }
+            }
+            AppMessage::UpdateAutocomplete => {
+                let query_opt = AutocompleteState::get_current_query(&self.textarea);
+                self.autocomplete.update(query_opt, ctx.storage.clone(), ctx.settings, current_path, file_search_tx, &mut self.snippet_cache).await?;
+            }
+            AppMessage::CloseAutocomplete => {
+                self.autocomplete.clear();
+            }
+            AppMessage::MoveSuggestionDown => self.autocomplete.move_down(),
+            AppMessage::MoveSuggestionUp => self.autocomplete.move_up(),
+            AppMessage::SelectSuggestion => self.autocomplete.select_suggestion(&mut self.textarea),
+            AppMessage::Paste(content) => {
+                self.handle_paste(content, ctx.active_tab);
+                return Ok(Some(AppMessage::UpdateAutocomplete));
+            }
+            AppMessage::EditorInput(key) => {
+                if let Some(msg) = self.handle_input(key, ctx.active_tab) {
+                    return Ok(Some(msg));
+                }
+                return Ok(Some(AppMessage::UpdateAutocomplete));
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+
+    pub fn get_current_autocomplete_query(&self) -> Option<(String, String)> {
+        AutocompleteState::get_current_query(&self.textarea)
+    }
+
+    fn handle_save(&self, ctx: &crate::types::UpdateContext<'_>) -> Option<crate::types::AppMessage> {
+        use crate::types::AppMessage;
+        use contracts::Tab;
+        let text = self.textarea.lines().join("\n");
+
+        if ctx.active_tab == Tab::Settings {
+            let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").expect("Static regex");
+            let trimmed = text.trim();
+            if !trimmed.is_empty() && !re.is_match(trimmed) {
+                return Some(AppMessage::Notify("Slash command must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error));
+            }
+        }
+
+        if ctx.active_tab == Tab::Snippets {
+            let t = self.title_textarea.lines().join("");
+            let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").expect("Static regex");
+            if !re.is_match(&t) {
+                 return Some(AppMessage::Notify("Snippet name must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error));
+            }
+        }
+        None
+    }
+
+    fn handle_paste(&mut self, content: String, active_tab: Tab) {
+        if self.title_focused && active_tab == Tab::Snippets {
+            let single_line = content.replace(['\n', '\r'], "");
+            self.title_textarea.insert_str(single_line);
+        } else {
+            self.textarea.insert_str(content);
+        }
+    }
+
+    fn handle_input(&mut self, key: crossterm::event::KeyEvent, active_tab: Tab) -> Option<crate::types::AppMessage> {
+        use crate::types::AppMessage;
+        use contracts::Tab;
+        use crossterm::event::KeyCode;
+
+        if active_tab == Tab::Snippets {
+            if key.code == KeyCode::Tab {
+                self.title_focused = !self.title_focused;
+                return None;
+            }
+            if self.title_focused && key.code == KeyCode::Enter {
+                self.title_focused = false;
+                return None;
+            }
+        }
+
+        if self.title_focused && active_tab == Tab::Snippets {
+            Self::input_with_fallback(&mut self.title_textarea, key);
+            if self.title_textarea.lines().len() > 1 {
+                let joined = self.title_textarea.lines().join("");
+                self.title_textarea = ratatui_textarea::TextArea::new(vec![joined]);
+                self.title_textarea.move_cursor(ratatui_textarea::CursorMove::End);
+            }
+        } else {
+            if active_tab == Tab::Settings && key.code == KeyCode::Enter {
+                return Some(AppMessage::SaveEditor);
+            }
+            Self::input_with_fallback(&mut self.textarea, key);
+        }
+        None
+    }
+
+    fn input_with_fallback(textarea: &mut TextArea<'a>, key: crossterm::event::KeyEvent) {
+        use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Backspace, m) if m.contains(KeyModifiers::CONTROL) => {
+                textarea.delete_word();
+                return;
+            }
+            (KeyCode::Char('\u{7f}'), _) => {
+                textarea.delete_word();
+                return;
+            }
+            _ => {}
+        }
+
+        if !textarea.input(key) {
+            if let KeyCode::Char(c) = key.code {
+                let is_control = key.modifiers.contains(KeyModifiers::CONTROL);
+                let is_alt = key.modifiers.contains(KeyModifiers::ALT);
+                let is_altgr = is_control && is_alt;
+
+                if is_altgr || (!is_control && !is_alt) {
+                    textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                }
+            }
+        }
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        let current_text = self.textarea.lines().join("\n");
+        current_text != self.original_text
+    }
+
+    pub fn clear(&mut self) {
+        self.textarea = TextArea::default();
+        self.title_textarea = TextArea::default();
+        self.title_focused = false;
+        self.editing_id = None;
+        self.insert_index = None;
+        self.original_text = String::new();
+        self.autocomplete.clear();
+        self.snippet_cache.clear();
+    }
+
+    pub fn enter(&mut self, text: String, id: Option<Uuid>, title: Option<String>, tab: Tab, insert_index: Option<usize>) {
+        self.clear();
+        self.textarea = TextArea::from(text.lines().map(String::from));
+        self.textarea.set_wrap_mode(ratatui_textarea::WrapMode::WordOrGlyph);
+        self.original_text = text;
+        self.editing_id = id;
+        self.insert_index = insert_index;
+        
+        if let Some(t) = title {
+            self.title_textarea = TextArea::from(vec![t]);
+        }
+        
+        if tab == Tab::Snippets {
+            self.title_focused = true;
+        }
+    }
+
+    pub fn exit(&mut self) {
+        self.clear();
     }
 }

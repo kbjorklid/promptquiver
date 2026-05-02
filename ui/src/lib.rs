@@ -16,25 +16,18 @@ pub mod statusline;
 pub mod shortcuts;
 pub mod types;
 pub mod list_module;
+pub mod history_manager;
+pub mod project_manager;
 pub mod editor_module;
 pub mod project_picker;
 
-pub use types::{Mode, AppMessage, UpdateContext};
+pub use types::{Mode, AppMessage, UpdateContext, RenderState};
 pub use list_module::ListModule;
 pub use editor_module::EditorModule;
 
-#[derive(Debug)]
-pub struct RenderState<'a, 'b> {
-    pub nav: &'a mut ListModule,
-    pub editor: &'a mut EditorModule<'b>,
-    pub mode: Mode,
-    pub settings: &'a contracts::Settings,
-    pub current_branch: Option<&'a str>,
-}
-
 pub fn render(
     f: &mut Frame<'_>,
-    state: RenderState<'_, '_>,
+    mut state: RenderState<'_, '_>,
     toaster: &mut Option<ToastEngine<ToastMessage>>,
 ) {
     let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
@@ -74,7 +67,7 @@ pub fn render(
     if let Some(s_chunk) = search_chunk {
         let query = &state.nav.search_query;
         let prefix = "Search: /";
-        let text = format!("{}{}", prefix, query);
+        let text = format!("{prefix}{query}");
         let paragraph = Paragraph::new(text).style(Style::default().fg(palette.accent));
         f.render_widget(paragraph, s_chunk);
     }
@@ -127,23 +120,13 @@ pub fn render(
             settings::render(
                 f,
                 content_chunk,
-                state.settings,
-                state.nav.selected_index,
-                if state.mode == Mode::Editor { Some(&mut state.editor.textarea) } else { None },
-                &mut state.nav.settings_slash_list_state,
-                &mut state.nav.theme_list_state,
-                state.mode == Mode::ThemePicker,
-                &mut state.nav.settings_scroll_offset,
-                &state.nav.projects,
+                &mut state,
             );
-        } else {            editor_content_area = Some(editor::render(
+        } else {
+            editor_content_area = Some(editor::render(
                 f,
                 content_chunk,
-                &mut state.editor.textarea,
-                &mut state.editor.title_textarea,
-                state.editor.title_focused,
-                state.nav.active_tab,
-                state.settings,
+                &mut state,
             ));
 
             if state.mode == Mode::ConfirmDiscard {
@@ -160,23 +143,10 @@ pub fn render(
             settings::render(
                 f,
                 content_chunk,
-                state.settings,
-                state.nav.selected_index,
-                None,
-                &mut state.nav.settings_slash_list_state,
-                &mut state.nav.theme_list_state,
-                false,
-                &mut state.nav.settings_scroll_offset,
-                &state.nav.projects,
+                &mut state,
             );
         } else {
-            let display_query = &state.nav.search_query;
-            let mode_str = match state.mode {
-                Mode::Move => "Move",
-                Mode::Search => "Search",
-                _ => "List",
-            };
-            list::render(f, content_chunk, state.nav.active_tab, &state.nav.prompts, state.nav.selected_index, mode_str, display_query, state.settings, &mut state.nav.list_state);
+            list::render(f, content_chunk, &mut state);
             
             if let Some(p_chunk) = preview_chunk {
                 let selected_prompt = state.nav.prompts.get(state.nav.selected_index);
@@ -189,12 +159,7 @@ pub fn render(
         editor::render_autocomplete(
             f, 
             area, 
-            &state.editor.textarea, 
-            &state.editor.autocomplete.suggestions, 
-            state.editor.autocomplete.index, 
-            state.editor.autocomplete.open,
-            &mut state.editor.autocomplete.list_state, 
-            state.settings
+            &mut state,
         );
     }
 
@@ -202,52 +167,25 @@ pub fn render(
     if state.mode == Mode::ProjectPicker || state.mode == Mode::AddProject {
         project_picker::render_picker(
             f,
-            &state.nav.projects,
-            &mut state.nav.project_list_state,
+            &state.nav.projects_manager.projects,
+            &mut state.nav.projects_manager.project_list_state,
             state.settings,
-            if state.mode == Mode::AddProject { Some(&state.nav.new_project_name) } else { None },
+            if state.mode == Mode::AddProject { Some(&state.nav.projects_manager.new_project_name) } else { None },
             state.nav.project_filter,
-            state.nav.selecting_startup_project,
+            state.nav.projects_manager.selecting_startup_project,
         );
     }
-
-    let active_project_title = if let Some(id) = state.nav.active_project_id {
-        state.nav.projects.iter().find(|p| p.id == id).map(|p| p.title.as_str())
-    } else {
-        None
-    };
 
     statusline::render(
         f,
         statusline_chunk,
-        &state.nav.current_path,
-        state.current_branch,
-        active_project_title,
-        state.nav.prompts.len(),
-        state.nav.folder_filter,
-        state.nav.project_filter,
-        state.nav.branch_filter,
-        state.settings,
+        &state,
     );
 
     footer::render(
         f,
         footer_chunk,
-        match state.mode {
-            Mode::List => "List",
-            Mode::Editor => "Editor",
-            Mode::Move => "Move",
-            Mode::Search => "Search",
-            Mode::ConfirmDiscard => "Confirm Discard",
-            Mode::ThemePicker => "Theme Picker",
-            Mode::ProjectPicker => "Project Picker",
-            Mode::AddProject => "Add Project",
-        },
-        state.nav.active_tab,
-        state.nav.prompts.len(),
-        state.nav.selected_index,
-        !state.editor.autocomplete.suggestions.is_empty(),
-        state.settings,
+        &state,
     );
 
     if let Some(ref mut toaster) = toaster {

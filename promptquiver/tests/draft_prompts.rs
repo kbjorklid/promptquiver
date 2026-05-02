@@ -6,16 +6,52 @@ async fn test_draft_identification_and_display() {
     let (mut app, _, _, _) = common::setup_app();
     
     // 1. Prompt with -- Draft Title
-    app.service.save_item(common::TEST_PATH, Tab::Prompts, "-- Draft Fix welcome email\n\nContent".to_string(), Some("Draft Fix welcome email".to_string()), None, None, None, None).await.unwrap();
+    app.service.save_item(contracts::SaveItemArgs {
+        project_path: common::TEST_PATH.to_string(),
+        tab: Tab::Prompts,
+        text: "-- Draft Fix welcome email\n\nContent".to_string(),
+        title: Some("Draft Fix welcome email".to_string()),
+        id: None,
+        insert_index: None,
+        branch: None,
+        project_id: None,
+    }).await.unwrap();
     
     // 2. Prompt with [Draft] in title
-    app.service.save_item(common::TEST_PATH, Tab::Prompts, "-- Fix welcome email [Draft]\n\nContent".to_string(), Some("Fix welcome email [Draft]".to_string()), None, None, None, None).await.unwrap();
+    app.service.save_item(contracts::SaveItemArgs {
+        project_path: common::TEST_PATH.to_string(),
+        tab: Tab::Prompts,
+        text: "-- Fix welcome email [Draft]\n\nContent".to_string(),
+        title: Some("Fix welcome email [Draft]".to_string()),
+        id: None,
+        insert_index: None,
+        branch: None,
+        project_id: None,
+    }).await.unwrap();
     
     // 3. Prompt with [DRAFT] (case insensitive)
-    app.service.save_item(common::TEST_PATH, Tab::Prompts, "-- [draft] Fix welcome email\n\nContent".to_string(), Some("[draft] Fix welcome email".to_string()), None, None, None, None).await.unwrap();
+    app.service.save_item(contracts::SaveItemArgs {
+        project_path: common::TEST_PATH.to_string(),
+        tab: Tab::Prompts,
+        text: "-- [draft] Fix welcome email\n\nContent".to_string(),
+        title: Some("[draft] Fix welcome email".to_string()),
+        id: None,
+        insert_index: None,
+        branch: None,
+        project_id: None,
+    }).await.unwrap();
 
     // 4. Regular prompt
-    app.service.save_item(common::TEST_PATH, Tab::Prompts, "-- Fix welcome email\n\nContent".to_string(), Some("Fix welcome email".to_string()), None, None, None, None).await.unwrap();
+    app.service.save_item(contracts::SaveItemArgs {
+        project_path: common::TEST_PATH.to_string(),
+        tab: Tab::Prompts,
+        text: "-- Fix welcome email\n\nContent".to_string(),
+        title: Some("Fix welcome email".to_string()),
+        id: None,
+        insert_index: None,
+        branch: None,
+        project_id: None,
+    }).await.unwrap();
 
     app.load_prompts().await.unwrap();
     
@@ -31,7 +67,16 @@ async fn test_cannot_stage_draft_prompt() {
     let (mut app, _, _, _) = common::setup_app();
     
     // Add a draft prompt
-    app.service.save_item(common::TEST_PATH, Tab::Prompts, "-- Draft My Prompt\n\nContent".to_string(), Some("Draft My Prompt".to_string()), None, None, None, None).await.unwrap();
+    app.service.save_item(contracts::SaveItemArgs {
+        project_path: common::TEST_PATH.to_string(),
+        tab: Tab::Prompts,
+        text: "-- Draft My Prompt\n\nContent".to_string(),
+        title: Some("Draft My Prompt".to_string()),
+        id: None,
+        insert_index: None,
+        branch: None,
+        project_id: None,
+    }).await.unwrap();
     app.load_prompts().await.unwrap();
     
     // Try to stage it
@@ -48,7 +93,16 @@ async fn test_single_line_draft() {
     let (mut app, _, _, _) = common::setup_app();
     
     // Single line draft prompt
-    app.service.save_item(common::TEST_PATH, Tab::Prompts, "-- Draft Single Line".to_string(), Some("Draft Single Line".to_string()), None, None, None, None).await.unwrap();
+    app.service.save_item(contracts::SaveItemArgs {
+        project_path: common::TEST_PATH.to_string(),
+        tab: Tab::Prompts,
+        text: "-- Draft Single Line".to_string(),
+        title: Some("Draft Single Line".to_string()),
+        id: None,
+        insert_index: None,
+        branch: None,
+        project_id: None,
+    }).await.unwrap();
     app.load_prompts().await.unwrap();
     
     // Try to stage it

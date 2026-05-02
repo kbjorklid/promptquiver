@@ -37,26 +37,14 @@ impl fmt::Debug for App<'_> {
 }
 
 impl App<'_> {
+    /// Handles application messages and orchestrates state transitions.
+    ///
+    /// # Errors
+    /// Returns an error if any message handler fails.
     pub async fn handle_message(&mut self, initial_msg: AppMessage) -> contracts::Result<()> {
         let mut msg = initial_msg;
         loop {
-            // Mode transitions based on message before it's processed or transformed
-            match msg {
-                AppMessage::ThemePickerInput(ref key) => {
-                    if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
-                        self.mode = Mode::List;
-                    }
-                }
-                AppMessage::ProjectPickerInput(ref key) => {
-                    if key.code == crossterm::event::KeyCode::Esc {
-                        self.mode = Mode::List;
-                    }
-                }
-                AppMessage::SetProject(_) | AppMessage::AddProject(_) => {
-                    self.mode = Mode::List;
-                }
-                _ => {}
-            }
+            self.apply_pre_transitions(&msg);
 
             let mut ctx = UpdateContext {
                 storage: &self.storage,
@@ -82,47 +70,72 @@ impl App<'_> {
                 continue;
             }
 
-            // Global/Final handlers
-            match msg {
-                AppMessage::Quit => self.quit(),
-                AppMessage::Notify(m, kind) => self.notify(m, kind),
-                AppMessage::EnterEditor(text, id) => self.enter_editor(text, id),
-                AppMessage::EnterEditorBefore(text, index) => self.enter_editor_before(text, index),
-                AppMessage::ExitEditor => self.exit_editor(),
-                AppMessage::CopySelected => self.copy_selected().await?,
-                AppMessage::SaveEditor => self.save_editor().await?,
-                AppMessage::SaveAndStageEditor => {
-                    self.save_editor().await?;
-                    msg = AppMessage::StageSelected;
-                    continue;
-                }
-                AppMessage::EditSetting => self.edit_setting(),
-                AppMessage::ConfirmDiscard => self.mode = Mode::ConfirmDiscard,
-                AppMessage::CancelDiscard => self.mode = Mode::Editor,
-                AppMessage::ToggleMoveMode => {
-                    self.mode = if self.mode == Mode::Move { Mode::List } else { Mode::Move };
-                }
-                AppMessage::Search(_) => self.mode = Mode::Search,
-                AppMessage::SearchInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter => {
-                    self.mode = Mode::List;
-                }
-                AppMessage::SelectTheme => self.mode = Mode::ThemePicker,
-                AppMessage::ReloadPrompts => {
-                    self.load_prompts().await?;
-                }
-                AppMessage::SelectProject => {
-                    self.mode = Mode::ProjectPicker;
-                }
-                AppMessage::EnterAddProject => {
-                    self.mode = Mode::AddProject;
-                    self.nav.new_project_name.clear();
-                }
-                _ => {}
+            if let Some(final_msg) = self.apply_global_action(msg).await? {
+                msg = final_msg;
+                continue;
             }
             break;
         }
 
         Ok(())
+    }
+
+    fn apply_pre_transitions(&mut self, msg: &AppMessage) {
+        match msg {
+            AppMessage::ThemePickerInput(ref key) => {
+                if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
+                    self.mode = Mode::List;
+                }
+            }
+            AppMessage::ProjectPickerInput(ref key) => {
+                if key.code == crossterm::event::KeyCode::Esc {
+                    self.mode = Mode::List;
+                }
+            }
+            AppMessage::SetProject(_) | AppMessage::AddProject(_) => {
+                self.mode = Mode::List;
+            }
+            _ => {}
+        }
+    }
+
+    async fn apply_global_action(&mut self, msg: AppMessage) -> contracts::Result<Option<AppMessage>> {
+        match msg {
+            AppMessage::Quit => self.quit(),
+            AppMessage::Notify(m, kind) => self.notify(m, kind),
+            AppMessage::EnterEditor(text, id) => self.enter_editor(text, id),
+            AppMessage::EnterEditorBefore(text, index) => self.enter_editor_before(text, index),
+            AppMessage::ExitEditor => self.exit_editor(),
+            AppMessage::CopySelected => self.copy_selected().await?,
+            AppMessage::SaveEditor => self.save_editor().await?,
+            AppMessage::SaveAndStageEditor => {
+                self.save_editor().await?;
+                return Ok(Some(AppMessage::StageSelected));
+            }
+            AppMessage::EditSetting => self.edit_setting(),
+            AppMessage::ConfirmDiscard => self.mode = Mode::ConfirmDiscard,
+            AppMessage::CancelDiscard => self.mode = Mode::Editor,
+            AppMessage::ToggleMoveMode => {
+                self.mode = if self.mode == Mode::Move { Mode::List } else { Mode::Move };
+            }
+            AppMessage::Search(_) => self.mode = Mode::Search,
+            AppMessage::SearchInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter => {
+                self.mode = Mode::List;
+            }
+            AppMessage::SelectTheme => self.mode = Mode::ThemePicker,
+            AppMessage::ReloadPrompts => {
+                self.load_prompts().await?;
+            }
+            AppMessage::SelectProject => {
+                self.mode = Mode::ProjectPicker;
+            }
+            AppMessage::EnterAddProject => {
+                self.mode = Mode::AddProject;
+                self.nav.projects_manager.new_project_name.clear();
+            }
+            _ => {}
+        }
+        Ok(None)
     }
 
     #[must_use]
@@ -174,6 +187,10 @@ impl App<'_> {
         self.should_quit = true;
     }
 
+    /// Loads prompts from storage and updates settings.
+    ///
+    /// # Errors
+    /// Returns an error if storage cannot be accessed.
     pub async fn load_prompts(&mut self) -> contracts::Result<()> {
         let old_theme = self.settings.theme_name.clone();
         self.settings = self.storage.get_settings().await.unwrap_or_default();
@@ -184,10 +201,14 @@ impl App<'_> {
         self.nav.load_prompts(&self.storage).await
     }
 
+    /// Initializes the project state and loads settings.
+    ///
+    /// # Errors
+    /// Returns an error if storage cannot be accessed.
     pub async fn init_project(&mut self) -> contracts::Result<()> {
         self.settings = self.storage.get_settings().await.unwrap_or_default();
         let projects = self.storage.get_projects().await?;
-        self.nav.projects = projects.clone();
+        self.nav.projects_manager.projects = projects.clone();
         
         match self.settings.startup_behavior {
             contracts::StartupBehavior::Ask => {
@@ -199,25 +220,25 @@ impl App<'_> {
                     } else {
                         0
                     };
-                    self.nav.project_list_state.select(Some(pos));
+                    self.nav.projects_manager.project_list_state.select(Some(pos));
                 } else {
-                    self.nav.active_project_id = None;
+                    self.nav.projects_manager.active_project_id = None;
                     self.nav.project_filter = true;
                 }
             }
             contracts::StartupBehavior::LastActivated => {
-                self.nav.active_project_id = self.settings.last_active_project_id;
+                self.nav.projects_manager.active_project_id = self.settings.last_active_project_id;
                 self.nav.project_filter = true;
             }
             contracts::StartupBehavior::Specific => {
                 if let Some(id) = self.settings.specific_project_id {
                     if projects.iter().any(|p| p.id == id) {
-                        self.nav.active_project_id = Some(id);
+                        self.nav.projects_manager.active_project_id = Some(id);
                     } else {
-                        self.nav.active_project_id = None;
+                        self.nav.projects_manager.active_project_id = None;
                     }
                 } else {
-                    self.nav.active_project_id = None;
+                    self.nav.projects_manager.active_project_id = None;
                 }
                 self.nav.project_filter = true;
             }
@@ -233,15 +254,35 @@ impl App<'_> {
     pub fn move_up(&mut self) { self.nav.move_up(&self.settings); }
     pub fn move_to_top(&mut self) { self.nav.move_to_top(); }
     pub fn move_to_bottom(&mut self) { self.nav.move_to_bottom(&self.settings); }
+
+    /// Stages the currently selected item.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be staged.
     pub async fn stage_selected(&mut self) -> contracts::Result<()> {
         self.handle_message(AppMessage::StageSelected).await
     }
+
+    /// Archives the currently selected item.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be archived.
     pub async fn archive_selected(&mut self) -> contracts::Result<()> {
         self.handle_message(AppMessage::ArchiveSelected).await
     }
+
+    /// Duplicates the currently selected item.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be duplicated.
     pub async fn duplicate_selected(&mut self) -> contracts::Result<()> {
         self.handle_message(AppMessage::DuplicateSelected).await
     }
+
+    /// Copies the currently selected item's text to the clipboard.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be copied.
     pub async fn copy_selected(&mut self) -> contracts::Result<()> {
         if self.nav.prompts.is_empty() { return Ok(()); }
         let item = self.nav.prompts[self.nav.selected_index].clone();
@@ -250,12 +291,27 @@ impl App<'_> {
         self.notify("Copied to clipboard!", ToastType::Success);
         Ok(())
     }
+
+    /// Restores the currently selected item from the archive.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be restored.
     pub async fn restore_selected(&mut self) -> contracts::Result<()> {
         self.handle_message(AppMessage::RestoreSelected).await
     }
+
+    /// Updates autocomplete suggestions in the editor.
+    ///
+    /// # Errors
+    /// Returns an error if the autocomplete update fails.
     pub async fn update_autocomplete(&mut self) -> contracts::Result<()> {
         self.handle_message(AppMessage::UpdateAutocomplete).await
     }
+
+    /// Selects the current autocomplete suggestion.
+    ///
+    /// # Errors
+    /// Returns an error if the suggestion cannot be selected.
     pub async fn select_suggestion(&mut self) -> contracts::Result<()> {
         self.handle_message(AppMessage::SelectSuggestion).await
     }
@@ -308,6 +364,13 @@ impl App<'_> {
         }
     }
 
+    /// Saves the current editor content.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be saved.
+    ///
+    /// # Panics
+    /// Panics if the title validation regex fails to compile.
     pub async fn save_editor(&mut self) -> contracts::Result<()> {
         let text = self.editor.textarea.lines().join("\n");
         let path = self.nav.current_project_path();
@@ -356,23 +419,29 @@ impl App<'_> {
         self.nav.push_history();
 
         let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
-        let project_id = self.nav.active_project_id;
+        let project_id = self.nav.projects_manager.active_project_id;
         
-        let res = self.service.save_item(
-            &path, 
-            self.nav.active_tab, 
-            text, 
-            title, 
-            self.editor.editing_id, 
-            self.editor.insert_index,
+        let res = self.service.save_item(contracts::SaveItemArgs {
+            project_path: path,
+            tab: self.nav.active_tab,
+            text,
+            title,
+            id: self.editor.editing_id,
+            insert_index: self.editor.insert_index,
             branch,
-            project_id
-        ).await;
+            project_id,
+        }).await;
 
         match res {
-            Ok(_) => {
+            Ok(saved_id) => {
                 self.exit_editor();
                 self.load_prompts().await?;
+                
+                // Select the saved item
+                if let Some(index) = self.nav.prompts.iter().position(|p| p.id == saved_id) {
+                    self.nav.selected_index = index;
+                }
+                
                 self.notify("Prompt saved!", ToastType::Success);
             }
             Err(contracts::Error::Conflict(m)) => {
@@ -386,6 +455,10 @@ impl App<'_> {
         Ok(())
     }
 
+    /// Saves the current editor content and then stages it.
+    ///
+    /// # Errors
+    /// Returns an error if the item cannot be saved or staged.
     pub async fn save_and_stage_editor(&mut self) -> contracts::Result<()> {
         self.save_editor().await?;
         self.handle_message(AppMessage::StageSelected).await

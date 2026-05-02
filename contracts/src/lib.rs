@@ -137,7 +137,7 @@ pub mod processor;
 pub use processor::Processor;
 
 pub mod service;
-pub use service::AppService;
+pub use service::{AppService, SaveItemArgs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Tab {
@@ -177,32 +177,100 @@ pub struct PromptFilter {
 
 #[async_trait]
 pub trait Storage: Send + Sync {
+    /// Gets prompts matching the filter.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the data cannot be retrieved.
     async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>>;
+
+    /// Saves a single prompt.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the prompt cannot be saved.
     async fn save_prompt(&self, prompt: Prompt) -> Result<()>;
+
+    /// Saves multiple prompts.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the prompts cannot be saved.
     async fn save_prompts(&self, prompts: Vec<Prompt>) -> Result<()>;
+
+    /// Deletes a prompt by ID.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the prompt cannot be deleted.
     async fn delete_prompt(&self, id: Uuid) -> Result<()>;
 
+    /// Gets all projects.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if projects cannot be retrieved.
     async fn get_projects(&self) -> Result<Vec<Project>>;
+
+    /// Saves a project.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the project cannot be saved.
     async fn save_project(&self, project: Project) -> Result<()>;
+
+    /// Deletes a project and disassociates its prompts.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the project cannot be deleted.
     async fn delete_project(&self, id: Uuid) -> Result<()>;
 
+    /// Gets project info for a folder.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if project info cannot be retrieved.
     async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo>;
+
+    /// Saves project info for a folder.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if project info cannot be saved.
     async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()>;
 
+    /// Gets application settings.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if settings cannot be retrieved.
     async fn get_settings(&self) -> Result<Settings>;
+
+    /// Saves application settings.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if settings cannot be saved.
     async fn save_settings(&self, settings: Settings) -> Result<()>;
 
+    /// Gets the data version (for synchronization).
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the version cannot be retrieved.
     async fn get_data_version(&self) -> Result<u32>;
 }
 
 
 #[async_trait]
 pub trait Clipboard: Send + Sync {
+    /// Copies text to the system clipboard.
+    ///
+    /// # Errors
+    /// Returns a `Clipboard` error if the copy operation fails.
     async fn copy(&self, text: String) -> Result<()>;
+
+    /// Pastes text from the system clipboard.
+    ///
+    /// # Errors
+    /// Returns a `Clipboard` error if the paste operation fails.
     async fn paste(&self) -> Result<String>;
 }
 
 #[async_trait]
 pub trait Git: Send + Sync {
+    /// Gets the current branch name for a given path.
+    ///
+    /// # Errors
+    /// Returns a `Git` error if the branch name cannot be retrieved.
     async fn get_current_branch(&self, path: &str) -> Result<Option<String>>;
 }

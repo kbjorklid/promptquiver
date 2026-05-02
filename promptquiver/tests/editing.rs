@@ -11,6 +11,7 @@ async fn test_add_edit_prompt() {
     app.save_editor().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 1);
     assert_eq!(app.nav.prompts[0].text, "New Prompt");
+    assert_eq!(app.nav.selected_index, 0);
 
     let id = app.nav.prompts[0].id;
     app.enter_editor("Updated Prompt".to_string(), Some(id));
@@ -18,6 +19,116 @@ async fn test_add_edit_prompt() {
     
     assert_eq!(app.nav.prompts.len(), 1);
     assert_eq!(app.nav.prompts[0].text, "Updated Prompt");
+    assert_eq!(app.nav.selected_index, 0);
+}
+
+#[tokio::test]
+async fn test_selection_focus_after_creation() {
+    let (mut app, _, _, _) = setup_app();
+    
+    // Create first prompt
+    app.enter_editor("Prompt 1".to_string(), None);
+    app.save_editor().await.unwrap();
+    
+    // Create second prompt
+    app.enter_editor("Prompt 2".to_string(), None);
+    app.save_editor().await.unwrap();
+    
+    // Move selection first
+    app.nav.selected_index = 1; // Select Prompt 1 (which is at index 1 now, index 0 is Prompt 2)
+    
+    app.enter_editor("Prompt 3".to_string(), None);
+    app.save_editor().await.unwrap();
+    
+    assert_eq!(app.nav.prompts.len(), 3);
+    assert_eq!(app.nav.prompts[0].text, "Prompt 3");
+    assert_eq!(app.nav.selected_index, 0, "New prompt should be selected");
+}
+
+#[tokio::test]
+async fn test_create_title_in_editor() {
+    let (mut app, _, _, _) = setup_app();
+    use contracts::Tab;
+    use ui::types::AppMessage;
+
+    // 1. Test "Create Prompt"
+    app.enter_editor(String::new(), None);
+    
+    let backend = TestBackend::new(80, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                ui::RenderState {
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
+                    settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
+                },
+                &mut None,
+            );
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let mut found_create = false;
+    for y in 0..10 {
+        for x in 0..60 {
+            let mut line = String::new();
+            for i in 0..15 {
+                if x + i < 80 {
+                    line.push_str(buffer[(x + i, y)].symbol());
+                }
+            }
+            if line.contains("Create Prompt") {
+                found_create = true;
+                break;
+            }
+        }
+    }
+    assert!(found_create, "Title 'Create Prompt' not found in buffer");
+
+    // 2. Test "Create Snippet"
+    app.exit_editor();
+    app.handle_message(AppMessage::SetTab(Tab::Snippets)).await.unwrap();
+    app.enter_editor(String::new(), None);
+
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                ui::RenderState {
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
+                    settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
+                },
+                &mut None,
+            );
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let mut found_create_snippet = false;
+    for y in 0..10 {
+        for x in 0..60 {
+            let mut line = String::new();
+            for i in 0..16 {
+                if x + i < 80 {
+                    line.push_str(buffer[(x + i, y)].symbol());
+                }
+            }
+            if line.contains("Create Snippet") {
+                found_create_snippet = true;
+                break;
+            }
+        }
+    }
+    assert!(found_create_snippet, "Title 'Create Snippet' not found in buffer");
 }
 
 #[tokio::test]

@@ -1,774 +1,76 @@
-use async_trait::async_trait;
-use contracts::{Clipboard, Git, ProjectInfo, Prompt, Project, Result, Settings, Storage, PromptFilter, Tab, PromptType};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use tokio::sync::RwLock;
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use rusqlite::OptionalExtension;
-
-#[derive(Debug)]
-pub struct InMemoryStorage {
-    prompts: RwLock<Vec<Prompt>>,
-    projects: RwLock<Vec<Project>>,
-    project_info: RwLock<HashMap<String, ProjectInfo>>,
-    settings: RwLock<Settings>,
-}
-
-impl InMemoryStorage {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            prompts: RwLock::new(Vec::new()),
-            projects: RwLock::new(Vec::new()),
-            project_info: RwLock::new(HashMap::new()),
-            settings: RwLock::new(Settings::default()),
-        }
-    }
-}
-
-impl Default for InMemoryStorage {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl Storage for InMemoryStorage {
-    async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>> {
-        let prompts = self.prompts.read().await;
-        let mut filtered: Vec<Prompt> = prompts.iter().cloned().collect();
-
-        if let Some(folder) = filter.folder {
-            filtered.retain(|p| p.folder.as_deref() == Some(&folder));
-        }
-        
-        if filter.project_filter {
-            filtered.retain(|p| p.project_id == filter.project_id);
-        }
-
-        if let Some(branch) = filter.branch {
-            filtered.retain(|p| p.branch.as_deref() == Some(&branch));
-        }
-        if let Some(tab) = filter.tab {
-            match tab {
-                Tab::Prompts => {
-                    filtered.retain(|p| p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_some());
-                }
-                Tab::Canned => {
-                    filtered.retain(|p| p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_none());
-                }
-                Tab::Notes => {
-                    filtered.retain(|p| p.r#type == PromptType::Note && !p.is_archived);
-                }
-                Tab::Snippets => {
-                    filtered.retain(|p| p.r#type == PromptType::Snippet && !p.is_archived);
-                }
-                Tab::Archive => {
-                    filtered.retain(|p| p.is_archived);
-                }
-                Tab::Settings => {
-                    filtered.clear();
-                }
-            }
-        }
-        
-        // Sort by order_index ASC, created_at DESC (mimic DB behavior)
-        filtered.sort_by(|a, b| {
-            match a.order_index.cmp(&b.order_index) {
-                std::cmp::Ordering::Equal => b.created_at.cmp(&a.created_at),
-                other => other,
-            }
-        });
-
-        Ok(filtered)
-    }
-
-    async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
-        let mut prompts = self.prompts.write().await;
-        if let Some(p) = prompts.iter_mut().find(|p| p.id == prompt.id) {
-            *p = prompt;
-        } else {
-            prompts.push(prompt);
-        }
-        Ok(())
-    }
-
-    async fn save_prompts(&self, prompts_to_save: Vec<Prompt>) -> Result<()> {
-        let mut prompts = self.prompts.write().await;
-        for p_to_save in prompts_to_save {
-            if let Some(p) = prompts.iter_mut().find(|p| p.id == p_to_save.id) {
-                *p = p_to_save;
-            } else {
-                prompts.push(p_to_save);
-            }
-        }
-        Ok(())
-    }
-
-    async fn delete_prompt(&self, id: Uuid) -> Result<()> {
-        let mut prompts = self.prompts.write().await;
-        prompts.retain(|p| p.id != id);
-        Ok(())
-    }
-
-    async fn get_projects(&self) -> Result<Vec<Project>> {
-        Ok(self.projects.read().await.clone())
-    }
-
-    async fn save_project(&self, project: Project) -> Result<()> {
-        let mut projects = self.projects.write().await;
-        if let Some(p) = projects.iter_mut().find(|p| p.id == project.id) {
-            *p = project;
-        } else {
-            projects.push(project);
-        }
-        Ok(())
-    }
-
-    async fn delete_project(&self, id: Uuid) -> Result<()> {
-        let mut projects = self.projects.write().await;
-        projects.retain(|p| p.id != id);
-        
-        let mut prompts = self.prompts.write().await;
-        for p in prompts.iter_mut() {
-            if p.project_id == Some(id) {
-                p.project_id = None;
-            }
-        }
-        Ok(())
-    }
-
-    async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo> {
-        let info = self.project_info.read().await;
-        Ok(info.get(folder).cloned().unwrap_or_default())
-    }
-
-    async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()> {
-        self.project_info.write().await.insert(folder.to_string(), info);
-        Ok(())
-    }
-
-    async fn get_settings(&self) -> Result<Settings> {
-        Ok(self.settings.read().await.clone())
-    }
-
-    async fn save_settings(&self, settings: Settings) -> Result<()> {
-        let mut s = self.settings.write().await;
-        *s = settings;
-        Ok(())
-    }
-
-    async fn get_data_version(&self) -> Result<u32> {
-        Ok(0)
-    }
-}
-
-#[derive(Debug)]
-pub struct SqliteStorage {
-    db_path: PathBuf,
-}
-
-impl SqliteStorage {
-    pub fn new(db_path: PathBuf) -> Self {
-        let storage = Self { db_path };
-        storage.init().expect("Failed to initialize database");
-        storage
-    }
-
-    fn init(&self) -> Result<()> {
-        let conn = rusqlite::Connection::open(&self.db_path)
-            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-        
-        conn.execute("PRAGMA journal_mode=WAL", []).ok();
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS projects (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL
-            )",
-            [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS prompts (
-                id TEXT PRIMARY KEY,
-                text TEXT NOT NULL,
-                type TEXT NOT NULL,
-                folder TEXT,
-                project_id TEXT,
-                branch TEXT,
-                name TEXT,
-                staged BOOLEAN NOT NULL DEFAULT 0,
-                last_copied BOOLEAN NOT NULL DEFAULT 0,
-                is_archived BOOLEAN NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                order_index INTEGER NOT NULL DEFAULT 0
-            )",
-            [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-
-        // Migrations
-        let _ = conn.execute("ALTER TABLE prompts ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0", []);
-        let _ = conn.execute("ALTER TABLE prompts RENAME COLUMN project TO project_id", []);
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS project_info (
-                folder TEXT PRIMARY KEY,
-                data TEXT NOT NULL
-            )",
-            [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS settings (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                data TEXT NOT NULL
-            )",
-            [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-
-        Ok(())
-    }
-
-    async fn increment_data_version(&self) -> Result<()> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let current: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            conn.execute(&format!("PRAGMA user_version = {}", current + 1), [])
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<(), contracts::Error>(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
-    }
-}
-
-#[async_trait]
-impl Storage for SqliteStorage {
-    async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            let mut query = "SELECT id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index FROM prompts WHERE 1=1".to_string();
-            let mut params: Vec<String> = Vec::new();
-
-            if let Some(folder) = filter.folder {
-                query.push_str(" AND folder = ?");
-                params.push(folder);
-            }
-            
-            if filter.project_filter {
-                if let Some(id) = filter.project_id {
-                    query.push_str(" AND project_id = ?");
-                    params.push(id.to_string());
-                } else {
-                    query.push_str(" AND project_id IS NULL");
-                }
-            }
-
-            if let Some(branch) = filter.branch {
-                query.push_str(" AND branch = ?");
-                params.push(branch);
-            }
-            
-            if let Some(tab) = filter.tab {
-                match tab {
-                    Tab::Prompts => {
-                        query.push_str(" AND type = 'Prompt' AND is_archived = 0 AND folder IS NOT NULL");
-                    }
-                    Tab::Canned => {
-                        query.push_str(" AND type = 'Prompt' AND is_archived = 0 AND folder IS NULL");
-                    }
-                    Tab::Notes => {
-                        query.push_str(" AND type = 'Note' AND is_archived = 0");
-                    }
-                    Tab::Snippets => {
-                        query.push_str(" AND type = 'Snippet' AND is_archived = 0");
-                    }
-                    Tab::Archive => {
-                        query.push_str(" AND is_archived = 1");
-                    }
-                    Tab::Settings => {
-                        return Ok(Vec::new());
-                    }
-                }
-            }
-
-            query.push_str(" ORDER BY order_index ASC, created_at DESC");
-
-            let mut stmt = conn.prepare(&query).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            let prompt_iter = stmt.query_map(rusqlite::params_from_iter(params), |row| {
-                Ok(Prompt {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    text: row.get(1)?,
-                    r#type: match row.get::<_, String>(2)?.as_str() {
-                        "Note" => PromptType::Note,
-                        "Snippet" => PromptType::Snippet,
-                        _ => PromptType::Prompt,
-                    },
-                    folder: row.get(3)?,
-                    project_id: row.get::<_, Option<String>>(4)?.map(|s| Uuid::parse_str(&s).unwrap()),
-                    branch: row.get(5)?,
-                    name: row.get(6)?,
-                    staged: row.get(7)?,
-                    last_copied: row.get(8)?,
-                    is_archived: row.get(9)?,
-                    created_at: row.get::<_, String>(10)?.parse::<DateTime<Utc>>().unwrap(),
-                    updated_at: row.get::<_, String>(11)?.parse::<DateTime<Utc>>().unwrap(),
-                    order_index: row.get(12)?,
-                })
-            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-
-            let mut prompts = Vec::new();
-            for prompt in prompt_iter {
-                prompts.push(prompt.map_err(|e| contracts::Error::Storage(e.to_string()))?);
-            }
-            Ok(prompts)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
-    }
-
-    async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
-        let db_path = self.db_path.clone();
-        let changed = tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            conn.execute(
-                "INSERT INTO prompts (id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-                 ON CONFLICT(id) DO UPDATE SET
-                    text=excluded.text,
-                    type=excluded.type,
-                    folder=excluded.folder,
-                    project_id=excluded.project_id,
-                    branch=excluded.branch,
-                    name=excluded.name,
-                    staged=excluded.staged,
-                    last_copied=excluded.last_copied,
-                    is_archived=excluded.is_archived,
-                    updated_at=excluded.updated_at,
-                    order_index=excluded.order_index
-                 WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
-                    OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
-                    OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
-                    OR order_index != excluded.order_index",
-                rusqlite::params![
-                    prompt.id.to_string(),
-                    prompt.text,
-                    format!("{:?}", prompt.r#type),
-                    prompt.folder,
-                    prompt.project_id.map(|id| id.to_string()),
-                    prompt.branch,
-                    prompt.name,
-                    prompt.staged,
-                    prompt.last_copied,
-                    prompt.is_archived,
-                    prompt.created_at.to_rfc3339(),
-                    prompt.updated_at.to_rfc3339(),
-                    prompt.order_index,
-                ],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        
-        if changed {
-            self.increment_data_version().await?;
-        }
-        Ok(())
-    }
-
-    async fn save_prompts(&self, prompts: Vec<Prompt>) -> Result<()> {
-        let db_path = self.db_path.clone();
-        let changed = tokio::task::spawn_blocking(move || {
-            let mut conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut any_changed = false;
-
-            for prompt in prompts {
-                tx.execute(
-                    "INSERT INTO prompts (id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-                     ON CONFLICT(id) DO UPDATE SET
-                        text=excluded.text,
-                        type=excluded.type,
-                        folder=excluded.folder,
-                        project_id=excluded.project_id,
-                        branch=excluded.branch,
-                        name=excluded.name,
-                        staged=excluded.staged,
-                        last_copied=excluded.last_copied,
-                        is_archived=excluded.is_archived,
-                        updated_at=excluded.updated_at,
-                        order_index=excluded.order_index
-                     WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
-                        OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
-                        OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
-                        OR order_index != excluded.order_index",
-                    rusqlite::params![
-                        prompt.id.to_string(),
-                        prompt.text,
-                        format!("{:?}", prompt.r#type),
-                        prompt.folder,
-                        prompt.project_id.map(|id| id.to_string()),
-                        prompt.branch,
-                        prompt.name,
-                        prompt.staged,
-                        prompt.last_copied,
-                        prompt.is_archived,
-                        prompt.created_at.to_rfc3339(),
-                        prompt.updated_at.to_rfc3339(),
-                        prompt.order_index,
-                    ],
-                ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-                if tx.changes() > 0 {
-                    any_changed = true;
-                }
-            }
-            tx.commit().map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<bool, contracts::Error>(any_changed)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-
-        if changed {
-            self.increment_data_version().await?;
-        }
-        Ok(())
-    }
-
-    async fn delete_prompt(&self, id: Uuid) -> Result<()> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            conn.execute("DELETE FROM prompts WHERE id = ?", [id.to_string()])
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<(), contracts::Error>(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        self.increment_data_version().await
-    }
-
-    async fn get_projects(&self) -> Result<Vec<Project>> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT id, title, created_at FROM projects ORDER BY title ASC")
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let project_iter = stmt.query_map([], |row| {
-                Ok(Project {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    title: row.get(1)?,
-                    created_at: row.get::<_, String>(2)?.parse::<DateTime<Utc>>().unwrap(),
-                })
-            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-
-            let mut projects = Vec::new();
-            for project in project_iter {
-                projects.push(project.map_err(|e| contracts::Error::Storage(e.to_string()))?);
-            }
-            Ok(projects)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
-    }
-
-    async fn save_project(&self, project: Project) -> Result<()> {
-        let db_path = self.db_path.clone();
-        let changed = tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            conn.execute(
-                "INSERT INTO projects (id, title, created_at) VALUES (?1, ?2, ?3)
-                 ON CONFLICT(id) DO UPDATE SET title=excluded.title WHERE title != excluded.title",
-                rusqlite::params![
-                    project.id.to_string(),
-                    project.title,
-                    project.created_at.to_rfc3339(),
-                ],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-
-        if changed {
-            self.increment_data_version().await?;
-        }
-        Ok(())
-    }
-
-    async fn delete_project(&self, id: Uuid) -> Result<()> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let mut conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            tx.execute("DELETE FROM projects WHERE id = ?", [id.to_string()])
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            tx.execute("UPDATE prompts SET project_id = NULL WHERE project_id = ?", [id.to_string()])
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            tx.commit().map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<(), contracts::Error>(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        self.increment_data_version().await
-    }
-
-    async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo> {
-        let db_path = self.db_path.clone();
-        let folder = folder.to_string();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT data FROM project_info WHERE folder = ?")
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data: Option<String> = stmt.query_row([folder], |row| row.get(0)).optional()
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            if let Some(d) = data {
-                serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string()))
-            } else {
-                Ok(ProjectInfo::default())
-            }
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
-    }
-
-    async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()> {
-        let db_path = self.db_path.clone();
-        let folder = folder.to_string();
-        let changed = tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data = serde_json::to_string(&info).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            conn.execute(
-                "INSERT INTO project_info (folder, data) VALUES (?1, ?2)
-                 ON CONFLICT(folder) DO UPDATE SET data=excluded.data WHERE data != excluded.data",
-                rusqlite::params![folder, data],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        
-        if changed {
-            self.increment_data_version().await?;
-        }
-        Ok(())
-    }
-
-    async fn get_settings(&self) -> Result<Settings> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT data FROM settings WHERE id = 1")
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data: Option<String> = stmt.query_row([], |row| row.get(0)).optional()
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            if let Some(d) = data {
-                serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string()))
-            } else {
-                Ok(Settings::default())
-            }
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
-    }
-
-    async fn save_settings(&self, settings: Settings) -> Result<()> {
-        let db_path = self.db_path.clone();
-        let changed = tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data = serde_json::to_string(&settings).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            conn.execute(
-                "INSERT INTO settings (id, data) VALUES (1, ?1)
-                 ON CONFLICT(id) DO UPDATE SET data=excluded.data WHERE data != excluded.data",
-                rusqlite::params![data],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        
-        if changed {
-            self.increment_data_version().await?;
-        }
-        Ok(())
-    }
-
-    async fn get_data_version(&self) -> Result<u32> {
-        let db_path = self.db_path.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            Ok(version)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
-    }
-}
-
-#[derive(Debug)]
-pub struct MockClipboard {
-    content: RwLock<String>,
-}
-
-impl MockClipboard {
-    #[must_use]
-    pub fn new() -> Self {
-        Self { content: RwLock::new(String::new()) }
-    }
-}
-
-impl Default for MockClipboard {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl Clipboard for MockClipboard {
-    async fn copy(&self, text: String) -> Result<()> {
-        let mut content = self.content.write().await;
-        *content = text;
-        Ok(())
-    }
-
-    async fn paste(&self) -> Result<String> {
-        Ok(self.content.read().await.clone())
-    }
-}
-
-#[derive(Debug)]
-pub struct MockGit {
-    branch: RwLock<Option<String>>,
-}
-
-impl MockGit {
-    #[must_use]
-    pub fn new(branch: Option<String>) -> Self {
-        Self { branch: RwLock::new(branch) }
-    }
-
-    pub async fn set_branch(&self, branch: Option<String>) {
-        let mut b = self.branch.write().await;
-        *b = branch;
-    }
-}
-
-#[async_trait]
-impl Git for MockGit {
-    async fn get_current_branch(&self, _path: &str) -> Result<Option<String>> {
-        Ok(self.branch.read().await.clone())
-    }
-}
-
-#[derive(Debug)]
-pub struct RealClipboard;
-
-impl RealClipboard {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for RealClipboard {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl Clipboard for RealClipboard {
-    async fn copy(&self, text: String) -> Result<()> {
-        tokio::task::spawn_blocking(move || {
-            let mut clipboard = arboard::Clipboard::new()
-                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
-            clipboard.set_text(text)
-                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
-            Ok(())
-        })
-        .await
-        .map_err(|e| contracts::Error::Clipboard(e.to_string()))?
-    }
-
-    async fn paste(&self) -> Result<String> {
-        tokio::task::spawn_blocking(|| {
-            let mut clipboard = arboard::Clipboard::new()
-                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
-            clipboard.get_text()
-                .map_err(|e| contracts::Error::Clipboard(e.to_string()))
-        })
-        .await
-        .map_err(|e| contracts::Error::Clipboard(e.to_string()))?
-    }
-}
-
+pub mod clipboard;
+pub mod git;
+pub mod storage;
 pub mod service;
+
+pub use clipboard::{MockClipboard, RealClipboard};
+pub use git::{MockGit, RealGit};
+pub use storage::{InMemoryStorage, SqliteStorage};
 pub use service::RealAppService;
-
-#[derive(Debug)]
-pub struct RealGit;
-
-impl RealGit {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for RealGit {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl Git for RealGit {
-    async fn get_current_branch(&self, path: &str) -> Result<Option<String>> {
-        let output = tokio::process::Command::new("git")
-            .args(["rev-parse", "--abbrev-ref", "HEAD"])
-            .current_dir(path)
-            .output()
-            .await
-            .map_err(|e| contracts::Error::Git(e.to_string()))?;
-
-        if output.status.success() {
-            let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if branch == "HEAD" || branch.is_empty() {
-                Ok(None)
-            } else {
-                Ok(Some(branch))
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use contracts::PromptType;
+    use contracts::{Prompt, PromptType, PromptFilter, Tab, Project, ProjectInfo, Settings, Storage, Clipboard, Git, AppService};
+    use uuid::Uuid;
+    use chrono::Utc;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_in_memory_storage() {
-        let storage = InMemoryStorage::new();
-        let prompt = Prompt::new("test".to_string(), PromptType::Prompt, Some("path".to_string()), None, None, None);
+        let storage = InMemoryStorage::default();
+        let project_id = Uuid::new_v4();
+        let prompt = Prompt::new("test".to_string(), PromptType::Prompt, Some("path".to_string()), Some("main".to_string()), None, Some(project_id));
 
         storage.save_prompt(prompt.clone()).await.unwrap();
+        
+        // Test various filters
         let loaded = storage.get_prompts(PromptFilter { folder: Some("path".to_string()), ..Default::default() }).await.unwrap();
-
         assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].text, "test");
+
+        let filtered_project = storage.get_prompts(PromptFilter { project_id: Some(project_id), project_filter: true, ..Default::default() }).await.unwrap();
+        assert_eq!(filtered_project.len(), 1);
+
+        let filtered_branch = storage.get_prompts(PromptFilter { branch: Some("main".to_string()), ..Default::default() }).await.unwrap();
+        assert_eq!(filtered_branch.len(), 1);
+
+        // Test all tabs
+        for tab in [Tab::Prompts, Tab::Canned, Tab::Notes, Tab::Snippets, Tab::Archive, Tab::Settings] {
+            let _ = storage.get_prompts(PromptFilter { tab: Some(tab), ..Default::default() }).await.unwrap();
+        }
+
+        // Test save_prompts
+        let prompts = vec![
+            Prompt::new("p1".to_string(), PromptType::Prompt, None, None, None, None),
+            Prompt::new("p2".to_string(), PromptType::Prompt, None, None, None, None),
+        ];
+        storage.save_prompts(prompts).await.unwrap();
+        let all = storage.get_prompts(PromptFilter::default()).await.unwrap();
+        assert!(all.len() >= 2);
+
+        // Test project info
+        let info = ProjectInfo {
+            path: "some/path".to_string(),
+        };
+        storage.save_project_info("folder", info.clone()).await.unwrap();
+        let loaded_info = storage.get_project_info("folder").await.unwrap();
+        assert_eq!(loaded_info.path, "some/path");
+
+        // Test settings
+        let settings = Settings {
+            enable_claude_commands: true,
+            ..Settings::default()
+        };
+        storage.save_settings(settings.clone()).await.unwrap();
+        let loaded_settings = storage.get_settings().await.unwrap();
+        assert!(loaded_settings.enable_claude_commands);
+        
+        assert_eq!(storage.get_data_version().await.unwrap(), 0);
     }
 
     #[tokio::test]
     async fn test_mock_clipboard() {
-        let clipboard = MockClipboard::new();
+        let clipboard = MockClipboard::default();
         clipboard.copy("hello".to_string()).await.unwrap();
         assert_eq!(clipboard.paste().await.unwrap(), "hello");
     }
@@ -788,15 +90,26 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
         let storage = SqliteStorage::new(db_path);
 
-        let prompt = Prompt::new("sqlite test".to_string(), contracts::PromptType::Prompt, Some("/path/to/project".to_string()), Some("main".to_string()), None, None);
+        let project_id = Uuid::new_v4();
+        let prompt = Prompt::new("sqlite test".to_string(), contracts::PromptType::Prompt, Some("/path/to/project".to_string()), Some("main".to_string()), None, Some(project_id));
         
         storage.save_prompt(prompt.clone()).await.unwrap();
-        let loaded = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
 
+        // Test various filters
+        let loaded = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
         assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].text, "sqlite test");
-        assert_eq!(loaded[0].branch.as_deref(), Some("main"));
-        
+
+        let filtered_project = storage.get_prompts(PromptFilter { project_id: Some(project_id), project_filter: true, ..Default::default() }).await.unwrap();
+        assert_eq!(filtered_project.len(), 1);
+
+        let filtered_branch = storage.get_prompts(PromptFilter { branch: Some("main".to_string()), ..Default::default() }).await.unwrap();
+        assert_eq!(filtered_branch.len(), 1);
+
+        // Test all tabs in SQLite
+        for tab in [Tab::Prompts, Tab::Canned, Tab::Notes, Tab::Snippets, Tab::Archive, Tab::Settings] {
+            let _ = storage.get_prompts(PromptFilter { tab: Some(tab), ..Default::default() }).await.unwrap();
+        }
+
         // Test update
         let mut updated = loaded[0].clone();
         updated.text = "updated".to_string();
@@ -806,9 +119,146 @@ mod tests {
         assert_eq!(loaded_updated.len(), 1);
         assert_eq!(loaded_updated[0].text, "updated");
         
+        // Test save_prompts (plural)
+        let prompts = vec![
+            Prompt::new("bulk1".to_string(), PromptType::Prompt, None, None, None, None),
+            Prompt::new("bulk2".to_string(), PromptType::Prompt, None, None, None, None),
+        ];
+        storage.save_prompts(prompts).await.unwrap();
+        let bulk_loaded = storage.get_prompts(PromptFilter::default()).await.unwrap();
+        assert!(bulk_loaded.iter().any(|p| p.text == "bulk1"));
+        assert!(bulk_loaded.iter().any(|p| p.text == "bulk2"));
+
+        // Test project info
+        let info = ProjectInfo {
+            path: "project/path".to_string(),
+        };
+        storage.save_project_info("folder1", info.clone()).await.unwrap();
+        let loaded_info = storage.get_project_info("folder1").await.unwrap();
+        assert_eq!(loaded_info.path, "project/path");
+
+        // Test settings
+        let settings = Settings {
+            enable_claude_commands: true,
+            ..Settings::default()
+        };
+        storage.save_settings(settings.clone()).await.unwrap();
+        let loaded_settings = storage.get_settings().await.unwrap();
+        assert!(loaded_settings.enable_claude_commands);
+
+        // Test projects
+        let project = Project {
+            id: Uuid::new_v4(),
+            title: "My Project".to_string(),
+            created_at: Utc::now(),
+        };
+        storage.save_project(project.clone()).await.unwrap();
+        let projects = storage.get_projects().await.unwrap();
+        assert!(projects.iter().any(|p| p.title == "My Project"));
+
+        // Test project deletion and prompt association
+        let mut associated_prompt = Prompt::new("associated".to_string(), PromptType::Prompt, None, None, None, None);
+        associated_prompt.project_id = Some(project.id);
+        storage.save_prompt(associated_prompt.clone()).await.unwrap();
+        
+        storage.delete_project(project.id).await.unwrap();
+        let projects_after = storage.get_projects().await.unwrap();
+        assert!(!projects_after.iter().any(|p| p.id == project.id));
+        
+        let prompt_after = storage.get_prompts(PromptFilter::default()).await.unwrap()
+            .into_iter().find(|p| p.text == "associated").unwrap();
+        assert_eq!(prompt_after.project_id, None);
+
+        // Test data version
+        let version = storage.get_data_version().await.unwrap();
+        assert!(version > 0);
+
         // Test delete
         storage.delete_prompt(prompt.id).await.unwrap();
         let loaded_deleted = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
         assert_eq!(loaded_deleted.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_real_git_logic() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path();
+        
+        // Initialize a git repo
+        let output = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(path)
+            .output();
+        
+        if output.is_err() {
+            return; // Git not installed
+        }
+        
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        
+        std::process::Command::new("git")
+            .args(["config", "user.name", "test"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        // Create a commit so we have a HEAD
+        std::fs::write(path.join("file.txt"), "hello").unwrap();
+        std::process::Command::new("git")
+            .arg("add")
+            .arg(".")
+            .current_dir(path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "initial"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        // Create and switch to a branch
+        std::process::Command::new("git")
+            .args(["checkout", "-b", "feature-test"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        let git = RealGit;
+        let branch = git.get_current_branch(path.to_str().unwrap()).await.unwrap();
+        assert_eq!(branch, Some("feature-test".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_real_app_service_search_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path();
+        
+        std::fs::create_dir_all(path.join("subdir")).unwrap();
+        std::fs::write(path.join("file1.txt"), "content").unwrap();
+        std::fs::write(path.join("subdir/file2.txt"), "content").unwrap();
+
+        let storage = Arc::new(InMemoryStorage::default());
+        let clipboard = Arc::new(MockClipboard::default());
+        let service = RealAppService::new(storage, clipboard);
+
+        let results = service.search_files(path.to_str().unwrap(), "file").await.unwrap();
+        // Should find file1.txt, subdir/file2.txt, and subdir/
+        assert!(results.len() >= 2);
+        
+        let results_subdir = service.search_files(path.to_str().unwrap(), "subdir").await.unwrap();
+        assert!(results_subdir.iter().any(|p| p.name.as_deref() == Some("subdir/")));
+    }
+
+    #[tokio::test]
+    async fn test_real_clipboard_construction() {
+        let clipboard = RealClipboard;
+        // We can't easily test copy/paste in headless environment, 
+        // but we can test it doesn't panic on construction.
+        let debug_str = format!("{clipboard:?}");
+        assert!(debug_str.contains("RealClipboard"));
     }
 }

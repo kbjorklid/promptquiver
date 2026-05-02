@@ -121,15 +121,16 @@ async fn main() -> Result<()> {
         }
 
         tui.terminal.draw(|f| {
+            let state = ui::RenderState {
+                nav: &mut app.nav,
+                editor: &mut app.editor,
+                mode: app.mode,
+                settings: &app.settings,
+                current_branch: app.current_branch.as_deref(),
+            };
             ui::render(
                 f,
-                ui::RenderState {
-                    nav: &mut app.nav,
-                    editor: &mut app.editor,
-                    mode: app.mode,
-                    settings: &app.settings,
-                    current_branch: app.current_branch.as_deref(),
-                },
+                state,
                 &mut app.toaster,
             );
         })?;

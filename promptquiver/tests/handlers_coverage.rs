@@ -102,6 +102,35 @@ async fn test_undo_redo_keys() {
 }
 
 #[tokio::test]
+async fn test_move_item_handlers() {
+    let (mut app, storage, _, _) = setup_app();
+    
+    let mut p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
+    p1.order_index = 0;
+    let mut p2 = contracts::Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
+    p2.order_index = 1;
+    storage.save_prompt(p1).await.unwrap();
+    storage.save_prompt(p2).await.unwrap();
+
+    app.load_prompts().await.unwrap();
+    assert_eq!(app.nav.prompts[0].text, "P1");
+    assert_eq!(app.nav.prompts[1].text, "P2");
+
+    app.mode = promptquiver::app::Mode::Move;
+
+    // Move P1 down
+    let move_down_key = KeyEvent {
+        code: KeyCode::Char('j'),
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    };
+    handle_key_event(&mut app, move_down_key).await;
+    assert_eq!(app.nav.prompts[1].text, "P1");
+    assert_eq!(app.nav.selected_index, 1);
+}
+
+#[tokio::test]
 async fn test_search_mode_key() {
     let (mut app, _, _, _) = setup_app();
     
@@ -350,10 +379,79 @@ async fn test_list_extra_keys() {
     handle_key_event(&mut app, k(KeyCode::Char('c'))).await; // CopySelected
     handle_key_event(&mut app, k(KeyCode::Char('y'))).await; // CopySelected
     
+    handle_key_event(&mut app, k(KeyCode::Char('f'))).await; // ToggleFolderFilter
+    handle_key_event(&mut app, k(KeyCode::Char('p'))).await; // ToggleProjectFilter
+    handle_key_event(&mut app, k(KeyCode::Char('I'))).await; // EnterEditorBefore(0)
+    app.mode = promptquiver::app::Mode::List;
+    handle_key_event(&mut app, k(KeyCode::Char('A'))).await; // EnterEditorBefore(len)
+    app.mode = promptquiver::app::Mode::List;
+    
     handle_key_event(&mut app, k(KeyCode::Char('s'))).await; // StageSelected
     handle_key_event(&mut app, k(KeyCode::Char('d'))).await; // ArchiveSelected
     // List is empty now
     handle_key_event(&mut app, k(KeyCode::Char('r'))).await; // RestoreSelected (does nothing outside Archive tab)
+}
+
+#[tokio::test]
+async fn test_settings_tab_key() {
+    let (mut app, _, _, _) = setup_app();
+    app.set_tab(Tab::Settings);
+    app.nav.selected_index = 0;
+
+    let tab_key = KeyEvent {
+        code: KeyCode::Tab,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    };
+
+    handle_key_event(&mut app, tab_key).await;
+    assert_eq!(app.nav.selected_index, 1);
+}
+
+#[tokio::test]
+async fn test_project_picker_and_add_keys() {
+    let (mut app, _, _, _) = setup_app();
+    
+    // Project Picker
+    app.mode = promptquiver::app::Mode::ProjectPicker;
+    let k = |code| KeyEvent {
+        code,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    };
+    handle_key_event(&mut app, k(KeyCode::Char('j'))).await;
+    
+    // Add Project
+    app.mode = promptquiver::app::Mode::AddProject;
+    handle_key_event(&mut app, k(KeyCode::Char('T'))).await;
+    handle_key_event(&mut app, k(KeyCode::Char('e'))).await;
+    handle_key_event(&mut app, k(KeyCode::Char('s'))).await;
+    handle_key_event(&mut app, k(KeyCode::Char('t'))).await;
+    assert_eq!(app.nav.projects_manager.new_project_name, "Test");
+
+    handle_key_event(&mut app, k(KeyCode::Backspace)).await;
+    assert_eq!(app.nav.projects_manager.new_project_name, "Tes");
+
+    handle_key_event(&mut app, k(KeyCode::Enter)).await;
+    // Should have added project "Tes" and switched back (logic is in App::handle_message)
+    
+    app.mode = promptquiver::app::Mode::AddProject;
+    handle_key_event(&mut app, k(KeyCode::Esc)).await;
+    assert_eq!(app.mode, promptquiver::app::Mode::ProjectPicker);
+}
+
+#[tokio::test]
+async fn test_paste_event() {
+    let (mut app, _, _, _) = setup_app();
+    app.mode = promptquiver::app::Mode::Editor;
+    
+    use promptquiver::handlers::handle_event;
+    use crossterm::event::Event;
+    
+    handle_event(&mut app, Event::Paste("pasted content".to_string())).await;
+    // AppMessage::Paste should be handled
 }
 
 #[tokio::test]
@@ -410,5 +508,83 @@ async fn test_move_extra_keys() {
     app.mode = promptquiver::app::Mode::Move;
     handle_key_event(&mut app, k(KeyCode::Enter)).await; // ToggleMoveMode
     assert_eq!(app.mode, promptquiver::app::Mode::List);
+}
+
+#[tokio::test]
+async fn test_app_handle_message_transitions() {
+    let (mut app, _, _, _) = setup_app();
+
+    // Test ThemePickerInput transition
+    app.mode = promptquiver::app::Mode::ThemePicker;
+    app.handle_message(ui::AppMessage::ThemePickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE))).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+
+    // Test ProjectPickerInput transition
+    app.mode = promptquiver::app::Mode::ProjectPicker;
+    app.handle_message(ui::AppMessage::ProjectPickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE))).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+
+    // Test AddProject transition
+    app.mode = promptquiver::app::Mode::AddProject;
+    app.handle_message(ui::AppMessage::AddProject("New Project".to_string())).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+
+    // Test SearchInput Enter transition
+    app.mode = promptquiver::app::Mode::Search;
+    app.handle_message(ui::AppMessage::SearchInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE))).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+
+    // Test SearchInput Esc transition
+    app.mode = promptquiver::app::Mode::Search;
+    app.handle_message(ui::AppMessage::SearchInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE))).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+}
+
+#[tokio::test]
+async fn test_app_handle_message_global_handlers() {
+    let (mut app, _, _, _) = setup_app();
+
+    // Test Quit
+    app.handle_message(ui::AppMessage::Quit).await.unwrap();
+    assert!(app.should_quit);
+
+    // Test Notify
+    app.handle_message(ui::AppMessage::Notify("Hello".to_string(), ratatui_toaster::ToastType::Info)).await.unwrap();
+
+    // Test EnterEditor/ExitEditor
+    app.handle_message(ui::AppMessage::EnterEditor("text".to_string(), None)).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::Editor);
+    app.handle_message(ui::AppMessage::ExitEditor).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+
+    // Test ConfirmDiscard/CancelDiscard
+    app.mode = promptquiver::app::Mode::Editor;
+    app.handle_message(ui::AppMessage::ConfirmDiscard).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::ConfirmDiscard);
+    app.handle_message(ui::AppMessage::CancelDiscard).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::Editor);
+
+    // Test ToggleMoveMode
+    app.mode = promptquiver::app::Mode::List;
+    app.handle_message(ui::AppMessage::ToggleMoveMode).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::Move);
+    app.handle_message(ui::AppMessage::ToggleMoveMode).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::List);
+
+    // Test Search
+    app.handle_message(ui::AppMessage::Search("query".to_string())).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::Search);
+
+    // Test SelectTheme
+    app.handle_message(ui::AppMessage::SelectTheme).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::ThemePicker);
+
+    // Test SelectProject
+    app.handle_message(ui::AppMessage::SelectProject).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::ProjectPicker);
+
+    // Test EnterAddProject
+    app.handle_message(ui::AppMessage::EnterAddProject).await.unwrap();
+    assert_eq!(app.mode, promptquiver::app::Mode::AddProject);
 }
 

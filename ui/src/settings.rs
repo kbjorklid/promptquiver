@@ -1,23 +1,21 @@
-use contracts::{Settings, Tab};
+use contracts::Tab;
 use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::{Style, Modifier};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui_textarea::TextArea;
 use crate::utils::get_palette;
+use crate::types::{RenderState, Mode};
 
 pub fn render(
     f: &mut Frame<'_>,
     area: Rect,
-    settings: &Settings,
-    selected_index: usize,
-    textarea: Option<&TextArea<'_>>,
-    slash_list_state: &mut ratatui::widgets::ListState,
-    theme_list_state: &mut ratatui::widgets::ListState,
-    theme_picker_open: bool,
-    scroll_offset: &mut u16,
-    projects: &[contracts::Project],
+    state: &mut RenderState<'_, '_>,
 ) {
+    let settings = state.settings;
+    let selected_index = state.nav.selected_index;
+    let projects = &state.nav.projects_manager.projects;
+    let theme_picker_open = state.mode == Mode::ThemePicker;
+    let textarea = if state.mode == Mode::Editor { Some(&state.editor.textarea) } else { None };
     let palette = get_palette(settings.theme_name.as_deref());
     
     // Calculate heights
@@ -45,6 +43,7 @@ pub fn render(
     };
 
     // Keep selected item in view
+    let scroll_offset = &mut state.nav.settings_scroll_offset;
     if selected_y < *scroll_offset + 1 {
         *scroll_offset = selected_y.saturating_sub(1);
     } else if selected_y > *scroll_offset + area.height.saturating_sub(2) {
@@ -143,12 +142,12 @@ pub fn render(
     
     if slash_area.y < area.y + area.height && slash_area.y + slash_area.height > area.y {
         let render_area = area.intersection(slash_area);
-        f.render_stateful_widget(slash_list, render_area, slash_list_state);
+        f.render_stateful_widget(slash_list, render_area, &mut state.nav.settings_slash_list_state);
 
         // Render TextArea in-line
         if let Some(ta) = textarea {
             if selected_index >= tabs_len && selected_index <= tabs_len + slash_len {
-                let offset = slash_list_state.offset();
+                let offset = state.nav.settings_slash_list_state.offset();
                 let relative_idx = selected_index - tabs_len;
                 
                 if relative_idx >= offset {
@@ -156,14 +155,14 @@ pub fn render(
                     // Check if the line is within the visible portion of slash_area AND within the screen area
                     let line_y = slash_area.y + 1 + y_offset;
                     if line_y >= area.y && line_y < area.y + area.height {
-                        let ta_area = Rect {
+                        let cmd_area = Rect {
                             x: slash_area.x + 5,
                             y: line_y,
                             width: slash_area.width.saturating_sub(7),
                             height: 1,
                         };
-                        f.render_widget(Clear, ta_area);
-                        f.render_widget(ta, ta_area);
+                        f.render_widget(Clear, cmd_area);
+                        f.render_widget(ta, cmd_area);
                     }
                 }
             }
@@ -203,11 +202,10 @@ pub fn render(
     ];
 
     if settings.startup_behavior == contracts::StartupBehavior::Specific {
-        let project_name = if let Some(id) = settings.specific_project_id {
-            projects.iter().find(|p| p.id == id).map(|p| p.title.clone()).unwrap_or_else(|| "Default".into())
-        } else {
-            "Default".into()
-        };
+        let project_name = settings.specific_project_id.map_or_else(
+            || "Default".into(),
+            |id| projects.iter().find(|p| p.id == id).map_or_else(|| "Default".into(), |p| p.title.clone())
+        );
         advanced_items.push(
             ListItem::new(format!("{} Startup Project: {}", if selected_index == advanced_idx + 4 { ">" } else { " " }, project_name))
                 .style(if selected_index == advanced_idx + 4 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) })
@@ -256,7 +254,7 @@ pub fn render(
 
         let picker_area = crate::utils::centered_rect(60, 60, f.area());
         f.render_widget(Clear, picker_area);
-        f.render_stateful_widget(list, picker_area, theme_list_state);
+        f.render_stateful_widget(list, picker_area, &mut state.nav.theme_list_state);
     }
 }
 

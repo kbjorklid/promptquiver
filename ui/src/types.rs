@@ -72,6 +72,15 @@ pub enum AppMessage {
     SelectStartupProject,
 }
 
+#[derive(Debug)]
+pub struct RenderState<'a, 'b> {
+    pub nav: &'a mut crate::list_module::ListModule,
+    pub editor: &'a mut crate::editor_module::EditorModule<'b>,
+    pub mode: Mode,
+    pub settings: &'a Settings,
+    pub current_branch: Option<&'a str>,
+}
+
 pub struct UpdateContext<'a> {
     pub storage: &'a Arc<dyn Storage>,
     pub clipboard: &'a Arc<dyn Clipboard>,

@@ -87,6 +87,11 @@ impl Processor {
     }
 
     /// Expands snippets in the format $$name
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the internal snippet regex fails to compile, 
+    /// which should never happen as the pattern is static and valid.
     pub fn expand_snippets(text: &str, snippets: &[Prompt]) -> String {
         let mut result = text.to_string();
         let re = Regex::new(r"\$\$([a-zA-Z0-9_-]+)").unwrap();
@@ -176,5 +181,17 @@ mod tests {
         assert_eq!(Processor::get_display_title("-- Title [Draft]\n\nContent").0, "[DRAFT] Title");
         assert_eq!(Processor::get_display_title("-- draft\n\nContent").0, "[DRAFT]");
         assert_eq!(Processor::get_display_title("No extractable title").0, "No extractable title");
+    }
+
+    #[test]
+    fn test_expand_snippets() {
+        let snippets = vec![
+            Prompt::new("Snippet Content".to_string(), crate::PromptType::Snippet, None, None, Some("mysnip".to_string()), None),
+        ];
+        let text = "Use $$mysnip here";
+        assert_eq!(Processor::expand_snippets(text, &snippets), "Use Snippet Content here");
+        
+        let text_missing = "Use $$unknown here";
+        assert_eq!(Processor::expand_snippets(text_missing, &snippets), "Use $$unknown here");
     }
 }

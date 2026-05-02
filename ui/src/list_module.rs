@@ -1,37 +1,26 @@
 use contracts::{Prompt, Tab, Storage, Result, PreviewMode, PromptFilter};
 use std::sync::Arc;
-use uuid::Uuid;
-use chrono;
-
-#[derive(Debug, Clone)]
-pub struct HistoryEntry {
-    pub tab: Tab,
-    pub prompts: Vec<Prompt>,
-}
+use crate::history_manager::HistoryManager;
+use crate::project_manager::ProjectManager;
 
 #[derive(Debug)]
 pub struct ListModule {
     pub active_tab: Tab,
     pub prompts: Vec<Prompt>,
-    pub projects: Vec<contracts::Project>,
     pub selected_index: usize,
     pub list_state: ratatui::widgets::ListState,
     pub settings_slash_list_state: ratatui::widgets::ListState,
     pub theme_list_state: ratatui::widgets::ListState,
-    pub project_list_state: ratatui::widgets::ListState,
-    pub undo_stack: Vec<HistoryEntry>,
-    pub redo_stack: Vec<HistoryEntry>,
+    pub history: HistoryManager,
+    pub projects_manager: ProjectManager,
     pub branch_filter: bool,
     pub folder_filter: bool,
     pub project_filter: bool,
-    pub active_project_id: Option<Uuid>,
     pub search_query: String,
     pub current_path: String,
     pub original_theme: Option<String>,
     pub current_branch: Option<String>,
     pub settings_scroll_offset: u16,
-    pub new_project_name: String,
-    pub selecting_startup_project: bool,
 }
 
 impl Default for ListModule {
@@ -39,18 +28,15 @@ impl Default for ListModule {
         Self {
             active_tab: Tab::Prompts,
             prompts: Vec::new(),
-            projects: Vec::new(),
             selected_index: 0,
             list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             theme_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            project_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
+            history: HistoryManager::default(),
+            projects_manager: ProjectManager::default(),
             branch_filter: false,
             folder_filter: true,
             project_filter: false,
-            active_project_id: None,
             search_query: String::new(),
             current_path: std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
@@ -59,8 +45,6 @@ impl Default for ListModule {
             original_theme: None,
             current_branch: None,
             settings_scroll_offset: 0,
-            new_project_name: String::new(),
-            selecting_startup_project: false,
         }
     }
 }
@@ -70,6 +54,10 @@ impl ListModule {
         Self::default()
     }
 
+    /// Loads prompts from storage based on current filters.
+    ///
+    /// # Errors
+    /// Returns an error if the storage cannot be accessed.
     pub async fn load_prompts(&mut self, storage: &Arc<dyn Storage>) -> Result<()> {
         let path = self.current_project_path();
         
@@ -79,7 +67,7 @@ impl ListModule {
         let filter = PromptFilter {
             folder: if !self.folder_filter || self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets { None } else { Some(path) },
             branch: if self.branch_filter { self.current_branch.clone() } else { None },
-            project_id: if self.project_filter { self.active_project_id } else { None },
+            project_id: if self.project_filter { self.projects_manager.active_project_id } else { None },
             project_filter: self.project_filter,
             tab: Some(self.active_tab),
         };
@@ -120,7 +108,7 @@ impl ListModule {
         self.list_state.select(Some(0));
     }
 
-    pub fn set_tab(&mut self, tab: Tab) {
+    pub const fn set_tab(&mut self, tab: Tab) {
         self.active_tab = tab;
         self.selected_index = 0;
         self.list_state.select(Some(0));
@@ -170,7 +158,7 @@ impl ListModule {
         }
     }
 
-    pub fn move_to_top(&mut self) {
+    pub const fn move_to_top(&mut self) {
         self.selected_index = 0;
         self.list_state.select(Some(0));
     }
@@ -192,54 +180,10 @@ impl ListModule {
         }
     }
 
-    pub fn push_history(&mut self) {
-        let entry = HistoryEntry {
-            tab: self.active_tab,
-            prompts: self.prompts.clone(),
-        };
-        self.undo_stack.push(entry);
-        self.redo_stack.clear();
-        
-        // Limit stack size
-        if self.undo_stack.len() > 100 {
-            self.undo_stack.remove(0);
-        }
-    }
-
-    pub async fn undo(&mut self, storage: &Arc<dyn Storage>) -> Result<bool> {
-        if let Some(entry) = self.undo_stack.pop() {
-            let current = HistoryEntry {
-                tab: self.active_tab,
-                prompts: self.prompts.clone(),
-            };
-            self.redo_stack.push(current);
-
-            self.active_tab = entry.tab;
-            self.prompts = entry.prompts;
-            
-            self.save_current_list(storage).await?;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    pub async fn redo(&mut self, storage: &Arc<dyn Storage>) -> Result<bool> {
-        if let Some(entry) = self.redo_stack.pop() {
-            let current = HistoryEntry {
-                tab: self.active_tab,
-                prompts: self.prompts.clone(),
-            };
-            self.undo_stack.push(current);
-
-            self.active_tab = entry.tab;
-            self.prompts = entry.prompts;
-
-            self.save_current_list(storage).await?;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
+    /// Saves the current list order to storage.
+    ///
+    /// # Errors
+    /// Returns an error if the storage cannot be accessed.
     pub async fn save_current_list(&self, storage: &Arc<dyn Storage>) -> Result<()> {
         let mut prompts = self.prompts.clone();
         for (i, p) in prompts.iter_mut().enumerate() {
@@ -249,6 +193,14 @@ impl ListModule {
         Ok(())
     }
 
+    pub fn push_history(&mut self) {
+        self.history.push(self.active_tab, self.prompts.clone());
+    }
+
+    /// Handles application messages and updates state.
+    ///
+    /// # Errors
+    /// Returns an error if storage or service operations fail.
     pub async fn update(&mut self, msg: crate::types::AppMessage, ctx: &mut crate::types::UpdateContext<'_>) -> Result<Option<crate::types::AppMessage>> {
         use crate::types::AppMessage;
         match msg {
@@ -256,12 +208,16 @@ impl ListModule {
             AppMessage::PrevTab => { self.prev_tab(ctx.settings); self.load_prompts(ctx.storage).await?; }
             AppMessage::SetTab(tab) => { self.set_tab(tab); self.load_prompts(ctx.storage).await?; }
             AppMessage::Undo => {
-                if self.undo(ctx.storage).await? {
+                if let Some(entry) = self.history.undo(self.active_tab, self.prompts.clone(), ctx.storage).await? {
+                    self.active_tab = entry.tab;
+                    self.prompts = entry.prompts;
                     return Ok(Some(AppMessage::Notify("Undo".into(), ratatui_toaster::ToastType::Info)));
                 }
             }
             AppMessage::Redo => {
-                if self.redo(ctx.storage).await? {
+                if let Some(entry) = self.history.redo(self.active_tab, self.prompts.clone(), ctx.storage).await? {
+                    self.active_tab = entry.tab;
+                    self.prompts = entry.prompts;
                     return Ok(Some(AppMessage::Notify("Redo".into(), ratatui_toaster::ToastType::Info)));
                 }
             }
@@ -269,22 +225,20 @@ impl ListModule {
             AppMessage::MoveUp => self.move_up(ctx.settings),
             AppMessage::MoveToTop => self.move_to_top(),
             AppMessage::MoveToBottom => self.move_to_bottom(ctx.settings),
-            AppMessage::MoveItemUp => {
-                if self.selected_index > 0 && !self.prompts.is_empty() {
-                    self.push_history();
+            AppMessage::MoveItemUp
+                if self.selected_index > 0 && !self.prompts.is_empty() => {
+                    self.history.push(self.active_tab, self.prompts.clone());
                     self.prompts.swap(self.selected_index, self.selected_index - 1);
                     self.selected_index -= 1;
                     self.save_current_list(ctx.storage).await?;
                 }
-            }
-            AppMessage::MoveItemDown => {
-                if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 {
-                    self.push_history();
+            AppMessage::MoveItemDown
+                if !self.prompts.is_empty() && self.selected_index < self.prompts.len() - 1 => {
+                    self.history.push(self.active_tab, self.prompts.clone());
                     self.prompts.swap(self.selected_index, self.selected_index + 1);
                     self.selected_index += 1;
                     self.save_current_list(ctx.storage).await?;
                 }
-            }
             AppMessage::StageSelected => {
                 if self.active_tab == Tab::Settings || self.prompts.is_empty() {
                     return Ok(None);
@@ -294,7 +248,7 @@ impl ListModule {
                 let is_staged = item.staged;
                 let is_alias = self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets;
 
-                self.push_history();
+                self.history.push(self.active_tab, self.prompts.clone());
                 ctx.service.stage_item(&self.current_project_path(), self.active_tab, item).await?;
 
                 let notify_msg = if is_alias {
@@ -330,7 +284,7 @@ impl ListModule {
                     return Ok(None);
                 }
 
-                self.push_history();
+                self.history.push(self.active_tab, self.prompts.clone());
                 let target = self.prompts[self.selected_index].clone();
 
                 ctx.service.archive_item(&self.current_project_path(), self.active_tab, target).await?;
@@ -350,7 +304,7 @@ impl ListModule {
                     return Ok(None);
                 }
 
-                self.push_history();
+                self.history.push(self.active_tab, self.prompts.clone());
                 let target = self.prompts[self.selected_index].clone();
 
                 if let Some(new_prompt) = ctx.service.duplicate_item(&self.current_project_path(), self.active_tab, target).await? {
@@ -365,7 +319,7 @@ impl ListModule {
                     return Ok(None);
                 }
 
-                self.push_history();
+                self.history.push(self.active_tab, self.prompts.clone());
                 let target = self.prompts[self.selected_index].clone();
 
                 ctx.service.restore_item(&self.current_project_path(), target).await?;
@@ -403,51 +357,48 @@ impl ListModule {
                 self.branch_filter = !self.branch_filter;
                 self.load_prompts(ctx.storage).await?;
                 let status = if self.branch_filter { "ON" } else { "OFF" };
-                return Ok(Some(AppMessage::Notify(format!("Branch filter: {}", status), ratatui_toaster::ToastType::Info)));
+                return Ok(Some(AppMessage::Notify(format!("Branch filter: {status}"), ratatui_toaster::ToastType::Info)));
             }
             AppMessage::ToggleFolderFilter => {
                 self.folder_filter = !self.folder_filter;
                 self.load_prompts(ctx.storage).await?;
                 let status = if self.folder_filter { "ON" } else { "OFF" };
-                return Ok(Some(AppMessage::Notify(format!("Folder filter: {}", status), ratatui_toaster::ToastType::Info)));
+                return Ok(Some(AppMessage::Notify(format!("Folder filter: {status}"), ratatui_toaster::ToastType::Info)));
             }
             AppMessage::ToggleProjectFilter => {
                 self.project_filter = !self.project_filter;
                 self.load_prompts(ctx.storage).await?;
                 let status = if self.project_filter { "ON" } else { "OFF" };
-                return Ok(Some(AppMessage::Notify(format!("Project filter: {}", status), ratatui_toaster::ToastType::Info)));
+                return Ok(Some(AppMessage::Notify(format!("Project filter: {status}"), ratatui_toaster::ToastType::Info)));
             }
             AppMessage::SelectProject => {
-                self.projects = ctx.storage.get_projects().await?;
+                self.projects_manager.load_projects(ctx.storage).await?;
                 // Select active project in list
-                let id_to_match = if self.selecting_startup_project { ctx.settings.specific_project_id } else { self.active_project_id };
+                let id_to_match = if self.projects_manager.selecting_startup_project { ctx.settings.specific_project_id } else { self.projects_manager.active_project_id };
                 let pos = if let Some(id) = id_to_match {
-                    self.projects.iter().position(|p| p.id == id).map(|p| p + 1).unwrap_or(0)
+                    self.projects_manager.projects.iter().position(|p| p.id == id).map_or(0, |p| p + 1)
                 } else {
                     0
                 };
-                self.project_list_state.select(Some(pos));
+                self.projects_manager.project_list_state.select(Some(pos));
             }
             AppMessage::SetProject(id) => {
-                if self.selecting_startup_project {
-                    self.selecting_startup_project = false;
-                    ctx.settings.specific_project_id = id;
-                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                let is_startup = self.projects_manager.select_project(id, ctx.settings);
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                
+                if is_startup {
                     return Ok(Some(AppMessage::Notify("Startup project updated".into(), ratatui_toaster::ToastType::Info)));
-                } else {
-                    self.active_project_id = id;
-                    self.project_filter = true;
-                    ctx.settings.last_active_project_id = id;
-                    ctx.storage.save_settings(ctx.settings.clone()).await?;
-                    self.load_prompts(ctx.storage).await?;
-                    
-                    let name = if let Some(id) = id {
-                        self.projects.iter().find(|p| p.id == id).map(|p| p.title.clone()).unwrap_or_else(|| "Default".into())
-                    } else {
-                        "Default".into()
-                    };
-                    return Ok(Some(AppMessage::Notify(format!("Active project: {}", name), ratatui_toaster::ToastType::Info)));
                 }
+                
+                self.project_filter = true;
+                self.load_prompts(ctx.storage).await?;
+                
+                let name = if let Some(id) = id {
+                    self.projects_manager.projects.iter().find(|p| p.id == id).map_or_else(|| "Default".into(), |p| p.title.clone())
+                } else {
+                    "Default".into()
+                };
+                return Ok(Some(AppMessage::Notify(format!("Active project: {name}"), ratatui_toaster::ToastType::Info)));
             }
             AppMessage::ToggleStartupBehavior => {
                 ctx.settings.startup_behavior = match ctx.settings.startup_behavior {
@@ -458,7 +409,7 @@ impl ListModule {
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
             }
             AppMessage::SelectStartupProject => {
-                self.selecting_startup_project = true;
+                self.projects_manager.selecting_startup_project = true;
                 return Ok(Some(AppMessage::SelectProject));
             }
             AppMessage::AddProject(name) => {
@@ -466,61 +417,45 @@ impl ListModule {
                 if name.is_empty() {
                     return Ok(Some(AppMessage::Notify("Project title cannot be empty".into(), ratatui_toaster::ToastType::Error)));
                 }
-                let project = contracts::Project {
-                    id: Uuid::new_v4(),
-                    title: name.to_string(),
-                    created_at: chrono::Utc::now(),
-                };
-                ctx.storage.save_project(project.clone()).await?;
-                self.active_project_id = Some(project.id);
+                self.projects_manager.add_project(name, ctx.storage, ctx.settings).await?;
                 self.project_filter = true;
-                ctx.settings.last_active_project_id = Some(project.id);
-                ctx.storage.save_settings(ctx.settings.clone()).await?;
-                self.projects = ctx.storage.get_projects().await?;
                 self.load_prompts(ctx.storage).await?;
             }
             AppMessage::DeleteProject(id) => {
-                ctx.storage.delete_project(id).await?;
-                if self.active_project_id == Some(id) {
-                    self.active_project_id = None;
-                    self.project_filter = true;
-                    ctx.settings.last_active_project_id = None;
-                    ctx.storage.save_settings(ctx.settings.clone()).await?;
-                }
-                self.projects = ctx.storage.get_projects().await?;
+                self.projects_manager.delete_project(id, ctx.storage, ctx.settings).await?;
+                self.project_filter = true;
                 self.load_prompts(ctx.storage).await?;
                 return Ok(Some(AppMessage::Notify("Project deleted".into(), ratatui_toaster::ToastType::Warning)));
             }
             AppMessage::ProjectPickerInput(key) => {
                 match key.code {
                     crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
-                        let total = self.projects.len() + 2; // Default + Projects + Add New
-                        let current = self.project_list_state.selected().unwrap_or(0);
-                        self.project_list_state.select(Some((current + 1) % total));
+                        let total = self.projects_manager.projects.len() + 2; // Default + Projects + Add New
+                        let current = self.projects_manager.project_list_state.selected().unwrap_or(0);
+                        self.projects_manager.project_list_state.select(Some((current + 1) % total));
                     }
                     crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
-                        let total = self.projects.len() + 2;
-                        let current = self.project_list_state.selected().unwrap_or(0);
-                        self.project_list_state.select(Some((current + total - 1) % total));
+                        let total = self.projects_manager.projects.len() + 2;
+                        let current = self.projects_manager.project_list_state.selected().unwrap_or(0);
+                        self.projects_manager.project_list_state.select(Some((current + total - 1) % total));
                     }
                     crossterm::event::KeyCode::Enter => {
-                        let selected = self.project_list_state.selected().unwrap_or(0);
+                        let selected = self.projects_manager.project_list_state.selected().unwrap_or(0);
                         if selected == 0 {
                             return Ok(Some(AppMessage::SetProject(None)));
-                        } else if selected <= self.projects.len() {
-                            let id = self.projects[selected - 1].id;
+                        } else if selected <= self.projects_manager.projects.len() {
+                            let id = self.projects_manager.projects[selected - 1].id;
                             return Ok(Some(AppMessage::SetProject(Some(id))));
-                        } else {
-                            return Ok(Some(AppMessage::EnterAddProject));
                         }
+                        return Ok(Some(AppMessage::EnterAddProject));
                     }
                     crossterm::event::KeyCode::Tab => {
                         self.project_filter = !self.project_filter;
                     }
                     crossterm::event::KeyCode::Char('x') => {
-                        let selected = self.project_list_state.selected().unwrap_or(0);
-                        if selected > 0 && selected <= self.projects.len() {
-                            let id = self.projects[selected - 1].id;
+                        let selected = self.projects_manager.project_list_state.selected().unwrap_or(0);
+                        if selected > 0 && selected <= self.projects_manager.projects.len() {
+                            let id = self.projects_manager.projects[selected - 1].id;
                             return Ok(Some(AppMessage::DeleteProject(id)));
                         }
                     }
@@ -569,7 +504,7 @@ impl ListModule {
                 self.original_theme = ctx.settings.theme_name.clone();
                 let themes = ratatui_themes::ThemeName::all();
                 if let Some(ref current_name) = ctx.settings.theme_name {
-                    if let Some(pos) = themes.iter().position(|t| format!("{:?}", t) == *current_name) {
+                    if let Some(pos) = themes.iter().position(|t| format!("{t:?}") == *current_name) {
                         self.theme_list_state.select(Some(pos));
                     } else {
                         self.theme_list_state.select(Some(0));
@@ -624,7 +559,7 @@ impl ListModule {
                     PreviewMode::Hidden => "Hidden",
                 };
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
-                return Ok(Some(AppMessage::Notify(format!("Preview mode: {}", mode_str), ratatui_toaster::ToastType::Info)));
+                return Ok(Some(AppMessage::Notify(format!("Preview mode: {mode_str}"), ratatui_toaster::ToastType::Info)));
             }
             _ => {}
         }

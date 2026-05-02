@@ -2,6 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, Event};
 use crate::app::{App, Mode, AppMessage};
 use contracts::Tab;
 use ratatui_toaster::ToastType;
+use ui::shortcuts::{get_action, ShortcutAction};
 
 pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
     let mut i = 0;
@@ -49,15 +50,18 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
         let messages = match event {
             Event::Key(key) => {
                 if key.kind == crossterm::event::KeyEventKind::Press || key.kind == crossterm::event::KeyEventKind::Repeat {
-                    match app.mode {
-                        Mode::List => handle_list_events(app, *key),
-                        Mode::Editor => handle_editor_events(app, *key),
-                        Mode::Move => handle_move_events(app, *key),
-                        Mode::Search => handle_search_events(app, *key),
-        Mode::ConfirmDiscard => handle_confirm_discard_events(app, *key),
-                        Mode::ThemePicker => handle_theme_picker_events(app, *key),
-                        Mode::ProjectPicker => handle_project_picker_events(app, *key),
-                        Mode::AddProject => handle_add_project_events(app, *key),
+                    if let Some(action) = get_action(*key, app.mode, app.nav.active_tab, app.editor.autocomplete.open) {
+                        map_action_to_messages(app, action)
+                    } else {
+                        // Fallback for keys not handled by ShortcutAction (e.g. typing in editor)
+                        match app.mode {
+                            Mode::Editor => vec![AppMessage::EditorInput(*key)],
+                            Mode::Search => vec![AppMessage::SearchInput(*key)],
+                            Mode::ThemePicker => vec![AppMessage::ThemePickerInput(*key)],
+                            Mode::ProjectPicker => vec![AppMessage::ProjectPickerInput(*key)],
+                            Mode::AddProject => handle_add_project_events(app, *key),
+                            _ => Vec::new(),
+                        }
                     }
                 } else {
                     Vec::new()
@@ -84,76 +88,64 @@ pub async fn handle_key_event(app: &mut App<'_>, key: KeyEvent) {
     handle_event(app, Event::Key(key)).await;
 }
 
-fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
+fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessage> {
     let mut messages = Vec::new();
-    match key.code {
-        KeyCode::Char('q') => messages.push(AppMessage::Quit),
-        KeyCode::Right | KeyCode::Char('l') => messages.push(AppMessage::NextTab),
-        KeyCode::Left | KeyCode::Char('h') => messages.push(AppMessage::PrevTab),
-        KeyCode::Tab if app.nav.active_tab == Tab::Settings => {
-            let tabs_len = Tab::settings_display_len();
-            let slash_len = app.settings.slash_commands.len();
-            let advanced_idx = tabs_len + slash_len + 1;
+    match action {
+        ShortcutAction::Quit => messages.push(AppMessage::Quit),
+        ShortcutAction::NextTab => {
+            if app.mode == Mode::List && app.nav.active_tab == Tab::Settings {
+                let tabs_len = Tab::settings_display_len();
+                let slash_len = app.settings.slash_commands.len();
+                let advanced_idx = tabs_len + slash_len + 1;
 
-            if app.nav.selected_index < tabs_len {
-                messages.push(AppMessage::MoveDown); // Simplification: we'd need a specific jump message for exact match
-            } else if app.nav.selected_index < advanced_idx {
-                messages.push(AppMessage::MoveDown);
+                if app.nav.selected_index < tabs_len {
+                    messages.push(AppMessage::MoveDown);
+                } else if app.nav.selected_index < advanced_idx {
+                    messages.push(AppMessage::MoveDown);
+                } else {
+                    messages.push(AppMessage::MoveToTop);
+                }
             } else {
-                messages.push(AppMessage::MoveToTop);
+                messages.push(AppMessage::NextTab);
             }
         }
-        KeyCode::Char('1') => messages.push(AppMessage::SetTab(Tab::Prompts)),
-        KeyCode::Char('2') => messages.push(AppMessage::SetTab(Tab::Canned)),
-        KeyCode::Char('3') => messages.push(AppMessage::SetTab(Tab::Notes)),
-        KeyCode::Char('4') => messages.push(AppMessage::SetTab(Tab::Snippets)),
-        KeyCode::Char('5') => messages.push(AppMessage::SetTab(Tab::Archive)),
-        KeyCode::Char('6') => messages.push(AppMessage::SetTab(Tab::Settings)),
-        KeyCode::Char('u') => messages.push(AppMessage::Undo),
-        KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => messages.push(AppMessage::Redo),
-        KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            messages.push(AppMessage::CyclePreviewMode);
-        }
-        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            messages.push(AppMessage::SelectProject);
-        }
-        KeyCode::Char('j') | KeyCode::Down => messages.push(AppMessage::MoveDown),
-        KeyCode::Char('k') | KeyCode::Up => messages.push(AppMessage::MoveUp),
-        KeyCode::Char('s') => messages.push(AppMessage::StageSelected),
-        KeyCode::Char('d') => messages.push(AppMessage::ArchiveSelected),
-        KeyCode::Char('D') => messages.push(AppMessage::DuplicateSelected),
-        KeyCode::Char('r') => messages.push(AppMessage::RestoreSelected),
-        KeyCode::Char('a') => {
+        ShortcutAction::PrevTab => messages.push(AppMessage::PrevTab),
+        ShortcutAction::SetTab(tab) => messages.push(AppMessage::SetTab(tab)),
+        ShortcutAction::Undo => messages.push(AppMessage::Undo),
+        ShortcutAction::Redo => messages.push(AppMessage::Redo),
+        ShortcutAction::CyclePreviewMode => messages.push(AppMessage::CyclePreviewMode),
+        ShortcutAction::SelectProject => messages.push(AppMessage::SelectProject),
+        ShortcutAction::MoveDown => messages.push(AppMessage::MoveDown),
+        ShortcutAction::MoveUp => messages.push(AppMessage::MoveUp),
+        ShortcutAction::MoveToTop => messages.push(AppMessage::MoveToTop),
+        ShortcutAction::MoveToBottom => messages.push(AppMessage::MoveToBottom),
+        ShortcutAction::StageSelected => messages.push(AppMessage::StageSelected),
+        ShortcutAction::ArchiveSelected => messages.push(AppMessage::ArchiveSelected),
+        ShortcutAction::DuplicateSelected => messages.push(AppMessage::DuplicateSelected),
+        ShortcutAction::RestoreSelected => messages.push(AppMessage::RestoreSelected),
+        ShortcutAction::Add => {
             if app.nav.active_tab == Tab::Settings {
                 messages.push(AppMessage::EditSetting);
             } else {
                 messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index + 1));
             }
         }
-        KeyCode::Char('i') => {
+        ShortcutAction::AddBefore => {
             if app.nav.active_tab != Tab::Settings {
                 messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index));
             }
         }
-        KeyCode::Char('I') => {
+        ShortcutAction::AddAtTop => {
             if app.nav.active_tab != Tab::Settings {
                 messages.push(AppMessage::EnterEditorBefore(String::new(), 0));
             }
         }
-        KeyCode::Char('A') => {
+        ShortcutAction::AddAtBottom => {
             if app.nav.active_tab != Tab::Settings {
                 messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.prompts.len()));
             }
         }
-        KeyCode::Char('b') => messages.push(AppMessage::ToggleBranchFilter),
-        KeyCode::Char('f') => messages.push(AppMessage::ToggleFolderFilter),
-        KeyCode::Char('p') => messages.push(AppMessage::ToggleProjectFilter),
-        KeyCode::Char('/') => {
-            messages.push(AppMessage::Search(String::new()));
-        }
-        KeyCode::Char('G') => messages.push(AppMessage::MoveToBottom),
-        KeyCode::Char('g') => messages.push(AppMessage::MoveToTop),
-        KeyCode::Char('e') | KeyCode::Enter => {
+        ShortcutAction::EditSelected => {
             if app.nav.active_tab == Tab::Settings {
                 let tabs_len = Tab::settings_display_len();
                 let slash_len = app.settings.slash_commands.len();
@@ -176,82 +168,32 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
                 messages.push(AppMessage::EnterEditor(p.text.clone(), Some(p.id)));
             }
         }
-        KeyCode::Char('m') => messages.push(AppMessage::ToggleMoveMode),
-        KeyCode::Char(' ') if app.nav.active_tab == Tab::Settings => {
-             messages.push(AppMessage::ToggleSetting);
-        }
-        KeyCode::Char('y' | 'c') => {
-             messages.push(AppMessage::CopySelected);
-        }
-        _ => {}
-    }
-    messages
-}
-
-fn handle_editor_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    match key.code {
-        KeyCode::Esc => {
-            if app.editor.autocomplete.open {
-                messages.push(AppMessage::CloseAutocomplete);
-            } else if app.editor.is_dirty() {
+        ShortcutAction::ToggleBranchFilter => messages.push(AppMessage::ToggleBranchFilter),
+        ShortcutAction::ToggleFolderFilter => messages.push(AppMessage::ToggleFolderFilter),
+        ShortcutAction::ToggleProjectFilter => messages.push(AppMessage::ToggleProjectFilter),
+        ShortcutAction::Search => messages.push(AppMessage::Search(String::new())),
+        ShortcutAction::ToggleMoveMode => messages.push(AppMessage::ToggleMoveMode),
+        ShortcutAction::ToggleSetting => messages.push(AppMessage::ToggleSetting),
+        ShortcutAction::CopySelected => messages.push(AppMessage::CopySelected),
+        ShortcutAction::Save => messages.push(AppMessage::SaveEditor),
+        ShortcutAction::SaveAndStage => messages.push(AppMessage::SaveAndStageEditor),
+        ShortcutAction::CloseAutocomplete => messages.push(AppMessage::CloseAutocomplete),
+        ShortcutAction::ConfirmDiscard => messages.push(AppMessage::ExitEditor),
+        ShortcutAction::ExitEditor => {
+            if app.editor.is_dirty() {
                 messages.push(AppMessage::ConfirmDiscard);
             } else {
                 messages.push(AppMessage::ExitEditor);
             }
         }
-        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            messages.push(AppMessage::SaveEditor);
-        }
-        KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            messages.push(AppMessage::SaveAndStageEditor);
-        }
-        KeyCode::Up if app.editor.autocomplete.open => { messages.push(AppMessage::MoveSuggestionUp); }
-        KeyCode::Down if app.editor.autocomplete.open => { messages.push(AppMessage::MoveSuggestionDown); }
-        KeyCode::Enter if app.editor.autocomplete.open => { messages.push(AppMessage::SelectSuggestion); }
-        _ => {
-            messages.push(AppMessage::EditorInput(key));
-        }
-    }
-    messages
-}
-
-fn handle_move_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    match key.code {
-        KeyCode::Esc | KeyCode::Char('m') | KeyCode::Enter => { messages.push(AppMessage::ToggleMoveMode); }
-        KeyCode::Char('j') | KeyCode::Down => { messages.push(AppMessage::MoveItemDown); }
-        KeyCode::Char('k') | KeyCode::Up => { messages.push(AppMessage::MoveItemUp); }
+        ShortcutAction::CancelDiscard => messages.push(AppMessage::CancelDiscard),
+        ShortcutAction::MoveSuggestionUp => messages.push(AppMessage::MoveSuggestionUp),
+        ShortcutAction::MoveSuggestionDown => messages.push(AppMessage::MoveSuggestionDown),
+        ShortcutAction::SelectSuggestion => messages.push(AppMessage::SelectSuggestion),
+        ShortcutAction::MoveItemDown => messages.push(AppMessage::MoveItemDown),
+        ShortcutAction::MoveItemUp => messages.push(AppMessage::MoveItemUp),
         _ => {}
     }
-    messages
-}
-
-fn handle_search_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    messages.push(AppMessage::SearchInput(key));
-    messages
-}
-
-fn handle_confirm_discard_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    match key.code {
-        KeyCode::Char('y' | 'Y') | KeyCode::Enter => { messages.push(AppMessage::ExitEditor); }
-        KeyCode::Char('n' | 'N') | KeyCode::Esc => { messages.push(AppMessage::CancelDiscard); }
-        _ => {}
-    }
-    messages
-}
-
-fn handle_theme_picker_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    messages.push(AppMessage::ThemePickerInput(key));
-    messages
-}
-
-fn handle_project_picker_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
-    messages.push(AppMessage::ProjectPickerInput(key));
     messages
 }
 
@@ -260,11 +202,11 @@ fn handle_add_project_events(app: &mut App<'_>, key: KeyEvent) -> Vec<AppMessage
     match key.code {
         KeyCode::Esc => { messages.push(AppMessage::SelectProject); }
         KeyCode::Enter => {
-            let name = app.nav.new_project_name.clone();
+            let name = app.nav.projects_manager.new_project_name.clone();
             messages.push(AppMessage::AddProject(name));
         }
-        KeyCode::Backspace => { app.nav.new_project_name.pop(); }
-        KeyCode::Char(c) => { app.nav.new_project_name.push(c); }
+        KeyCode::Backspace => { app.nav.projects_manager.new_project_name.pop(); }
+        KeyCode::Char(c) => { app.nav.projects_manager.new_project_name.push(c); }
         _ => {}
     }
     messages

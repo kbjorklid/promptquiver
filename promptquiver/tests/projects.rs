@@ -49,15 +49,16 @@ async fn test_delete_project_updates_list() {
     
     // 1. Add a project
     app.handle_message(AppMessage::AddProject("To Delete".into())).await.unwrap();
-    let project_id = app.nav.active_project_id.unwrap();
-    
+    let project_id = app.nav.projects_manager.active_project_id.unwrap();
+
     // 2. Open picker
     app.handle_message(AppMessage::SelectProject).await.unwrap();
-    assert!(app.nav.projects.iter().any(|p| p.id == project_id));
-    
+    assert!(app.nav.projects_manager.projects.iter().any(|p| p.id == project_id));
+
     // 3. Delete it
     app.handle_message(AppMessage::DeleteProject(project_id)).await.unwrap();
-    
+
     // 4. Verify it's gone from the internal list
-    assert!(!app.nav.projects.iter().any(|p| p.id == project_id));
-}
+    assert!(!app.nav.projects_manager.projects.iter().any(|p| p.id == project_id));
+    }
+
