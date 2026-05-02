@@ -23,7 +23,7 @@ pub struct App<'a> {
 
 
 impl fmt::Debug for App<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("App")
             .field("should_quit", &self.should_quit)
             .field("active_tab", &self.nav.active_tab)
@@ -40,6 +40,12 @@ impl App<'_> {
     pub async fn handle_message(&mut self, initial_msg: AppMessage) -> contracts::Result<()> {
         if let AppMessage::ThemePickerInput(ref key) = initial_msg {
             if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
+                self.mode = Mode::List;
+            }
+        }
+        
+        if let AppMessage::ProjectPickerInput(ref key) = initial_msg {
+            if key.code == crossterm::event::KeyCode::Esc {
                 self.mode = Mode::List;
             }
         }
@@ -60,7 +66,7 @@ impl App<'_> {
                 Mode::Editor | Mode::ConfirmDiscard => {
                     self.editor.update(msg.clone(), &mut ctx, self.nav.current_path.clone(), &self.file_search_tx).await?
                 }
-                Mode::List | Mode::Move | Mode::Search | Mode::ThemePicker => {
+                Mode::List | Mode::Move | Mode::Search | Mode::ThemePicker | Mode::ProjectPicker | Mode::AddProject => {
                     self.nav.update(msg.clone(), &mut ctx).await?
                 }
             };
@@ -100,6 +106,26 @@ impl App<'_> {
                 AppMessage::SelectTheme => self.mode = Mode::ThemePicker,
                 AppMessage::ReloadPrompts => {
                     self.load_prompts().await?;
+                }
+                AppMessage::SelectProject => {
+                    self.mode = Mode::ProjectPicker;
+                }
+                AppMessage::SetProject(id) => {
+                    self.mode = Mode::List;
+                    let name = if let Some(id) = id {
+                        self.nav.projects.iter().find(|p| p.id == id).map(|p| p.title.clone()).unwrap_or_else(|| "Default".into())
+                    } else {
+                        "Default".into()
+                    };
+                    self.notify(format!("Active project: {}", name), ToastType::Info);
+                }
+                AppMessage::EnterAddProject => {
+                    self.mode = Mode::AddProject;
+                    self.nav.new_project_name.clear();
+                }
+                AppMessage::AddProject(name) => {
+                    self.mode = Mode::List;
+                    self.notify(format!("Project '{}' created", name), ToastType::Success);
                 }
                 _ => {}
             }
@@ -165,6 +191,8 @@ impl App<'_> {
             self.settings.theme_name = old_theme;
         }
         self.nav.current_branch = self.current_branch.clone();
+        self.nav.active_project_id = self.settings.active_project_id;
+        self.nav.project_filter = self.settings.project_filter;
         self.nav.load_prompts(&self.storage).await
     }
 
@@ -258,7 +286,6 @@ impl App<'_> {
         if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::settings_display_len();
             let slash_len = self.settings.slash_commands.len();
-// ...
 
             let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
             let trimmed = text.trim();
@@ -300,6 +327,8 @@ impl App<'_> {
         self.nav.push_history();
 
         let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
+        let project_id = self.nav.active_project_id;
+        
         let res = self.service.save_item(
             &path, 
             self.nav.active_tab, 
@@ -307,7 +336,8 @@ impl App<'_> {
             title, 
             self.editor.editing_id, 
             self.editor.insert_index,
-            branch
+            branch,
+            project_id
         ).await;
 
         match res {

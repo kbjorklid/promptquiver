@@ -17,6 +17,7 @@ async fn test_list_scrolling() {
             Some(common::TEST_PATH.to_string()),
             None,
             None,
+            None,
         );
         storage.save_prompt(p).await.unwrap();
     }

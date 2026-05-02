@@ -8,7 +8,7 @@ use ratatui::backend::TestBackend;
 async fn test_autocomplete() {
     let (mut app, storage, _, _) = setup_app();
 
-    let s1 = contracts::Prompt::new("test_snippet".to_string(), contracts::PromptType::Snippet, None, None, Some("ts".to_string()));
+    let s1 = contracts::Prompt::new("test_snippet".to_string(), contracts::PromptType::Snippet, None, None, Some("ts".to_string()), None);
     storage.save_prompt(s1).await.unwrap();
     
     app.enter_editor("Hello ".to_string(), None);
@@ -55,7 +55,7 @@ async fn test_autocomplete_file() {
         // We need a way to call walk_files here, but it's in main.rs.
         // For testing, we can just manually push the expected result.
         results.push(contracts::Prompt::new(
-            temp_file.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some("test_file_for_autocomplete.txt".to_string()),
+            temp_file.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some("test_file_for_autocomplete.txt".to_string()), None
         ));
         file_result_tx.send(results).await.unwrap();
     }
@@ -144,7 +144,7 @@ async fn test_autocomplete_closes_on_trigger_removal() {
         crossterm::event::KeyModifiers::empty(),
     ));
     // Simulate finding a file (manually since background searcher is complex to setup here)
-    app.editor.autocomplete.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Note, None, None, Some("test".to_string()))];
+    app.editor.autocomplete.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Note, None, None, Some("test".to_string()), None)];
     app.editor.autocomplete.open = true;
 
     assert!(app.editor.autocomplete.open);
@@ -254,7 +254,7 @@ async fn test_autocomplete_positioning_above_cursor() {
     // Force autocomplete open for test reliability if it didn't trigger
     if !app.editor.autocomplete.open {
         app.editor.autocomplete.open = true;
-        app.editor.autocomplete.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Prompt, None, None, Some("test".to_string()))];
+        app.editor.autocomplete.suggestions = vec![contracts::Prompt::new("test".to_string(), contracts::PromptType::Prompt, None, None, Some("test".to_string()), None)];
     }
     assert!(app.editor.autocomplete.open);
     

@@ -19,6 +19,10 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("j/k/g/G", "Nav"),
             ];
             
+            if tab_name == "Archive" {
+                shortcuts.push(Shortcut::new("r", "Restore"));
+            }
+
             if tab_name != "Notes" && tab_name != "Snippets" {
                 shortcuts.push(Shortcut::new("s", "Stage"));
             }
@@ -33,12 +37,11 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("/", "Search"),
                 Shortcut::new("Ctrl+e", "Preview"),
                 Shortcut::new("y/c", "Copy"),
-                Shortcut::new("b", "Branch Filter"),
-                Shortcut::new("f", "Folder Filter"),
+                Shortcut::new("b", "Branch"),
+                Shortcut::new("f", "Folder"),
+                Shortcut::new("p", "Project"),
+                Shortcut::new("Ctrl+p", "Pick Prj"),
             ]);
-            if tab_name == "Archive" {
-                shortcuts.push(Shortcut::new("r", "Restore"));
-            }
             if tab_name == "Settings" {
                 shortcuts.push(Shortcut::new("Space", "Toggle"));
             }

@@ -316,7 +316,7 @@ impl<'a> EditorModule<'a> {
                     let mut scored_suggestions: Vec<(i64, Prompt)> = settings.slash_commands
                         .iter()
                         .filter_map(|cmd| {
-                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()))))
+                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()), None)))
                         })
                         .collect();
                         

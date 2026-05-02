@@ -11,6 +11,8 @@ pub enum Mode {
     Search,
     ConfirmDiscard,
     ThemePicker,
+    ProjectPicker,
+    AddProject,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +47,13 @@ pub enum AppMessage {
     ToggleSetting,
     ToggleBranchFilter,
     ToggleFolderFilter,
+    ToggleProjectFilter,
+    SelectProject,
+    SetProject(Option<Uuid>),
+    AddProject(String),
+    DeleteProject(Uuid),
+    EnterAddProject,
+    ProjectPickerInput(crossterm::event::KeyEvent),
     Search(String),
     Notify(String, ratatui_toaster::ToastType),
     EditSetting,

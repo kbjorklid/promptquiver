@@ -16,11 +16,11 @@ async fn test_order_persistence() {
     let test_path = app.nav.current_project_path();
 
     // Create 3 prompts
-    let p1 = Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None);
+    let p1 = Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None, None);
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let p2 = Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None);
+    let p2 = Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None, None);
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let p3 = Prompt::new("P3".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None);
+    let p3 = Prompt::new("P3".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None, None);
 
     storage.save_prompt(p1).await.unwrap();
     storage.save_prompt(p2).await.unwrap();
@@ -67,8 +67,8 @@ async fn test_sync_efficiency() {
 
     // Batch save with changes should increment version exactly ONCE
     let prompts = vec![
-        Prompt::new("X".to_string(), contracts::PromptType::Prompt, Some("path".to_string()), None, None),
-        Prompt::new("Y".to_string(), contracts::PromptType::Prompt, Some("path".to_string()), None, None),
+        Prompt::new("X".to_string(), contracts::PromptType::Prompt, Some("path".to_string()), None, None, None),
+        Prompt::new("Y".to_string(), contracts::PromptType::Prompt, Some("path".to_string()), None, None, None),
     ];
     storage.save_prompts(prompts).await.unwrap();
     let v3 = storage.get_data_version().await.unwrap();

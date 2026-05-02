@@ -62,9 +62,9 @@ async fn test_quit_event() {
 async fn test_staging() {
     let (mut app, storage, clipboard, _) = setup_app();
     
-    let p2 = contracts::Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p2 = contracts::Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
     storage.save_prompt(p2).await.unwrap();
     storage.save_prompt(p1).await.unwrap();
 
@@ -91,7 +91,7 @@ async fn test_staging() {
 async fn test_unstaging() {
     let (mut app, storage, _, _) = setup_app();
     
-    let mut p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let mut p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
     p1.staged = true;
     storage.save_prompt(p1).await.unwrap();
 
@@ -111,7 +111,7 @@ async fn test_unstaging() {
 async fn test_archive_delete() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
     storage.save_prompt(p1).await.unwrap();
 
     app.load_prompts().await.unwrap();

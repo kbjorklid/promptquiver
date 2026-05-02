@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use contracts::{Clipboard, Git, ProjectInfo, Prompt, Result, Settings, Storage, PromptFilter, Tab, PromptType};
+use contracts::{Clipboard, Git, ProjectInfo, Prompt, Project, Result, Settings, Storage, PromptFilter, Tab, PromptType};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::sync::RwLock;
@@ -10,6 +10,7 @@ use rusqlite::OptionalExtension;
 #[derive(Debug)]
 pub struct InMemoryStorage {
     prompts: RwLock<Vec<Prompt>>,
+    projects: RwLock<Vec<Project>>,
     project_info: RwLock<HashMap<String, ProjectInfo>>,
     settings: RwLock<Settings>,
 }
@@ -19,6 +20,7 @@ impl InMemoryStorage {
     pub fn new() -> Self {
         Self {
             prompts: RwLock::new(Vec::new()),
+            projects: RwLock::new(Vec::new()),
             project_info: RwLock::new(HashMap::new()),
             settings: RwLock::new(Settings::default()),
         }
@@ -40,9 +42,11 @@ impl Storage for InMemoryStorage {
         if let Some(folder) = filter.folder {
             filtered.retain(|p| p.folder.as_deref() == Some(&folder));
         }
-        if let Some(project) = filter.project {
-            filtered.retain(|p| p.project.as_deref() == Some(&project));
+        
+        if filter.project_filter {
+            filtered.retain(|p| p.project_id == filter.project_id);
         }
+
         if let Some(branch) = filter.branch {
             filtered.retain(|p| p.branch.as_deref() == Some(&branch));
         }
@@ -108,6 +112,33 @@ impl Storage for InMemoryStorage {
         Ok(())
     }
 
+    async fn get_projects(&self) -> Result<Vec<Project>> {
+        Ok(self.projects.read().await.clone())
+    }
+
+    async fn save_project(&self, project: Project) -> Result<()> {
+        let mut projects = self.projects.write().await;
+        if let Some(p) = projects.iter_mut().find(|p| p.id == project.id) {
+            *p = project;
+        } else {
+            projects.push(project);
+        }
+        Ok(())
+    }
+
+    async fn delete_project(&self, id: Uuid) -> Result<()> {
+        let mut projects = self.projects.write().await;
+        projects.retain(|p| p.id != id);
+        
+        let mut prompts = self.prompts.write().await;
+        for p in prompts.iter_mut() {
+            if p.project_id == Some(id) {
+                p.project_id = None;
+            }
+        }
+        Ok(())
+    }
+
     async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo> {
         let info = self.project_info.read().await;
         Ok(info.get(folder).cloned().unwrap_or_default())
@@ -152,12 +183,21 @@ impl SqliteStorage {
         conn.execute("PRAGMA journal_mode=WAL", []).ok();
 
         conn.execute(
+            "CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )",
+            [],
+        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS prompts (
                 id TEXT PRIMARY KEY,
                 text TEXT NOT NULL,
                 type TEXT NOT NULL,
                 folder TEXT,
-                project TEXT,
+                project_id TEXT,
                 branch TEXT,
                 name TEXT,
                 staged BOOLEAN NOT NULL DEFAULT 0,
@@ -170,8 +210,9 @@ impl SqliteStorage {
             [],
         ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
-        // Migration for existing databases
+        // Migrations
         let _ = conn.execute("ALTER TABLE prompts ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE prompts RENAME COLUMN project TO project_id", []);
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS project_info (
@@ -214,17 +255,23 @@ impl Storage for SqliteStorage {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             
-            let mut query = "SELECT id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index FROM prompts WHERE 1=1".to_string();
+            let mut query = "SELECT id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index FROM prompts WHERE 1=1".to_string();
             let mut params: Vec<String> = Vec::new();
 
             if let Some(folder) = filter.folder {
                 query.push_str(" AND folder = ?");
                 params.push(folder);
             }
-            if let Some(project) = filter.project {
-                query.push_str(" AND project = ?");
-                params.push(project);
+            
+            if filter.project_filter {
+                if let Some(id) = filter.project_id {
+                    query.push_str(" AND project_id = ?");
+                    params.push(id.to_string());
+                } else {
+                    query.push_str(" AND project_id IS NULL");
+                }
             }
+
             if let Some(branch) = filter.branch {
                 query.push_str(" AND branch = ?");
                 params.push(branch);
@@ -267,7 +314,7 @@ impl Storage for SqliteStorage {
                         _ => PromptType::Prompt,
                     },
                     folder: row.get(3)?,
-                    project: row.get(4)?,
+                    project_id: row.get::<_, Option<String>>(4)?.map(|s| Uuid::parse_str(&s).unwrap()),
                     branch: row.get(5)?,
                     name: row.get(6)?,
                     staged: row.get(7)?,
@@ -294,13 +341,13 @@ impl Storage for SqliteStorage {
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             
             conn.execute(
-                "INSERT INTO prompts (id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
+                "INSERT INTO prompts (id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                  ON CONFLICT(id) DO UPDATE SET
                     text=excluded.text,
                     type=excluded.type,
                     folder=excluded.folder,
-                    project=excluded.project,
+                    project_id=excluded.project_id,
                     branch=excluded.branch,
                     name=excluded.name,
                     staged=excluded.staged,
@@ -309,7 +356,7 @@ impl Storage for SqliteStorage {
                     updated_at=excluded.updated_at,
                     order_index=excluded.order_index
                  WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
-                    OR project IS NOT excluded.project OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
+                    OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
                     OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
                     OR order_index != excluded.order_index",
                 rusqlite::params![
@@ -317,7 +364,7 @@ impl Storage for SqliteStorage {
                     prompt.text,
                     format!("{:?}", prompt.r#type),
                     prompt.folder,
-                    prompt.project,
+                    prompt.project_id.map(|id| id.to_string()),
                     prompt.branch,
                     prompt.name,
                     prompt.staged,
@@ -348,13 +395,13 @@ impl Storage for SqliteStorage {
 
             for prompt in prompts {
                 tx.execute(
-                    "INSERT INTO prompts (id, text, type, folder, project, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
+                    "INSERT INTO prompts (id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                      ON CONFLICT(id) DO UPDATE SET
                         text=excluded.text,
                         type=excluded.type,
                         folder=excluded.folder,
-                        project=excluded.project,
+                        project_id=excluded.project_id,
                         branch=excluded.branch,
                         name=excluded.name,
                         staged=excluded.staged,
@@ -363,7 +410,7 @@ impl Storage for SqliteStorage {
                         updated_at=excluded.updated_at,
                         order_index=excluded.order_index
                      WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
-                        OR project IS NOT excluded.project OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
+                        OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
                         OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
                         OR order_index != excluded.order_index",
                     rusqlite::params![
@@ -371,7 +418,7 @@ impl Storage for SqliteStorage {
                         prompt.text,
                         format!("{:?}", prompt.r#type),
                         prompt.folder,
-                        prompt.project,
+                        prompt.project_id.map(|id| id.to_string()),
                         prompt.branch,
                         prompt.name,
                         prompt.staged,
@@ -403,6 +450,71 @@ impl Storage for SqliteStorage {
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute("DELETE FROM prompts WHERE id = ?", [id.to_string()])
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        self.increment_data_version().await
+    }
+
+    async fn get_projects(&self) -> Result<Vec<Project>> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let mut stmt = conn.prepare("SELECT id, title, created_at FROM projects ORDER BY title ASC")
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let project_iter = stmt.query_map([], |row| {
+                Ok(Project {
+                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                    title: row.get(1)?,
+                    created_at: row.get::<_, String>(2)?.parse::<DateTime<Utc>>().unwrap(),
+                })
+            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+            let mut projects = Vec::new();
+            for project in project_iter {
+                projects.push(project.map_err(|e| contracts::Error::Storage(e.to_string()))?);
+            }
+            Ok(projects)
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+    }
+
+    async fn save_project(&self, project: Project) -> Result<()> {
+        let db_path = self.db_path.clone();
+        let changed = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            conn.execute(
+                "INSERT INTO projects (id, title, created_at) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(id) DO UPDATE SET title=excluded.title WHERE title != excluded.title",
+                rusqlite::params![
+                    project.id.to_string(),
+                    project.title,
+                    project.created_at.to_rfc3339(),
+                ],
+            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok::<bool, contracts::Error>(conn.changes() > 0)
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
+        if changed {
+            self.increment_data_version().await?;
+        }
+        Ok(())
+    }
+
+    async fn delete_project(&self, id: Uuid) -> Result<()> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            tx.execute("DELETE FROM projects WHERE id = ?", [id.to_string()])
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            tx.execute("UPDATE prompts SET project_id = NULL WHERE project_id = ?", [id.to_string()])
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            
+            tx.commit().map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<(), contracts::Error>(())
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
         self.increment_data_version().await
@@ -641,12 +753,11 @@ impl Git for RealGit {
 mod tests {
     use super::*;
     use contracts::PromptType;
-    use rusqlite::OptionalExtension;
 
     #[tokio::test]
     async fn test_in_memory_storage() {
         let storage = InMemoryStorage::new();
-        let prompt = Prompt::new("test".to_string(), PromptType::Prompt, Some("path".to_string()), None, None);
+        let prompt = Prompt::new("test".to_string(), PromptType::Prompt, Some("path".to_string()), None, None, None);
 
         storage.save_prompt(prompt.clone()).await.unwrap();
         let loaded = storage.get_prompts(PromptFilter { folder: Some("path".to_string()), ..Default::default() }).await.unwrap();
@@ -677,7 +788,7 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
         let storage = SqliteStorage::new(db_path);
 
-        let prompt = Prompt::new("sqlite test".to_string(), contracts::PromptType::Prompt, Some("/path/to/project".to_string()), Some("main".to_string()), None);
+        let prompt = Prompt::new("sqlite test".to_string(), contracts::PromptType::Prompt, Some("/path/to/project".to_string()), Some("main".to_string()), None, None);
         
         storage.save_prompt(prompt.clone()).await.unwrap();
         let loaded = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();

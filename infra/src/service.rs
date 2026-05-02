@@ -141,11 +141,9 @@ impl AppService for RealAppService {
         Ok(())
     }
 
-    async fn save_item(&self, folder: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, _insert_index: Option<usize>, branch: Option<String>) -> Result<()> {
+    async fn save_item(&self, folder: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, _insert_index: Option<usize>, branch: Option<String>, project_id: Option<uuid::Uuid>) -> Result<()> {
         if let Some(id) = id {
             // We need to find the prompt to update it
-            // Actually, we can just fetch all and find it, or we need a get_prompt_by_id?
-            // For now, let's fetch all.
             let all = self.storage.get_prompts(PromptFilter::default()).await?;
             if let Some(mut p) = all.into_iter().find(|p| p.id == id) {
                 p.text = text;
@@ -160,7 +158,7 @@ impl AppService for RealAppService {
                 _ => contracts::PromptType::Prompt,
             };
             
-            let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch, title);
+            let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch, title, project_id);
             if tab == Tab::Canned {
                 prompt.folder = None;
             }
@@ -198,7 +196,7 @@ impl AppService for RealAppService {
                         if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
                             let mut final_score = score;
                             if path_lower.contains(query_normalized) { final_score += 100; }
-                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(relative_path))));
+                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(relative_path), None)));
                         }
                     }
                 }

@@ -26,6 +26,7 @@ The following specifications are available in the `docs/` directory. Review them
 - **Testing:** Prioritize End-to-End (E2E) tests using `ratatui::backend::TestBackend`. Unit tests are only for isolated, complex logic.
 - **Performance:** All I/O (File system, Git polling) must be non-blocking and handled via `tokio` channels.
 - **Data Safety:** Use atomic writes (temp file + rename) for all persistence.
+- **Warnings & Linting:** You MUST fix all compiler and linter warnings encountered during `cargo build`, `cargo test`, or `cargo clippy`. A "clean" output is required for finality.
 
 ---
 

@@ -1,5 +1,7 @@
 use contracts::{Prompt, Tab, Storage, Result, PreviewMode, PromptFilter};
 use std::sync::Arc;
+use uuid::Uuid;
+use chrono;
 
 #[derive(Debug, Clone)]
 pub struct HistoryEntry {
@@ -11,19 +13,24 @@ pub struct HistoryEntry {
 pub struct ListModule {
     pub active_tab: Tab,
     pub prompts: Vec<Prompt>,
+    pub projects: Vec<contracts::Project>,
     pub selected_index: usize,
     pub list_state: ratatui::widgets::ListState,
     pub settings_slash_list_state: ratatui::widgets::ListState,
     pub theme_list_state: ratatui::widgets::ListState,
+    pub project_list_state: ratatui::widgets::ListState,
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
     pub branch_filter: bool,
     pub folder_filter: bool,
+    pub project_filter: bool,
+    pub active_project_id: Option<Uuid>,
     pub search_query: String,
     pub current_path: String,
     pub original_theme: Option<String>,
     pub current_branch: Option<String>,
     pub settings_scroll_offset: u16,
+    pub new_project_name: String,
 }
 
 impl Default for ListModule {
@@ -31,14 +38,18 @@ impl Default for ListModule {
         Self {
             active_tab: Tab::Prompts,
             prompts: Vec::new(),
+            projects: Vec::new(),
             selected_index: 0,
             list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             settings_slash_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             theme_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
+            project_list_state: ratatui::widgets::ListState::default().with_selected(Some(0)),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             branch_filter: false,
             folder_filter: false,
+            project_filter: false,
+            active_project_id: None,
             search_query: String::new(),
             current_path: std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
@@ -47,6 +58,7 @@ impl Default for ListModule {
             original_theme: None,
             current_branch: None,
             settings_scroll_offset: 0,
+            new_project_name: String::new(),
         }
     }
 }
@@ -65,8 +77,9 @@ impl ListModule {
         let filter = PromptFilter {
             folder: if self.folder_filter || self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets { None } else { Some(path) },
             branch: if self.branch_filter { self.current_branch.clone() } else { None },
+            project_id: if self.project_filter { self.active_project_id } else { None },
+            project_filter: self.project_filter,
             tab: Some(self.active_tab),
-            ..Default::default()
         };
 
         let mut prompts = storage.get_prompts(filter).await?;
@@ -382,6 +395,91 @@ impl ListModule {
                 self.load_prompts(ctx.storage).await?;
                 let status = if self.folder_filter { "Global (ON)" } else { "Local (OFF)" };
                 return Ok(Some(AppMessage::Notify(format!("Folder filter: {}", status), ratatui_toaster::ToastType::Info)));
+            }
+            AppMessage::ToggleProjectFilter => {
+                self.project_filter = !self.project_filter;
+                ctx.settings.project_filter = self.project_filter;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                self.load_prompts(ctx.storage).await?;
+                let status = if self.project_filter { "ON" } else { "OFF" };
+                return Ok(Some(AppMessage::Notify(format!("Project filter: {}", status), ratatui_toaster::ToastType::Info)));
+            }
+            AppMessage::SelectProject => {
+                self.projects = ctx.storage.get_projects().await?;
+                // Select active project in list
+                let pos = if let Some(id) = self.active_project_id {
+                    self.projects.iter().position(|p| p.id == id).map(|p| p + 1).unwrap_or(0)
+                } else {
+                    0
+                };
+                self.project_list_state.select(Some(pos));
+            }
+            AppMessage::SetProject(id) => {
+                self.active_project_id = id;
+                ctx.settings.active_project_id = id;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                self.load_prompts(ctx.storage).await?;
+            }
+            AppMessage::AddProject(name) => {
+                let name = name.trim();
+                if name.is_empty() {
+                    return Ok(Some(AppMessage::Notify("Project title cannot be empty".into(), ratatui_toaster::ToastType::Error)));
+                }
+                let project = contracts::Project {
+                    id: Uuid::new_v4(),
+                    title: name.to_string(),
+                    created_at: chrono::Utc::now(),
+                };
+                ctx.storage.save_project(project.clone()).await?;
+                self.active_project_id = Some(project.id);
+                ctx.settings.active_project_id = Some(project.id);
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                self.projects = ctx.storage.get_projects().await?;
+                self.load_prompts(ctx.storage).await?;
+            }
+            AppMessage::DeleteProject(id) => {
+                ctx.storage.delete_project(id).await?;
+                if self.active_project_id == Some(id) {
+                    self.active_project_id = None;
+                    ctx.settings.active_project_id = None;
+                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                }
+                self.projects = ctx.storage.get_projects().await?;
+                self.load_prompts(ctx.storage).await?;
+                return Ok(Some(AppMessage::Notify("Project deleted".into(), ratatui_toaster::ToastType::Warning)));
+            }
+            AppMessage::ProjectPickerInput(key) => {
+                match key.code {
+                    crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
+                        let total = self.projects.len() + 2; // Default + Projects + Add New
+                        let current = self.project_list_state.selected().unwrap_or(0);
+                        self.project_list_state.select(Some((current + 1) % total));
+                    }
+                    crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                        let total = self.projects.len() + 2;
+                        let current = self.project_list_state.selected().unwrap_or(0);
+                        self.project_list_state.select(Some((current + total - 1) % total));
+                    }
+                    crossterm::event::KeyCode::Enter => {
+                        let selected = self.project_list_state.selected().unwrap_or(0);
+                        if selected == 0 {
+                            return Ok(Some(AppMessage::SetProject(None)));
+                        } else if selected <= self.projects.len() {
+                            let id = self.projects[selected - 1].id;
+                            return Ok(Some(AppMessage::SetProject(Some(id))));
+                        } else {
+                            return Ok(Some(AppMessage::EnterAddProject));
+                        }
+                    }
+                    crossterm::event::KeyCode::Char('x') => {
+                        let selected = self.project_list_state.selected().unwrap_or(0);
+                        if selected > 0 && selected <= self.projects.len() {
+                            let id = self.projects[selected - 1].id;
+                            return Ok(Some(AppMessage::DeleteProject(id)));
+                        }
+                    }
+                    _ => {}
+                }
             }
             AppMessage::Search(query) => {
                 self.search_query = query;

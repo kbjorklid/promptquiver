@@ -1,4 +1,4 @@
-use contracts::{Prompt, PromptType, Tab, Storage};
+use contracts::{Prompt, PromptType, Storage};
 use promptquiver::app::{App, AppMessage};
 use infra::{InMemoryStorage, MockClipboard, MockGit, RealAppService};
 use std::sync::Arc;
@@ -17,9 +17,9 @@ async fn test_global_view_toggle() {
 
     // 1. Setup prompts in different folders
     // Create P2 first so P1 is newer and at index 0
-    let prompt_b = Prompt::new("Prompt B".to_string(), PromptType::Prompt, Some(project_b.to_string()), None, None);
+    let prompt_b = Prompt::new("Prompt B".to_string(), PromptType::Prompt, Some(project_b.to_string()), None, None, None);
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let prompt_a = Prompt::new("Prompt A".to_string(), PromptType::Prompt, Some(project_a.to_string()), None, None);
+    let prompt_a = Prompt::new("Prompt A".to_string(), PromptType::Prompt, Some(project_a.to_string()), None, None, None);
     
     storage.save_prompt(prompt_b).await.unwrap();
     storage.save_prompt(prompt_a).await.unwrap();

@@ -23,7 +23,7 @@ pub struct Prompt {
     pub text: String,
     pub r#type: PromptType,
     pub folder: Option<String>,
-    pub project: Option<String>,
+    pub project_id: Option<Uuid>,
     pub branch: Option<String>,
     pub name: Option<String>,
     pub staged: bool,
@@ -41,6 +41,7 @@ impl Prompt {
         folder: Option<String>,
         branch: Option<String>,
         name: Option<String>,
+        project_id: Option<Uuid>,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -48,7 +49,7 @@ impl Prompt {
             text,
             r#type,
             folder,
-            project: None,
+            project_id,
             branch,
             name,
             staged: false,
@@ -59,6 +60,13 @@ impl Prompt {
             order_index: 0,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Project {
+    pub id: Uuid,
+    pub title: String,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -77,6 +85,8 @@ pub struct Settings {
     pub use_nerd_font: bool,
     pub theme_name: Option<String>,
     pub preview_mode: PreviewMode,
+    pub active_project_id: Option<Uuid>,
+    pub project_filter: bool,
 }
 
 impl Settings {
@@ -150,9 +160,10 @@ impl Tab {
 #[derive(Debug, Clone, Default)]
 pub struct PromptFilter {
     pub folder: Option<String>,
-    pub project: Option<String>,
+    pub project_id: Option<Uuid>,
     pub branch: Option<String>,
     pub tab: Option<Tab>,
+    pub project_filter: bool,
 }
 
 #[async_trait]
@@ -161,6 +172,10 @@ pub trait Storage: Send + Sync {
     async fn save_prompt(&self, prompt: Prompt) -> Result<()>;
     async fn save_prompts(&self, prompts: Vec<Prompt>) -> Result<()>;
     async fn delete_prompt(&self, id: Uuid) -> Result<()>;
+
+    async fn get_projects(&self) -> Result<Vec<Project>>;
+    async fn save_project(&self, project: Project) -> Result<()>;
+    async fn delete_project(&self, id: Uuid) -> Result<()>;
 
     async fn get_project_info(&self, folder: &str) -> Result<ProjectInfo>;
     async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()>;

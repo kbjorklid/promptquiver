@@ -2418,6 +2418,7 @@ name = "ui"
 version = "0.7.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "contracts",
  "crossterm",
  "fuzzy-matcher",

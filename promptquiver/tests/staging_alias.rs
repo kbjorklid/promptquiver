@@ -6,7 +6,7 @@ use contracts::{Storage, Clipboard, Tab, Prompt, PromptType, PromptFilter};
 async fn test_note_staging_alias() {
     let (mut app, storage, clipboard, _) = setup_app();
     
-    let n1 = Prompt::new("N1".to_string(), PromptType::Note, Some(common::TEST_PATH.to_string()), None, None);
+    let n1 = Prompt::new("N1".to_string(), PromptType::Note, Some(common::TEST_PATH.to_string()), None, None, None);
     storage.save_prompt(n1).await.unwrap();
 
     app.set_tab(Tab::Notes);
@@ -23,7 +23,7 @@ async fn test_note_staging_alias() {
 async fn test_snippet_staging_alias() {
     let (mut app, storage, clipboard, _) = setup_app();
     
-    let s1 = Prompt::new("S1".to_string(), PromptType::Snippet, None, None, None);
+    let s1 = Prompt::new("S1".to_string(), PromptType::Snippet, None, None, None, None);
     storage.save_prompt(s1).await.unwrap();
 
     app.set_tab(Tab::Snippets);
@@ -42,11 +42,11 @@ async fn test_prompt_staging_does_not_archive_notes_or_snippets() {
     
     // Setup a staged prompt, a note (not staged), and a snippet (not staged)
     
-    let mut n1 = Prompt::new("N1".to_string(), PromptType::Note, Some(common::TEST_PATH.to_string()), None, None);
+    let mut n1 = Prompt::new("N1".to_string(), PromptType::Note, Some(common::TEST_PATH.to_string()), None, None, None);
     n1.staged = true; // Forced staged state in storage
     storage.save_prompt(n1.clone()).await.unwrap();
     
-    let p1 = Prompt::new("P1".to_string(), PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p1 = Prompt::new("P1".to_string(), PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
     storage.save_prompt(p1).await.unwrap();
 
     app.set_tab(Tab::Prompts);

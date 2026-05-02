@@ -21,8 +21,8 @@ async fn test_tab_navigation() {
 async fn test_list_navigation() {
     let (mut app, storage, _, _) = setup_app();
 
-    let p1 = contracts::Prompt::new("Prompt 1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
-    let p2 = contracts::Prompt::new("Prompt 2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
+    let p1 = contracts::Prompt::new("Prompt 1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
+    let p2 = contracts::Prompt::new("Prompt 2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
     
     storage.save_prompt(p1).await.unwrap();
     storage.save_prompt(p2).await.unwrap();
@@ -43,8 +43,8 @@ async fn test_list_navigation() {
 async fn test_tab_specific_content() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None);
-    let n1 = contracts::Prompt::new("N1".to_string(), contracts::PromptType::Note, Some(common::TEST_PATH.to_string()), None, None);
+    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
+    let n1 = contracts::Prompt::new("N1".to_string(), contracts::PromptType::Note, Some(common::TEST_PATH.to_string()), None, None, None);
     
     storage.save_prompt(p1).await.unwrap();
     storage.save_prompt(n1).await.unwrap();

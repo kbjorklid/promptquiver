@@ -122,15 +122,15 @@ mod tests {
     fn test_get_zebra_color() {
         let dark = Color::Rgb(10, 10, 10);
         let lightened = get_zebra_color(dark);
-        assert!(matches!(lightened, Color::Rgb(r, g, b) if r > 10));
+        assert!(matches!(lightened, Color::Rgb(r, _g, _b) if r > 10));
 
         let mid = Color::Rgb(100, 100, 100);
         let mid_lightened = get_zebra_color(mid);
-        assert!(matches!(mid_lightened, Color::Rgb(r, g, b) if r > 100));
+        assert!(matches!(mid_lightened, Color::Rgb(r, _g, _b) if r > 100));
 
         let bright = Color::Rgb(200, 200, 200);
         let darkened = get_zebra_color(bright);
-        assert!(matches!(darkened, Color::Rgb(r, g, b) if r < 200));
+        assert!(matches!(darkened, Color::Rgb(r, _g, _b) if r < 200));
 
         assert_eq!(get_zebra_color(Color::Red), Color::Red);
     }

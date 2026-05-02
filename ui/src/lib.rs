@@ -17,6 +17,7 @@ pub mod shortcuts;
 pub mod types;
 pub mod list_module;
 pub mod editor_module;
+pub mod project_picker;
 
 pub use types::{Mode, AppMessage, UpdateContext};
 pub use list_module::ListModule;
@@ -195,13 +196,33 @@ pub fn render(
         );
     }
 
+    // Modals
+    if state.mode == Mode::ProjectPicker || state.mode == Mode::AddProject {
+        project_picker::render_picker(
+            f,
+            &state.nav.projects,
+            &mut state.nav.project_list_state,
+            state.settings,
+            if state.mode == Mode::AddProject { Some(&state.nav.new_project_name) } else { None },
+        );
+    }
+
+    let active_project_title = if let Some(id) = state.nav.active_project_id {
+        state.nav.projects.iter().find(|p| p.id == id).map(|p| p.title.as_str())
+    } else {
+        None
+    };
+
     statusline::render(
         f,
         statusline_chunk,
         &state.nav.current_path,
         state.current_branch,
+        active_project_title,
         state.nav.prompts.len(),
         state.nav.folder_filter,
+        state.nav.project_filter,
+        state.nav.branch_filter,
         state.settings,
     );
 
@@ -215,6 +236,8 @@ pub fn render(
             Mode::Search => "Search",
             Mode::ConfirmDiscard => "Confirm Discard",
             Mode::ThemePicker => "Theme Picker",
+            Mode::ProjectPicker => "Project Picker",
+            Mode::AddProject => "Add Project",
         },
         state.nav.active_tab,
         state.nav.prompts.len(),

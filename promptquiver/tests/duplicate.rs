@@ -6,7 +6,7 @@ use contracts::{PromptFilter, Tab, Storage};
 async fn test_duplicate_prompt() {
     let (mut app, storage, _, _) = setup_app();
     
-    let p1 = contracts::Prompt::new("Original Prompt".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, Some("Name".to_string()));
+    let p1 = contracts::Prompt::new("Original Prompt".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, Some("Name".to_string()), None);
     storage.save_prompt(p1.clone()).await.unwrap();
 
     app.load_prompts().await.unwrap();

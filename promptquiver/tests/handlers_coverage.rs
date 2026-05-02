@@ -38,7 +38,7 @@ async fn test_tab_keys() {
 async fn test_navigation_keys() {
     let (mut app, storage, _, _) = setup_app();
     for text in ["P1", "P2", "P3"] {
-        storage.save_prompt(contracts::Prompt::new(text.to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None)).await.unwrap();
+        storage.save_prompt(contracts::Prompt::new(text.to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None)).await.unwrap();
     }
     app.load_prompts().await.unwrap();
 
@@ -73,7 +73,7 @@ async fn test_undo_redo_keys() {
     let (mut app, storage, _, _) = setup_app();
     
     // Setup initial state
-    storage.save_prompt(contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None)).await.unwrap();
+    storage.save_prompt(contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None)).await.unwrap();
     app.load_prompts().await.unwrap();
     
     // Archive it (to have something in history)
@@ -179,7 +179,7 @@ async fn test_editor_autocomplete_keys() {
     app.mode = promptquiver::app::Mode::Editor;
     app.editor.autocomplete.open = true;
     app.editor.autocomplete.suggestions = vec![
-        contracts::Prompt::new("test".to_string(), contracts::PromptType::Snippet, None, None, None)
+        contracts::Prompt::new("test".to_string(), contracts::PromptType::Snippet, None, None, None, None)
     ];
 
     let k = |code| KeyEvent {
@@ -199,7 +199,7 @@ async fn test_editor_autocomplete_keys() {
 async fn test_move_item_keys() {
     let (mut app, storage, _, _) = setup_app();
     for text in ["P2", "P1"] {
-        storage.save_prompt(contracts::Prompt::new(text.to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None)).await.unwrap();
+        storage.save_prompt(contracts::Prompt::new(text.to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None)).await.unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
     app.load_prompts().await.unwrap();
@@ -226,7 +226,7 @@ async fn test_move_item_keys() {
 #[tokio::test]
 async fn test_duplicate_key() {
     let (mut app, storage, _, _) = setup_app();
-    storage.save_prompt(contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None)).await.unwrap();
+    storage.save_prompt(contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None)).await.unwrap();
     app.load_prompts().await.unwrap();
 
     let d_key = KeyEvent {
@@ -312,7 +312,7 @@ async fn test_archive_slash_command() {
 #[tokio::test]
 async fn test_list_extra_keys() {
     let (mut app, storage, _, _) = setup_app();
-    storage.save_prompt(contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None)).await.unwrap();
+    storage.save_prompt(contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None)).await.unwrap();
     app.load_prompts().await.unwrap();
 
     let k = |code| KeyEvent {
@@ -383,7 +383,7 @@ async fn test_editor_extra_keys() {
     // Autocomplete open
     app.editor.autocomplete.open = true;
     app.editor.autocomplete.suggestions = vec![
-        contracts::Prompt::new("test".to_string(), contracts::PromptType::Snippet, None, None, None)
+        contracts::Prompt::new("test".to_string(), contracts::PromptType::Snippet, None, None, None, None)
     ];
 
     handle_key_event(&mut app, k(KeyCode::Enter)).await; // SelectSuggestion

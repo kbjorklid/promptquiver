@@ -54,8 +54,10 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
                         Mode::Editor => handle_editor_events(app, *key),
                         Mode::Move => handle_move_events(app, *key),
                         Mode::Search => handle_search_events(app, *key),
-                        Mode::ConfirmDiscard => handle_confirm_discard_events(app, *key),
+        Mode::ConfirmDiscard => handle_confirm_discard_events(app, *key),
                         Mode::ThemePicker => handle_theme_picker_events(app, *key),
+                        Mode::ProjectPicker => handle_project_picker_events(app, *key),
+                        Mode::AddProject => handle_add_project_events(app, *key),
                     }
                 } else {
                     Vec::new()
@@ -112,6 +114,9 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             messages.push(AppMessage::CyclePreviewMode);
         }
+        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            messages.push(AppMessage::SelectProject);
+        }
         KeyCode::Char('j') | KeyCode::Down => messages.push(AppMessage::MoveDown),
         KeyCode::Char('k') | KeyCode::Up => messages.push(AppMessage::MoveUp),
         KeyCode::Char('s') => messages.push(AppMessage::StageSelected),
@@ -128,6 +133,7 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Char('i') => messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index)),
         KeyCode::Char('b') => messages.push(AppMessage::ToggleBranchFilter),
         KeyCode::Char('f') => messages.push(AppMessage::ToggleFolderFilter),
+        KeyCode::Char('p') => messages.push(AppMessage::ToggleProjectFilter),
         KeyCode::Char('/') => {
             messages.push(AppMessage::Search(String::new()));
         }
@@ -217,5 +223,26 @@ fn handle_confirm_discard_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessag
 fn handle_theme_picker_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
     let mut messages = Vec::new();
     messages.push(AppMessage::ThemePickerInput(key));
+    messages
+}
+
+fn handle_project_picker_events(_app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
+    let mut messages = Vec::new();
+    messages.push(AppMessage::ProjectPickerInput(key));
+    messages
+}
+
+fn handle_add_project_events(app: &mut App<'_>, key: KeyEvent) -> Vec<AppMessage> {
+    let mut messages = Vec::new();
+    match key.code {
+        KeyCode::Esc => { messages.push(AppMessage::SelectProject); }
+        KeyCode::Enter => {
+            let name = app.nav.new_project_name.clone();
+            messages.push(AppMessage::AddProject(name));
+        }
+        KeyCode::Backspace => { app.nav.new_project_name.pop(); }
+        KeyCode::Char(c) => { app.nav.new_project_name.push(c); }
+        _ => {}
+    }
     messages
 }
