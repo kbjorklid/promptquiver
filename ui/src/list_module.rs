@@ -49,7 +49,7 @@ impl Default for ListModule {
             redo_stack: Vec::new(),
             branch_filter: false,
             folder_filter: true,
-            project_filter: true,
+            project_filter: false,
             active_project_id: None,
             search_query: String::new(),
             current_path: std::env::current_dir()
@@ -77,7 +77,7 @@ impl ListModule {
         let _ = storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
 
         let filter = PromptFilter {
-            folder: if self.folder_filter || self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets { None } else { Some(path) },
+            folder: if !self.folder_filter || self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets { None } else { Some(path) },
             branch: if self.branch_filter { self.current_branch.clone() } else { None },
             project_id: if self.project_filter { self.active_project_id } else { None },
             project_filter: self.project_filter,

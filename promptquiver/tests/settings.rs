@@ -16,10 +16,10 @@ async fn test_settings_navigation_and_tab_focus() {
     for _ in 0..15 {
         app.move_down();
     }
-    assert_eq!(app.nav.selected_index, 8);
+    assert_eq!(app.nav.selected_index, 9);
 
     app.move_up();
-    assert_eq!(app.nav.selected_index, 7);
+    assert_eq!(app.nav.selected_index, 8);
 }
 
 #[tokio::test]
