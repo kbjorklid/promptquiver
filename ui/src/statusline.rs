@@ -23,7 +23,7 @@ pub fn render(
     let branch_name = current_branch.unwrap_or("no branch");
     let project_name = active_project.unwrap_or("Default");
     
-    let path_style = if !folder_filter_enabled {
+    let path_style = if folder_filter_enabled {
         Style::default().fg(palette.bg).bg(palette.secondary)
     } else {
         Style::default().fg(palette.secondary)

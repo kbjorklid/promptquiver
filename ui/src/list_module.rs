@@ -408,7 +408,7 @@ impl ListModule {
             AppMessage::ToggleFolderFilter => {
                 self.folder_filter = !self.folder_filter;
                 self.load_prompts(ctx.storage).await?;
-                let status = if !self.folder_filter { "ON" } else { "OFF" };
+                let status = if self.folder_filter { "ON" } else { "OFF" };
                 return Ok(Some(AppMessage::Notify(format!("Folder filter: {}", status), ratatui_toaster::ToastType::Info)));
             }
             AppMessage::ToggleProjectFilter => {
