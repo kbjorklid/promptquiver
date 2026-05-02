@@ -172,9 +172,10 @@ fn handle_editor_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
         KeyCode::Esc => {
             if app.editor.autocomplete.open {
                 messages.push(AppMessage::CloseAutocomplete);
+            } else if app.editor.is_dirty() {
+                messages.push(AppMessage::ConfirmDiscard);
             } else {
-                // Exit or confirm discard
-                messages.push(AppMessage::ExitEditor); // Or ConfirmDiscard
+                messages.push(AppMessage::ExitEditor);
             }
         }
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
