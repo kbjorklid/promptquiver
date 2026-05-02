@@ -77,6 +77,14 @@ pub enum PreviewMode {
     Hidden,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum StartupBehavior {
+    #[default]
+    Ask,
+    LastActivated,
+    Specific,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,
@@ -85,8 +93,9 @@ pub struct Settings {
     pub use_nerd_font: bool,
     pub theme_name: Option<String>,
     pub preview_mode: PreviewMode,
-    pub active_project_id: Option<Uuid>,
-    pub project_filter: bool,
+    pub startup_behavior: StartupBehavior,
+    pub last_active_project_id: Option<Uuid>,
+    pub specific_project_id: Option<Uuid>,
 }
 
 impl Settings {

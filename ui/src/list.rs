@@ -51,21 +51,30 @@ pub fn render(
                 ""
             };
             
-            let display_name = p.name.as_ref().map_or_else(
-                || {
-                    let (title, _) = contracts::Processor::extract_title(&p.text);
-                    title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
-                },
-                std::clone::Clone::clone,
-            );
+            let (display_name, is_draft) = if active_tab == Tab::Prompts || active_tab == Tab::Canned {
+                contracts::Processor::get_display_title(&p.text)
+            } else {
+                let name = p.name.as_ref().map_or_else(
+                    || {
+                        let (title, _) = contracts::Processor::extract_title(&p.text);
+                        title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
+                    },
+                    std::clone::Clone::clone,
+                );
+                (name, false)
+            };
             
-            let style = if i == selected_index {
+            let mut style = if i == selected_index {
                 Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
             } else if i % 2 == 0 {
                 Style::default().bg(zebra_bg).fg(palette.fg)
             } else {
                 Style::default().bg(palette.bg).fg(palette.fg)
             };
+
+            if is_draft {
+                style = style.add_modifier(Modifier::DIM);
+            }
 
             ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}")).style(style)
         })
@@ -115,15 +124,27 @@ pub fn render_preview(
 ) {
     let palette = get_palette(settings.theme_name.as_deref()); 
 
-    let (color, title_prefix) = if let Some(p) = prompt {
-        match p.r#type {
-            contracts::PromptType::Prompt => (palette.success, " Preview (Prompt) "),
-            contracts::PromptType::Snippet => (palette.secondary, " Preview (Snippet) "),
-            contracts::PromptType::Note => (palette.info, " Preview (Note) "),
-        }
+    let (color, mut title_prefix) = if let Some(p) = prompt {
+        let prefix = match p.r#type {
+            contracts::PromptType::Prompt => " Preview (Prompt) ",
+            contracts::PromptType::Snippet => " Preview (Snippet) ",
+            contracts::PromptType::Note => " Preview (Note) ",
+        };
+        let color = match p.r#type {
+            contracts::PromptType::Prompt => palette.success,
+            contracts::PromptType::Snippet => palette.secondary,
+            contracts::PromptType::Note => palette.info,
+        };
+        (color, prefix.to_string())
     } else {
-        (palette.muted, " Preview ")
+        (palette.muted, " Preview ".to_string())
     };
+
+    if let Some(p) = prompt {
+        if contracts::Processor::is_draft(&contracts::Processor::get_display_title(&p.text).0) {
+            title_prefix = format!("{title_prefix}[DRAFT] ");
+        }
+    }
 
     let block = Block::default()
         .borders(Borders::ALL)

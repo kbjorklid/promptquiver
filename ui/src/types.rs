@@ -68,6 +68,8 @@ pub enum AppMessage {
     SelectTheme,
     CyclePreviewMode,
     ReloadPrompts,
+    ToggleStartupBehavior,
+    SelectStartupProject,
 }
 
 pub struct UpdateContext<'a> {

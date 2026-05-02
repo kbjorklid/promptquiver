@@ -31,6 +31,7 @@ pub struct ListModule {
     pub current_branch: Option<String>,
     pub settings_scroll_offset: u16,
     pub new_project_name: String,
+    pub selecting_startup_project: bool,
 }
 
 impl Default for ListModule {
@@ -47,8 +48,8 @@ impl Default for ListModule {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             branch_filter: false,
-            folder_filter: false,
-            project_filter: false,
+            folder_filter: true,
+            project_filter: true,
             active_project_id: None,
             search_query: String::new(),
             current_path: std::env::current_dir()
@@ -59,6 +60,7 @@ impl Default for ListModule {
             current_branch: None,
             settings_scroll_offset: 0,
             new_project_name: String::new(),
+            selecting_startup_project: false,
         }
     }
 }
@@ -128,7 +130,12 @@ impl ListModule {
         if self.active_tab == Tab::Settings {
             let tabs_len = Tab::settings_display_len();
             let slash_len = settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 4; // tabs + slash commands + Add New + 3 advanced
+            let mut total_settings = tabs_len + slash_len + 4; // base (tabs, slash, add, claude, nerd, theme)
+            total_settings += 1; // Startup Behavior
+            if settings.startup_behavior == contracts::StartupBehavior::Specific {
+                total_settings += 1; // Startup Project
+            }
+
             if self.selected_index < total_settings - 1 {
                 self.selected_index += 1;
                 self.list_state.select(Some(self.selected_index));
@@ -172,7 +179,11 @@ impl ListModule {
         if self.active_tab == Tab::Settings {
             let tabs_len = Tab::settings_display_len();
             let slash_len = settings.slash_commands.len();
-            let total_settings = tabs_len + slash_len + 4;
+            let mut total_settings = tabs_len + slash_len + 4; // base
+            total_settings += 1; // Startup Behavior
+            if settings.startup_behavior == contracts::StartupBehavior::Specific {
+                total_settings += 1; // Startup Project
+            }
             self.selected_index = total_settings - 1;
             self.list_state.select(Some(self.selected_index));
         } else if !self.prompts.is_empty() {
@@ -382,6 +393,10 @@ impl ListModule {
                     ctx.settings.use_nerd_font = !ctx.settings.use_nerd_font;
                     ctx.storage.save_settings(ctx.settings.clone()).await?;
                     return Ok(Some(AppMessage::Notify(format!("Use Nerd Font Icons: {}", if ctx.settings.use_nerd_font { "ON" } else { "OFF" }), ratatui_toaster::ToastType::Info)));
+                } else if self.selected_index == tabs.len() + ctx.settings.slash_commands.len() + 4 {
+                    return Ok(Some(AppMessage::ToggleStartupBehavior));
+                } else if self.selected_index == tabs.len() + ctx.settings.slash_commands.len() + 5 {
+                    return Ok(Some(AppMessage::SelectStartupProject));
                 }
             }
             AppMessage::ToggleBranchFilter => {
@@ -398,8 +413,6 @@ impl ListModule {
             }
             AppMessage::ToggleProjectFilter => {
                 self.project_filter = !self.project_filter;
-                ctx.settings.project_filter = self.project_filter;
-                ctx.storage.save_settings(ctx.settings.clone()).await?;
                 self.load_prompts(ctx.storage).await?;
                 let status = if self.project_filter { "ON" } else { "OFF" };
                 return Ok(Some(AppMessage::Notify(format!("Project filter: {}", status), ratatui_toaster::ToastType::Info)));
@@ -407,7 +420,8 @@ impl ListModule {
             AppMessage::SelectProject => {
                 self.projects = ctx.storage.get_projects().await?;
                 // Select active project in list
-                let pos = if let Some(id) = self.active_project_id {
+                let id_to_match = if self.selecting_startup_project { ctx.settings.specific_project_id } else { self.active_project_id };
+                let pos = if let Some(id) = id_to_match {
                     self.projects.iter().position(|p| p.id == id).map(|p| p + 1).unwrap_or(0)
                 } else {
                     0
@@ -415,10 +429,37 @@ impl ListModule {
                 self.project_list_state.select(Some(pos));
             }
             AppMessage::SetProject(id) => {
-                self.active_project_id = id;
-                ctx.settings.active_project_id = id;
+                if self.selecting_startup_project {
+                    self.selecting_startup_project = false;
+                    ctx.settings.specific_project_id = id;
+                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                    return Ok(Some(AppMessage::Notify("Startup project updated".into(), ratatui_toaster::ToastType::Info)));
+                } else {
+                    self.active_project_id = id;
+                    self.project_filter = true;
+                    ctx.settings.last_active_project_id = id;
+                    ctx.storage.save_settings(ctx.settings.clone()).await?;
+                    self.load_prompts(ctx.storage).await?;
+                    
+                    let name = if let Some(id) = id {
+                        self.projects.iter().find(|p| p.id == id).map(|p| p.title.clone()).unwrap_or_else(|| "Default".into())
+                    } else {
+                        "Default".into()
+                    };
+                    return Ok(Some(AppMessage::Notify(format!("Active project: {}", name), ratatui_toaster::ToastType::Info)));
+                }
+            }
+            AppMessage::ToggleStartupBehavior => {
+                ctx.settings.startup_behavior = match ctx.settings.startup_behavior {
+                    contracts::StartupBehavior::Ask => contracts::StartupBehavior::LastActivated,
+                    contracts::StartupBehavior::LastActivated => contracts::StartupBehavior::Specific,
+                    contracts::StartupBehavior::Specific => contracts::StartupBehavior::Ask,
+                };
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
-                self.load_prompts(ctx.storage).await?;
+            }
+            AppMessage::SelectStartupProject => {
+                self.selecting_startup_project = true;
+                return Ok(Some(AppMessage::SelectProject));
             }
             AppMessage::AddProject(name) => {
                 let name = name.trim();
@@ -432,7 +473,8 @@ impl ListModule {
                 };
                 ctx.storage.save_project(project.clone()).await?;
                 self.active_project_id = Some(project.id);
-                ctx.settings.active_project_id = Some(project.id);
+                self.project_filter = true;
+                ctx.settings.last_active_project_id = Some(project.id);
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
                 self.projects = ctx.storage.get_projects().await?;
                 self.load_prompts(ctx.storage).await?;
@@ -441,7 +483,8 @@ impl ListModule {
                 ctx.storage.delete_project(id).await?;
                 if self.active_project_id == Some(id) {
                     self.active_project_id = None;
-                    ctx.settings.active_project_id = None;
+                    self.project_filter = true;
+                    ctx.settings.last_active_project_id = None;
                     ctx.storage.save_settings(ctx.settings.clone()).await?;
                 }
                 self.projects = ctx.storage.get_projects().await?;
@@ -470,6 +513,9 @@ impl ListModule {
                         } else {
                             return Ok(Some(AppMessage::EnterAddProject));
                         }
+                    }
+                    crossterm::event::KeyCode::Tab => {
+                        self.project_filter = !self.project_filter;
                     }
                     crossterm::event::KeyCode::Char('x') => {
                         let selected = self.project_list_state.selected().unwrap_or(0);

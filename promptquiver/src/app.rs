@@ -38,20 +38,26 @@ impl fmt::Debug for App<'_> {
 
 impl App<'_> {
     pub async fn handle_message(&mut self, initial_msg: AppMessage) -> contracts::Result<()> {
-        if let AppMessage::ThemePickerInput(ref key) = initial_msg {
-            if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
-                self.mode = Mode::List;
-            }
-        }
-        
-        if let AppMessage::ProjectPickerInput(ref key) = initial_msg {
-            if key.code == crossterm::event::KeyCode::Esc {
-                self.mode = Mode::List;
-            }
-        }
-
         let mut msg = initial_msg;
         loop {
+            // Mode transitions based on message before it's processed or transformed
+            match msg {
+                AppMessage::ThemePickerInput(ref key) => {
+                    if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
+                        self.mode = Mode::List;
+                    }
+                }
+                AppMessage::ProjectPickerInput(ref key) => {
+                    if key.code == crossterm::event::KeyCode::Esc {
+                        self.mode = Mode::List;
+                    }
+                }
+                AppMessage::SetProject(_) | AppMessage::AddProject(_) => {
+                    self.mode = Mode::List;
+                }
+                _ => {}
+            }
+
             let mut ctx = UpdateContext {
                 storage: &self.storage,
                 clipboard: &self.clipboard,
@@ -100,9 +106,6 @@ impl App<'_> {
                 AppMessage::SearchInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter => {
                     self.mode = Mode::List;
                 }
-                AppMessage::ThemePickerInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') => {
-                    self.mode = Mode::List;
-                }
                 AppMessage::SelectTheme => self.mode = Mode::ThemePicker,
                 AppMessage::ReloadPrompts => {
                     self.load_prompts().await?;
@@ -110,22 +113,9 @@ impl App<'_> {
                 AppMessage::SelectProject => {
                     self.mode = Mode::ProjectPicker;
                 }
-                AppMessage::SetProject(id) => {
-                    self.mode = Mode::List;
-                    let name = if let Some(id) = id {
-                        self.nav.projects.iter().find(|p| p.id == id).map(|p| p.title.clone()).unwrap_or_else(|| "Default".into())
-                    } else {
-                        "Default".into()
-                    };
-                    self.notify(format!("Active project: {}", name), ToastType::Info);
-                }
                 AppMessage::EnterAddProject => {
                     self.mode = Mode::AddProject;
                     self.nav.new_project_name.clear();
-                }
-                AppMessage::AddProject(name) => {
-                    self.mode = Mode::List;
-                    self.notify(format!("Project '{}' created", name), ToastType::Success);
                 }
                 _ => {}
             }
@@ -191,8 +181,47 @@ impl App<'_> {
             self.settings.theme_name = old_theme;
         }
         self.nav.current_branch = self.current_branch.clone();
-        self.nav.active_project_id = self.settings.active_project_id;
-        self.nav.project_filter = self.settings.project_filter;
+        self.nav.load_prompts(&self.storage).await
+    }
+
+    pub async fn init_project(&mut self) -> contracts::Result<()> {
+        self.settings = self.storage.get_settings().await.unwrap_or_default();
+        let projects = self.storage.get_projects().await?;
+        self.nav.projects = projects.clone();
+        
+        match self.settings.startup_behavior {
+            contracts::StartupBehavior::Ask => {
+                if !projects.is_empty() {
+                    self.mode = Mode::ProjectPicker;
+                    // Pre-select last active project
+                    let pos = if let Some(id) = self.settings.last_active_project_id {
+                        projects.iter().position(|p| p.id == id).map(|p| p + 1).unwrap_or(0)
+                    } else {
+                        0
+                    };
+                    self.nav.project_list_state.select(Some(pos));
+                } else {
+                    self.nav.active_project_id = None;
+                    self.nav.project_filter = true;
+                }
+            }
+            contracts::StartupBehavior::LastActivated => {
+                self.nav.active_project_id = self.settings.last_active_project_id;
+                self.nav.project_filter = true;
+            }
+            contracts::StartupBehavior::Specific => {
+                if let Some(id) = self.settings.specific_project_id {
+                    if projects.iter().any(|p| p.id == id) {
+                        self.nav.active_project_id = Some(id);
+                    } else {
+                        self.nav.active_project_id = None;
+                    }
+                } else {
+                    self.nav.active_project_id = None;
+                }
+                self.nav.project_filter = true;
+            }
+        }
         self.nav.load_prompts(&self.storage).await
     }
 

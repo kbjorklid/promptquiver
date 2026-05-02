@@ -11,11 +11,21 @@ pub fn render_picker(
     state: &mut ratatui::widgets::ListState,
     settings: &contracts::Settings,
     adding_name: Option<&str>,
+    project_filter: bool,
 ) {
     let palette = get_palette(settings.theme_name.as_deref());
     let area = centered_rect(60, 40, f.area());
     
     f.render_widget(Clear, area);
+
+    // Split area into list and footer for toggle
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(3),
+            Constraint::Length(1),
+        ])
+        .split(area);
     
     let mut items = vec![ListItem::new("  Default  ")];
     for p in projects {
@@ -42,7 +52,13 @@ pub fn render_picker(
             .add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
 
-    f.render_stateful_widget(list, area, state);
+    f.render_stateful_widget(list, chunks[0], state);
+
+    let filter_status = if project_filter { "[x]" } else { "[ ]" };
+    let footer = ratatui::widgets::Paragraph::new(format!("  {filter_status} Filter by Project (Tab to toggle)  "))
+        .style(Style::default().fg(if project_filter { palette.accent } else { palette.muted }))
+        .block(Block::default().bg(palette.bg));
+    f.render_widget(footer, chunks[1]);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

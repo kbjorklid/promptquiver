@@ -134,6 +134,7 @@ pub fn render(
                 &mut state.nav.theme_list_state,
                 state.mode == Mode::ThemePicker,
                 &mut state.nav.settings_scroll_offset,
+                &state.nav.projects,
             );
         } else {            editor_content_area = Some(editor::render(
                 f,
@@ -166,6 +167,7 @@ pub fn render(
                 &mut state.nav.theme_list_state,
                 false,
                 &mut state.nav.settings_scroll_offset,
+                &state.nav.projects,
             );
         } else {
             let display_query = &state.nav.search_query;
@@ -204,6 +206,7 @@ pub fn render(
             &mut state.nav.project_list_state,
             state.settings,
             if state.mode == Mode::AddProject { Some(&state.nav.new_project_name) } else { None },
+            state.nav.project_filter,
         );
     }
 

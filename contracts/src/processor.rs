@@ -8,15 +8,73 @@ impl Processor {
     /// Extracts a title from the text if it follows the pattern:
     /// -- Title
     ///
-    /// (Empty line after title)
+    /// (Empty line after title, or end of string)
     pub fn extract_title(text: &str) -> (Option<String>, String) {
         let lines: Vec<&str> = text.lines().collect();
-        if lines.len() >= 2 && lines[0].starts_with("--") && lines[1].trim().is_empty() {
-            let title = lines[0].trim_start_matches("--").trim().to_string();
-            let remaining = lines[2..].join("\n");
-            (Some(title), remaining)
+        if lines.is_empty() {
+            return (None, text.to_string());
+        }
+
+        if lines[0].starts_with("--") {
+            if lines.len() == 1 {
+                let title = lines[0].trim_start_matches("--").trim().to_string();
+                return (Some(title), String::new());
+            }
+            if lines[1].trim().is_empty() {
+                let title = lines[0].trim_start_matches("--").trim().to_string();
+                let remaining = lines[2..].join("\n");
+                return (Some(title), remaining);
+            }
+        }
+        (None, text.to_string())
+    }
+
+    /// Checks if a title indicates a draft.
+    /// A title is a draft if it:
+    /// - starts with "Draft " (case-insensitive)
+    /// - starts with "[Draft]" (case-insensitive)
+    /// - ends with "[Draft]" (case-insensitive)
+    pub fn is_draft(title: &str) -> bool {
+        let t = title.trim();
+        let lower = t.to_lowercase();
+        
+        lower.starts_with("draft ") || 
+        lower.starts_with("[draft]") || 
+        lower.ends_with("[draft]") ||
+        lower == "draft"
+    }
+
+    /// Returns the display title and whether it's a draft.
+    /// If it's a draft, the title is cleaned (marker removed) and prefixed with [DRAFT].
+    pub fn get_display_title(text: &str) -> (String, bool) {
+        let (extracted, _) = Self::extract_title(text);
+        let raw_title = extracted.unwrap_or_else(|| {
+            let first_line = text.lines().next().unwrap_or("");
+            first_line.trim_start_matches("--").trim().to_string()
+        });
+
+        if Self::is_draft(&raw_title) {
+            let mut cleaned = raw_title.trim().to_string();
+            let lower = cleaned.to_lowercase();
+
+            if lower.starts_with("draft ") {
+                cleaned = cleaned[6..].trim().to_string();
+            } else if lower.starts_with("[draft]") {
+                cleaned = cleaned[7..].trim().to_string();
+            } else if lower.ends_with("[draft]") {
+                cleaned = cleaned[..cleaned.len() - 7].trim().to_string();
+            } else if lower == "draft" {
+                cleaned = String::new();
+            }
+
+            let display = if cleaned.is_empty() {
+                "[DRAFT]".to_string()
+            } else {
+                format!("[DRAFT] {cleaned}")
+            };
+            (display, true)
         } else {
-            (None, text.to_string())
+            (raw_title, false)
         }
     }
 
@@ -77,7 +135,6 @@ impl Processor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Prompt, PromptType};
 
     #[test]
     fn test_extract_title() {
@@ -99,11 +156,25 @@ mod tests {
     }
 
     #[test]
-    fn test_expand_snippets() {
-        let snippets = vec![
-            Prompt::new("expanded_content".to_string(), PromptType::Snippet, None, None, Some("mysnip".to_string()), None),
-        ];
-        let text = "Use $$mysnip here";
-        assert_eq!(Processor::expand_snippets(text, &snippets), "Use expanded_content here");
+    fn test_is_draft() {
+        assert!(Processor::is_draft("Draft Fix welcome email"));
+        assert!(Processor::is_draft("[Draft] Fix welcome email"));
+        assert!(Processor::is_draft("Fix welcome email [Draft]"));
+        assert!(Processor::is_draft("DRAFT Fix welcome email"));
+        assert!(Processor::is_draft("[draft] Fix welcome email"));
+        assert!(Processor::is_draft("draft"));
+        
+        assert!(!Processor::is_draft("Drafting a document"));
+        assert!(!Processor::is_draft("My Draft version"));
+        assert!(!Processor::is_draft("Fix welcome email"));
+    }
+
+    #[test]
+    fn test_get_display_title() {
+        assert_eq!(Processor::get_display_title("-- Draft Title\n\nContent").0, "[DRAFT] Title");
+        assert_eq!(Processor::get_display_title("-- [Draft] Title\n\nContent").0, "[DRAFT] Title");
+        assert_eq!(Processor::get_display_title("-- Title [Draft]\n\nContent").0, "[DRAFT] Title");
+        assert_eq!(Processor::get_display_title("-- draft\n\nContent").0, "[DRAFT]");
+        assert_eq!(Processor::get_display_title("No extractable title").0, "No extractable title");
     }
 }

@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
 
     // App State
     let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
-    handle_error!(app, app.load_prompts().await);
+    handle_error!(app, app.init_project().await);
 
     // Background Git Poller
     let (branch_tx, mut branch_rx) = tokio::sync::mpsc::channel(1);

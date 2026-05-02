@@ -48,6 +48,11 @@ impl AppService for RealAppService {
             return Ok(());
         }
 
+        // Check if it's a draft (only for Prompts/Canned)
+        if (tab == Prompts || tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&item.text).0) {
+            return Err(contracts::Error::Storage("Cannot stage a draft prompt. Remove 'Draft' from the title first.".to_string()));
+        }
+
         if item.staged {
             // Un-stage
             item.staged = false;
@@ -149,6 +154,12 @@ impl AppService for RealAppService {
                 p.text = text;
                 p.name = title;
                 p.updated_at = chrono::Utc::now();
+                
+                // Unstage if it's a draft
+                if (tab == Prompts || tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&p.text).0) {
+                    p.staged = false;
+                }
+
                 self.storage.save_prompt(p).await?;
             }
         } else {
@@ -161,6 +172,11 @@ impl AppService for RealAppService {
             let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch, title, project_id);
             if tab == Tab::Canned {
                 prompt.folder = None;
+            }
+
+            // A new item is never staged by default, but let's be safe
+            if (tab == Prompts || tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&prompt.text).0) {
+                prompt.staged = false;
             }
             
             self.storage.save_prompt(prompt).await?;

@@ -16,6 +16,7 @@ pub fn render(
     theme_list_state: &mut ratatui::widgets::ListState,
     theme_picker_open: bool,
     scroll_offset: &mut u16,
+    projects: &[contracts::Project],
 ) {
     let palette = get_palette(settings.theme_name.as_deref());
     
@@ -26,7 +27,12 @@ pub fn render(
     
     let tab_height = 8;
     let slash_height = (slash_len + 3) as u16;
-    let advanced_height = 5;
+    
+    let mut advanced_count = 6;
+    if settings.startup_behavior == contracts::StartupBehavior::Specific {
+        advanced_count += 1;
+    }
+    let advanced_height = (advanced_count + 2) as u16;
     let total_height = tab_height + slash_height + advanced_height;
 
     // Determine current selected Y position (relative to start of settings)
@@ -183,15 +189,30 @@ pub fn render(
     let claude_status = if settings.enable_claude_commands { "[ON]" } else { "[OFF]" };
     let nerd_status = if settings.use_nerd_font { "[ON]" } else { "[OFF]" };
     let current_theme = settings.theme_name.as_deref().unwrap_or("Default");
+    let behavior_status = format!("{:?}", settings.startup_behavior);
 
-    let advanced_items = vec![
+    let mut advanced_items = vec![
         ListItem::new(format!("{} Enable Claude Commands: {}", if selected_index == advanced_idx { ">" } else { " " }, claude_status))
             .style(if selected_index == advanced_idx { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
         ListItem::new(format!("{} Use Nerd Font Icons: {}", if selected_index == advanced_idx + 1 { ">" } else { " " }, nerd_status))
             .style(if selected_index == advanced_idx + 1 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
         ListItem::new(format!("{} Theme: {}", if selected_index == advanced_idx + 2 { ">" } else { " " }, current_theme))
             .style(if selected_index == advanced_idx + 2 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
+        ListItem::new(format!("{} Startup Behavior: {}", if selected_index == advanced_idx + 3 { ">" } else { " " }, behavior_status))
+            .style(if selected_index == advanced_idx + 3 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
     ];
+
+    if settings.startup_behavior == contracts::StartupBehavior::Specific {
+        let project_name = if let Some(id) = settings.specific_project_id {
+            projects.iter().find(|p| p.id == id).map(|p| p.title.clone()).unwrap_or_else(|| "Default".into())
+        } else {
+            "Default".into()
+        };
+        advanced_items.push(
+            ListItem::new(format!("{} Startup Project: {}", if selected_index == advanced_idx + 4 { ">" } else { " " }, project_name))
+                .style(if selected_index == advanced_idx + 4 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) })
+        );
+    }
 
     let advanced_list = List::new(advanced_items).block(advanced_block).style(Style::default().bg(palette.bg));
     
