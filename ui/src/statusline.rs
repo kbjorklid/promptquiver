@@ -23,15 +23,8 @@ pub fn render(
     let branch_name = current_branch.unwrap_or("no branch");
     let project_name = active_project.unwrap_or("Default");
     
-    let filter_mode = if folder_filter_enabled { "GLOBAL" } else { "LOCAL" };
-    let folder_style = if !folder_filter_enabled {
-        Style::default().fg(palette.bg).bg(palette.accent)
-    } else {
-        Style::default().fg(palette.secondary)
-    };
-
     let path_style = if !folder_filter_enabled {
-        Style::default().fg(palette.bg).bg(palette.accent)
+        Style::default().fg(palette.bg).bg(palette.secondary)
     } else {
         Style::default().fg(palette.secondary)
     };
@@ -43,13 +36,12 @@ pub fn render(
     };
 
     let branch_style = if branch_filter_enabled {
-        Style::default().fg(palette.bg).bg(palette.accent)
+        Style::default().fg(palette.bg).bg(palette.warning)
     } else {
         Style::default().fg(palette.warning)
     };
 
     let line = Line::from(vec![
-        Span::styled(format!(" {} ", filter_mode), folder_style),
         Span::styled(format!(" {} ", formatted_path), path_style),
         Span::styled(format!("  {} ", project_name), project_style),
         Span::styled(format!("  {} ", branch_name), branch_style),
