@@ -146,10 +146,10 @@ impl AppService for RealAppService {
         Ok(())
     }
 
-    async fn save_item(&self, folder: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, _insert_index: Option<usize>, branch: Option<String>, project_id: Option<uuid::Uuid>) -> Result<()> {
+    async fn save_item(&self, folder: &str, tab: Tab, text: String, title: Option<String>, id: Option<uuid::Uuid>, insert_index: Option<usize>, branch: Option<String>, project_id: Option<uuid::Uuid>) -> Result<()> {
         if let Some(id) = id {
             // We need to find the prompt to update it
-            let all = self.storage.get_prompts(PromptFilter::default()).await?;
+            let all = self.storage.get_prompts(contracts::PromptFilter::default()).await?;
             if let Some(mut p) = all.into_iter().find(|p| p.id == id) {
                 p.text = text;
                 p.name = title;
@@ -169,7 +169,7 @@ impl AppService for RealAppService {
                 _ => contracts::PromptType::Prompt,
             };
             
-            let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch, title, project_id);
+            let mut prompt = contracts::Prompt::new(text, r#type, Some(folder.to_string()), branch.clone(), title, project_id);
             if tab == Tab::Canned {
                 prompt.folder = None;
             }
@@ -177,6 +177,57 @@ impl AppService for RealAppService {
             // A new item is never staged by default, but let's be safe
             if (tab == Prompts || tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&prompt.text).0) {
                 prompt.staged = false;
+            }
+
+            if let Some(idx) = insert_index {
+                // Get all prompts for the current view to calculate order_index
+                let filter = contracts::PromptFilter {
+                    folder: if tab == Tab::Canned { None } else { Some(folder.to_string()) },
+                    project_id,
+                    branch: if tab == Tab::Prompts { branch } else { None },
+                    tab: Some(tab),
+                    project_filter: project_id.is_some(),
+                };
+                let existing = self.storage.get_prompts(filter).await?;
+                
+                // If we are inserting, we might need to re-index everything to be safe
+                // or just pick an order_index. 
+                // Since we sort by order_index ASC, created_at DESC:
+                // Newer items with same order_index are at the top.
+                
+                if idx == 0 {
+                    // Insert at top
+                    if let Some(first) = existing.first() {
+                        prompt.order_index = first.order_index - 1;
+                    } else {
+                        prompt.order_index = 0;
+                    }
+                } else if idx >= existing.len() {
+                    // Insert at bottom
+                    if let Some(last) = existing.last() {
+                        prompt.order_index = last.order_index + 1;
+                    } else {
+                        prompt.order_index = 0;
+                    }
+                    // Since it's at the bottom, we want it to be LAST.
+                    // If multiple have same order_index, newest is first.
+                    // So for bottom insertion, we MUST have a higher order_index.
+                } else {
+                    // Insert between existing[idx-1] and existing[idx]
+                    // We'll re-index everything to ensure there's a gap or just use the mid point if we use larger gaps.
+                    // Let's just re-index everything starting from 0, with gaps of 10.
+                    let mut new_list = Vec::new();
+                    for (i, mut p) in existing.into_iter().enumerate() {
+                        if i == idx {
+                            prompt.order_index = (i as i32) * 10;
+                            new_list.push(prompt.clone());
+                        }
+                        p.order_index = ((i + if i >= idx { 1 } else { 0 }) as i32) * 10;
+                        new_list.push(p);
+                    }
+                    self.storage.save_prompts(new_list).await?;
+                    return Ok(());
+                }
             }
             
             self.storage.save_prompt(prompt).await?;
@@ -199,20 +250,37 @@ impl AppService for RealAppService {
             if let Ok(entries) = std::fs::read_dir(current_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
+                    let relative_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
+                    let path_normalized = relative_path.replace('\\', "/");
+                    let path_lower = path_normalized.to_lowercase();
+
                     if path.is_dir() {
                         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                             if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') { continue; }
                         }
+                        
+                        // Suggest the directory itself
+                        let dir_path_normalized = if path_normalized.ends_with('/') || path_normalized.is_empty() { 
+                            path_normalized.clone() 
+                        } else { 
+                            format!("{}/", path_normalized) 
+                        };
+                        let dir_path_lower = dir_path_normalized.to_lowercase();
+                        
+                        if !dir_path_normalized.is_empty() {
+                            if let Some(score) = matcher.fuzzy_match(&dir_path_lower, query_normalized) {
+                                let mut final_score = score + 50; // Directory bonus
+                                if dir_path_lower.contains(query_normalized) { final_score += 100; }
+                                results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(dir_path_normalized), None)));
+                            }
+                        }
+
                         walk_recursive(base_dir, &path, query_normalized, matcher, results);
                     } else {
-                        let relative_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
-                        let path_normalized = relative_path.replace('\\', "/");
-                        let path_lower = path_normalized.to_lowercase();
-                        
                         if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
                             let mut final_score = score;
                             if path_lower.contains(query_normalized) { final_score += 100; }
-                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(relative_path), None)));
+                            results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(path_normalized), None)));
                         }
                     }
                 }

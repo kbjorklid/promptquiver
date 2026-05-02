@@ -127,10 +127,24 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
             if app.nav.active_tab == Tab::Settings {
                 messages.push(AppMessage::EditSetting);
             } else {
-                messages.push(AppMessage::EnterEditor(String::new(), None));
+                messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index + 1));
             }
         }
-        KeyCode::Char('i') => messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index)),
+        KeyCode::Char('i') => {
+            if app.nav.active_tab != Tab::Settings {
+                messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index));
+            }
+        }
+        KeyCode::Char('I') => {
+            if app.nav.active_tab != Tab::Settings {
+                messages.push(AppMessage::EnterEditorBefore(String::new(), 0));
+            }
+        }
+        KeyCode::Char('A') => {
+            if app.nav.active_tab != Tab::Settings {
+                messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.prompts.len()));
+            }
+        }
         KeyCode::Char('b') => messages.push(AppMessage::ToggleBranchFilter),
         KeyCode::Char('f') => messages.push(AppMessage::ToggleFolderFilter),
         KeyCode::Char('p') => messages.push(AppMessage::ToggleProjectFilter),

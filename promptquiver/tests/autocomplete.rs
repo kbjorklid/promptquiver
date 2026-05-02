@@ -1,6 +1,8 @@
 mod common;
 use common::setup_app;
 use contracts::Storage;
+use tempfile::tempdir;
+use std::fs;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -349,5 +351,38 @@ async fn test_autocomplete_esc_closes_popup() {
     
     assert!(!app.editor.autocomplete.open);
     assert!(app.editor.autocomplete.suggestions.is_empty());
+}
+
+#[tokio::test]
+async fn test_autocomplete_folders_logic() {
+    let (app, _, _, _) = setup_app();
+    
+    // Create a temporary directory structure
+    let temp_dir = tempdir().unwrap();
+    let root = temp_dir.path();
+    
+    // root/
+    //   foo/           (folder)
+    //     bar.txt      (file)
+    //   foo_file.txt   (file)
+    
+    let foo_dir = root.join("foo");
+    fs::create_dir(&foo_dir).unwrap();
+    fs::write(foo_dir.join("bar.txt"), "content").unwrap();
+    fs::write(root.join("foo_file.txt"), "content").unwrap();
+    
+    let base_dir = root.to_str().unwrap();
+    
+    // Test 1: Typing "foo" should return the folder "foo/"
+    let results = app.service.search_files(base_dir, "foo").await.unwrap();
+    
+    let folder_suggestion = results.iter().find(|p| p.name.as_deref() == Some("foo/"));
+    assert!(folder_suggestion.is_some(), "Folder 'foo/' should be suggested");
+    
+    // Test 2: Priority - Folder "foo/" should be first when query is "foo"
+    assert_eq!(results[0].name.as_deref(), Some("foo/"), "Folder 'foo/' should be the first suggestion for query 'foo'");
+    
+    // Test 3: Trailing slash in name
+    assert!(results[0].name.as_ref().unwrap().ends_with('/'));
 }
 

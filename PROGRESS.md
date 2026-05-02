@@ -18,6 +18,7 @@
 - [x] Implement multi-instance support with file watching and optimistic locking.
 - [x] Handle write conflicts with user notifications.
 - [x] Create minor release v0.7.0.
+- [x] Implement folder suggestions and prioritization in file autocomplete (@).
 
 ## Current Tasks
 - [x] Version 0.7.0 released.
