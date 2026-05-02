@@ -198,7 +198,7 @@ pub fn render(
             .style(if selected_index == advanced_idx + 1 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
         ListItem::new(format!("{} Theme: {}", if selected_index == advanced_idx + 2 { ">" } else { " " }, current_theme))
             .style(if selected_index == advanced_idx + 2 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
-        ListItem::new(format!("{} Startup Behavior: {}", if selected_index == advanced_idx + 3 { ">" } else { " " }, behavior_status))
+        ListItem::new(format!("{} Project selection at startup: {}", if selected_index == advanced_idx + 3 { ">" } else { " " }, behavior_status))
             .style(if selected_index == advanced_idx + 3 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
     ];
 

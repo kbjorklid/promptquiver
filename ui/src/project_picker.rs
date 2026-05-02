@@ -12,6 +12,7 @@ pub fn render_picker(
     settings: &contracts::Settings,
     adding_name: Option<&str>,
     project_filter: bool,
+    hide_filter: bool,
 ) {
     let palette = get_palette(settings.theme_name.as_deref());
     let area = centered_rect(60, 40, f.area());
@@ -19,12 +20,15 @@ pub fn render_picker(
     f.render_widget(Clear, area);
 
     // Split area into list and footer for toggle
+    let constraints = if hide_filter {
+        vec![Constraint::Min(3)]
+    } else {
+        vec![Constraint::Min(3), Constraint::Length(1)]
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(3),
-            Constraint::Length(1),
-        ])
+        .constraints(constraints)
         .split(area);
     
     let mut items = vec![ListItem::new("  Default  ")];
@@ -54,11 +58,13 @@ pub fn render_picker(
 
     f.render_stateful_widget(list, chunks[0], state);
 
-    let filter_status = if project_filter { "[x]" } else { "[ ]" };
-    let footer = ratatui::widgets::Paragraph::new(format!("  {filter_status} Filter by Project (Tab to toggle)  "))
-        .style(Style::default().fg(if project_filter { palette.accent } else { palette.muted }))
-        .block(Block::default().bg(palette.bg));
-    f.render_widget(footer, chunks[1]);
+    if !hide_filter {
+        let filter_status = if project_filter { "[x]" } else { "[ ]" };
+        let footer = ratatui::widgets::Paragraph::new(format!("  {filter_status} Filter by Project (Tab to toggle)  "))
+            .style(Style::default().fg(if project_filter { palette.accent } else { palette.muted }))
+            .block(Block::default().bg(palette.bg));
+        f.render_widget(footer, chunks[1]);
+    }
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

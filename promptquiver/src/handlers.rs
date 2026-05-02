@@ -146,6 +146,14 @@ fn handle_list_events(app: &App<'_>, key: KeyEvent) -> Vec<AppMessage> {
                 let advanced_idx = tabs_len + slash_len + 1;
                 if app.nav.selected_index == advanced_idx + 2 {
                     messages.push(AppMessage::SelectTheme);
+                } else if app.nav.selected_index == advanced_idx + 4 {
+                    messages.push(AppMessage::SelectStartupProject);
+                } else if app.nav.selected_index < tabs_len 
+                    || app.nav.selected_index == advanced_idx 
+                    || app.nav.selected_index == advanced_idx + 1 
+                    || app.nav.selected_index == advanced_idx + 3 
+                {
+                    messages.push(AppMessage::ToggleSetting);
                 } else {
                     messages.push(AppMessage::EditSetting);
                 }

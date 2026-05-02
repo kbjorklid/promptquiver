@@ -207,6 +207,7 @@ pub fn render(
             state.settings,
             if state.mode == Mode::AddProject { Some(&state.nav.new_project_name) } else { None },
             state.nav.project_filter,
+            state.nav.selecting_startup_project,
         );
     }
 
