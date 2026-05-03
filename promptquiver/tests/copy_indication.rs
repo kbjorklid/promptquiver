@@ -109,6 +109,6 @@ async fn test_copy_icon_rendering() {
     }
     
     // Should contain the copy icon
-    assert!(row_text.contains("📋"), "Rendered list should contain copy icon 📋. Found: {}", row_text);
+    assert!(row_text.contains("📋"), "Rendered list should contain copy icon 📋. Found: {row_text}");
 }
 

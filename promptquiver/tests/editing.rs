@@ -2,6 +2,9 @@ mod common;
 use common::setup_app;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use contracts::Tab;
+use ui::types::AppMessage;
+use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, Event};
 
 #[tokio::test]
 async fn test_add_edit_prompt() {
@@ -48,8 +51,6 @@ async fn test_selection_focus_after_creation() {
 #[tokio::test]
 async fn test_create_title_in_editor() {
     let (mut app, _, _, _) = setup_app();
-    use contracts::Tab;
-    use ui::types::AppMessage;
 
     // 1. Test "Create Prompt"
     app.enter_editor(String::new(), None);
@@ -187,9 +188,6 @@ async fn test_editor_discard_confirmation_modal() {
 #[tokio::test]
 async fn test_snippet_name_enter_moves_focus() {
     let (mut app, _, _, _) = setup_app();
-    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
-    use contracts::Tab;
-    use ui::types::AppMessage;
     
     // Switch to Snippets tab
     app.handle_message(AppMessage::SetTab(Tab::Snippets)).await.unwrap();
@@ -222,10 +220,9 @@ async fn test_snippet_name_enter_moves_focus() {
 #[tokio::test]
 async fn test_paste_in_editor() {
     let (mut app, _, _, _) = setup_app();
-    use crossterm::event::Event;
     
     // Enter editor
-    app.enter_editor("".to_string(), None);
+    app.enter_editor(String::new(), None);
     
     // Simulate a paste event
     let paste_content = "Pasted content".to_string();
@@ -237,4 +234,5 @@ async fn test_paste_in_editor() {
     // Assert that the content was pasted
     assert_eq!(app.editor.textarea.lines()[0], paste_content);
 }
+
 

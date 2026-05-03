@@ -82,15 +82,13 @@ impl App<'_> {
 
     fn apply_pre_transitions(&mut self, msg: &AppMessage) {
         match msg {
-            AppMessage::ThemePickerInput(ref key) => {
-                if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') {
-                    self.mode = Mode::List;
-                }
+            AppMessage::ThemePickerInput(ref key)
+                if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') =>
+            {
+                self.mode = Mode::List;
             }
-            AppMessage::ProjectPickerInput(ref key) => {
-                if key.code == crossterm::event::KeyCode::Esc {
-                    self.mode = Mode::List;
-                }
+            AppMessage::ProjectPickerInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
+                self.mode = Mode::List;
             }
             AppMessage::SetProject(_) | AppMessage::AddProject(_) => {
                 self.mode = Mode::List;
@@ -197,7 +195,7 @@ impl App<'_> {
         if self.mode == Mode::ThemePicker {
             self.settings.theme_name = old_theme;
         }
-        self.nav.current_branch = self.current_branch.clone();
+        self.nav.current_branch.clone_from(&self.current_branch);
         self.nav.load_prompts(&self.storage).await
     }
 
@@ -208,22 +206,20 @@ impl App<'_> {
     pub async fn init_project(&mut self) -> contracts::Result<()> {
         self.settings = self.storage.get_settings().await.unwrap_or_default();
         let projects = self.storage.get_projects().await?;
-        self.nav.projects_manager.projects = projects.clone();
+        self.nav.projects_manager.projects.clone_from(&projects);
         
         match self.settings.startup_behavior {
             contracts::StartupBehavior::Ask => {
-                if !projects.is_empty() {
-                    self.mode = Mode::ProjectPicker;
-                    // Pre-select last active project
-                    let pos = if let Some(id) = self.settings.last_active_project_id {
-                        projects.iter().position(|p| p.id == id).map(|p| p + 1).unwrap_or(0)
-                    } else {
-                        0
-                    };
-                    self.nav.projects_manager.project_list_state.select(Some(pos));
-                } else {
+                if projects.is_empty() {
                     self.nav.projects_manager.active_project_id = None;
                     self.nav.project_filter = true;
+                } else {
+                    self.mode = Mode::ProjectPicker;
+                    // Pre-select last active project
+                    let pos = self.settings.last_active_project_id.map_or(0, |id| {
+                        projects.iter().position(|p| p.id == id).map_or(0, |p| p + 1)
+                    });
+                    self.nav.projects_manager.project_list_state.select(Some(pos));
                 }
             }
             contracts::StartupBehavior::LastActivated => {
@@ -249,10 +245,10 @@ impl App<'_> {
     // Wrappers for tests
     pub fn next_tab(&mut self) { self.nav.next_tab(&self.settings); }
     pub fn prev_tab(&mut self) { self.nav.prev_tab(&self.settings); }
-    pub fn set_tab(&mut self, tab: Tab) { self.nav.set_tab(tab); }
+    pub const fn set_tab(&mut self, tab: Tab) { self.nav.set_tab(tab); }
     pub fn move_down(&mut self) { self.nav.move_down(&self.settings); }
     pub fn move_up(&mut self) { self.nav.move_up(&self.settings); }
-    pub fn move_to_top(&mut self) { self.nav.move_to_top(); }
+    pub const fn move_to_top(&mut self) { self.nav.move_to_top(); }
     pub fn move_to_bottom(&mut self) { self.nav.move_to_bottom(&self.settings); }
 
     /// Stages the currently selected item.
@@ -445,11 +441,11 @@ impl App<'_> {
                 self.notify("Prompt saved!", ToastType::Success);
             }
             Err(contracts::Error::Conflict(m)) => {
-                self.notify(format!("Conflict: {}. Changes NOT saved.", m), ToastType::Error);
+                self.notify(format!("Conflict: {m}. Changes NOT saved."), ToastType::Error);
                 // We stay in editor so user can copy their work or try again after reload
             }
             Err(e) => {
-                self.notify(format!("Error: {}", e), ToastType::Error);
+                self.notify(format!("Error: {e}"), ToastType::Error);
             }
         }
         Ok(())

@@ -53,12 +53,11 @@ async fn test_autocomplete_file() {
     
     // Simulate background searcher
     if let Some((_path, _query)) = file_search_rx.recv().await {
-        let mut results = Vec::new();
         // We need a way to call walk_files here, but it's in main.rs.
         // For testing, we can just manually push the expected result.
-        results.push(contracts::Prompt::new(
+        let results = vec![contracts::Prompt::new(
             temp_file.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some("test_file_for_autocomplete.txt".to_string()), None
-        ));
+        )];
         file_result_tx.send(results).await.unwrap();
     }
 
@@ -138,7 +137,7 @@ async fn test_autocomplete_slash_command_title() {
 async fn test_autocomplete_closes_on_trigger_removal() {
     let (mut app, _, _, _) = setup_app();
     
-    app.enter_editor("".to_string(), None);
+    app.enter_editor(String::new(), None);
     
     // Type @
     app.editor.textarea.input(crossterm::event::KeyEvent::new(
@@ -236,7 +235,7 @@ async fn test_autocomplete_positioning_above_cursor() {
     ];
 
     // Create enough lines to push cursor to the bottom
-    let lines = (0..25).map(|i| format!("line{}", i)).collect::<Vec<_>>().join("\n");
+    let lines = (0..25).map(|i| format!("line{i}")).collect::<Vec<_>>().join("\n");
     app.enter_editor(lines, None);
     
     // Move to last line (line24)
@@ -283,7 +282,7 @@ async fn test_autocomplete_positioning_above_cursor() {
             line_content.push_str(buffer[(x, y)].symbol());
         }
         // TextArea might have a space before / or different formatting
-        if line_content.contains("line24") && line_content.contains("/") {
+        if line_content.contains("line24") && line_content.contains('/') {
             cursor_y = Some(y);
             break;
         }
@@ -297,7 +296,7 @@ async fn test_autocomplete_positioning_above_cursor() {
             }
             buffer_viz.push('\n');
         }
-        panic!("Could not find cursor at line24 /\nBuffer:\n{}", buffer_viz);
+        panic!("Could not find cursor at line24 /\nBuffer:\n{buffer_viz}");
     }
     let cursor_y = cursor_y.unwrap();
 
@@ -322,7 +321,7 @@ async fn test_autocomplete_positioning_above_cursor() {
             }
             buffer_viz.push('\n');
         }
-        panic!("Popup should be rendered above cursor_y={} when at bottom\nBuffer:\n{}", cursor_y, buffer_viz);
+        panic!("Popup should be rendered above cursor_y={cursor_y} when at bottom\nBuffer:\n{buffer_viz}");
     }
 }
 
@@ -331,7 +330,7 @@ async fn test_autocomplete_esc_closes_popup() {
     let (mut app, _, _, _) = setup_app();
     app.settings.slash_commands = vec!["test".to_string()];
     
-    app.enter_editor("".to_string(), None);
+    app.enter_editor(String::new(), None);
     
     // Type /
     promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(

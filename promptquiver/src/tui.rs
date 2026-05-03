@@ -22,6 +22,9 @@ impl<B: Backend> Tui<B> {
     ///
     /// # Errors
     /// Returns an error if the terminal cannot be initialized.
+    ///
+    /// # Panics
+    /// Panics if the panic hook fails to reset the terminal.
     pub fn enter(&mut self) -> Result<()>
     where
         B::Error: Send + Sync + 'static,

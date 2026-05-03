@@ -447,12 +447,12 @@ async fn test_paste_event() {
     let (mut app, _, _, _) = setup_app();
     app.mode = promptquiver::app::Mode::Editor;
     
-    use promptquiver::handlers::handle_event;
-    use crossterm::event::Event;
-    
     handle_event(&mut app, Event::Paste("pasted content".to_string())).await;
     // AppMessage::Paste should be handled
 }
+
+use promptquiver::handlers::handle_event;
+use crossterm::event::Event;
 
 #[tokio::test]
 async fn test_editor_extra_keys() {

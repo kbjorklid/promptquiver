@@ -38,7 +38,7 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
                 if content.len() > 1 {
                     // We found a burst of characters, process as a single Paste
                     if let Err(e) = app.handle_message(AppMessage::Paste(content)).await {
-                        app.notify(format!("Error: {}", e), ToastType::Error);
+                        app.notify(format!("Error: {e}"), ToastType::Error);
                     }
                     i = j; // Skip all batched characters (including their release events)
                     continue;
@@ -73,7 +73,7 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
 
         for msg in messages {
             if let Err(e) = app.handle_message(msg).await {
-                app.notify(format!("Error: {}", e), ToastType::Error);
+                app.notify(format!("Error: {e}"), ToastType::Error);
             }
         }
         i += 1;
@@ -98,9 +98,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                 let slash_len = app.settings.slash_commands.len();
                 let advanced_idx = tabs_len + slash_len + 1;
 
-                if app.nav.selected_index < tabs_len {
-                    messages.push(AppMessage::MoveDown);
-                } else if app.nav.selected_index < advanced_idx {
+                if app.nav.selected_index < advanced_idx {
                     messages.push(AppMessage::MoveDown);
                 } else {
                     messages.push(AppMessage::MoveToTop);
@@ -130,20 +128,14 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                 messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index + 1));
             }
         }
-        ShortcutAction::AddBefore => {
-            if app.nav.active_tab != Tab::Settings {
-                messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index));
-            }
+        ShortcutAction::AddBefore if app.nav.active_tab != Tab::Settings => {
+            messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index));
         }
-        ShortcutAction::AddAtTop => {
-            if app.nav.active_tab != Tab::Settings {
-                messages.push(AppMessage::EnterEditorBefore(String::new(), 0));
-            }
+        ShortcutAction::AddAtTop if app.nav.active_tab != Tab::Settings => {
+            messages.push(AppMessage::EnterEditorBefore(String::new(), 0));
         }
-        ShortcutAction::AddAtBottom => {
-            if app.nav.active_tab != Tab::Settings {
-                messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.prompts.len()));
-            }
+        ShortcutAction::AddAtBottom if app.nav.active_tab != Tab::Settings => {
+            messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.prompts.len()));
         }
         ShortcutAction::EditSelected => {
             if app.nav.active_tab == Tab::Settings {

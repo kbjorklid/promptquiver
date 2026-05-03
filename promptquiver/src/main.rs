@@ -10,14 +10,43 @@ use std::{io, sync::Arc, time::Duration};
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
         if let Err(e) = $res {
-            $app.notify(format!("Error: {}", e), ToastType::Error);
+            $app.notify(format!("Error: {e}"), ToastType::Error);
         }
     };
 }
 
+type AppInfra = (
+    Arc<dyn Storage>,
+    Arc<dyn Clipboard>,
+    Arc<dyn Git>,
+    Arc<dyn contracts::AppService>,
+);
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Infrastructure
+    let (storage, clipboard, git, service) = setup_infra();
+    let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
+    handle_error!(app, app.init_project().await);
+
+    let mut branch_rx = setup_git_poller(git.clone());
+    let mut file_result_rx = setup_file_searcher(&mut app, service.clone());
+    let mut db_sync_rx = setup_db_poller(storage.clone());
+
+    let mut tui = Tui::new(Terminal::new(ratatui::backend::CrosstermBackend::new(io::stdout()))?);
+    tui.enter()?;
+
+    app.toaster = Some(
+        ToastEngineBuilder::new(tui.terminal.size()?.into())
+            .default_duration(Duration::from_secs(3))
+            .build()
+    );
+
+    run_app_loop(&mut app, &mut tui, &mut branch_rx, &mut file_result_rx, &mut db_sync_rx).await?;
+    tui.exit()?;
+    Ok(())
+}
+
+fn setup_infra() -> AppInfra {
     let db_dir = directories::ProjectDirs::from("", "", "promptquiver")
         .map_or_else(|| std::path::PathBuf::from("."), |d| d.data_dir().to_path_buf());
     if !db_dir.exists() {
@@ -29,49 +58,48 @@ async fn main() -> Result<()> {
     let clipboard: Arc<dyn Clipboard> = Arc::new(RealClipboard::new());
     let git: Arc<dyn Git> = Arc::new(RealGit::new());
     let service: Arc<dyn contracts::AppService> = Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
+    (storage, clipboard, git, service)
+}
 
-    // App State
-    let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
-    handle_error!(app, app.init_project().await);
-
-    // Background Git Poller
-    let (branch_tx, mut branch_rx) = tokio::sync::mpsc::channel(1);
-    let git_clone = git.clone();
+fn setup_git_poller(git: Arc<dyn Git>) -> tokio::sync::mpsc::Receiver<Option<String>> {
+    let (branch_tx, branch_rx) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
         let path = std::env::current_dir()
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned();
         loop {
-            if let Ok(branch) = git_clone.get_current_branch(&path).await {
+            if let Ok(branch) = git.get_current_branch(&path).await {
                 let _ = branch_tx.send(branch).await;
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
+    branch_rx
+}
 
-    // Background File Searcher
+fn setup_file_searcher(app: &mut App<'_>, service: Arc<dyn contracts::AppService>) -> tokio::sync::mpsc::Receiver<(String, Vec<contracts::Prompt>)> {
     let (file_search_tx, mut file_search_rx) = tokio::sync::mpsc::channel::<(String, String)>(10);
-    let (file_result_tx, mut file_result_rx) = tokio::sync::mpsc::channel::<(String, Vec<contracts::Prompt>)>(10);
+    let (file_result_tx, file_result_rx) = tokio::sync::mpsc::channel::<(String, Vec<contracts::Prompt>)>(10);
     app.file_search_tx = Some(file_search_tx);
 
-    let service_clone = service.clone();
     tokio::spawn(async move {
         while let Some((path, query)) = file_search_rx.recv().await {
-            if let Ok(results) = service_clone.search_files(&path, &query).await {
+            if let Ok(results) = service.search_files(&path, &query).await {
                 let _ = file_result_tx.send((query, results)).await;
             }
         }
     });
+    file_result_rx
+}
 
-    // Background Database Poller (Sync multiple instances)
-    let (db_sync_tx, mut db_sync_rx) = tokio::sync::mpsc::channel(1);
-    let storage_clone = storage.clone();
+fn setup_db_poller(storage: Arc<dyn Storage>) -> tokio::sync::mpsc::Receiver<()> {
+    let (db_sync_tx, db_sync_rx) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
-        let mut last_version = storage_clone.get_data_version().await.unwrap_or(0);
+        let mut last_version = storage.get_data_version().await.unwrap_or(0);
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
-            if let Ok(current_version) = storage_clone.get_data_version().await {
+            if let Ok(current_version) = storage.get_data_version().await {
                 if current_version != last_version {
                     last_version = current_version;
                     let _ = db_sync_tx.send(()).await;
@@ -79,42 +107,35 @@ async fn main() -> Result<()> {
             }
         }
     });
+    db_sync_rx
+}
 
-    // Terminal
-    let backend = ratatui::backend::CrosstermBackend::new(io::stdout());
-    let terminal = Terminal::new(backend)?;
-    let mut tui = Tui::new(terminal);
-
-    tui.enter()?;
-
-    // Initialize toaster with terminal area
-    app.toaster = Some(
-        ToastEngineBuilder::new(tui.terminal.size()?.into())
-            .default_duration(Duration::from_secs(3))
-            .build()
-    );
-
+async fn run_app_loop(
+    app: &mut App<'_>,
+    tui: &mut Tui<ratatui::backend::CrosstermBackend<io::Stdout>>,
+    branch_rx: &mut tokio::sync::mpsc::Receiver<Option<String>>,
+    file_result_rx: &mut tokio::sync::mpsc::Receiver<(String, Vec<contracts::Prompt>)>,
+    db_sync_rx: &mut tokio::sync::mpsc::Receiver<()>,
+) -> Result<()> {
     while !app.should_quit {
-        // Handle background updates
         if let Ok(branch) = branch_rx.try_recv() {
             app.current_branch = branch;
         }
 
-        if let Ok(_) = db_sync_rx.try_recv() {
+        if db_sync_rx.try_recv().is_ok() {
             handle_error!(app, app.handle_message(ui::AppMessage::ReloadPrompts).await);
         }
 
         while let Ok((query, results)) = file_result_rx.try_recv() {
-            // Only update if the query matches current cursor state
             if let Some((trigger, current_query)) = app.editor.get_current_autocomplete_query() {
                 if trigger == "@" && current_query == query {
-                    if !results.is_empty() {
+                    if results.is_empty() {
+                        app.editor.autocomplete.open = false;
+                        app.editor.autocomplete.suggestions.clear();
+                    } else {
                         app.editor.autocomplete.suggestions = results;
                         app.editor.autocomplete.open = true;
                         app.editor.autocomplete.index = 0;
-                    } else {
-                        app.editor.autocomplete.open = false;
-                        app.editor.autocomplete.suggestions.clear();
                     }
                 }
             }
@@ -128,11 +149,7 @@ async fn main() -> Result<()> {
                 settings: &app.settings,
                 current_branch: app.current_branch.as_deref(),
             };
-            ui::render(
-                f,
-                state,
-                &mut app.toaster,
-            );
+            ui::render(f, state, &mut app.toaster);
         })?;
 
         let mut events = Vec::new();
@@ -150,13 +167,11 @@ async fn main() -> Result<()> {
         }
 
         if !events.is_empty() {
-            promptquiver::handlers::handle_events(&mut app, events).await;
+            promptquiver::handlers::handle_events(app, events).await;
         }
 
         app.tick();
     }
-
-    tui.exit()?;
-
     Ok(())
 }
+

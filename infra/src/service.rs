@@ -218,10 +218,12 @@ impl AppService for RealAppService {
                 _ => contracts::PromptType::Prompt,
             };
             
-            let mut prompt = contracts::Prompt::new(args.text, r#type, Some(args.project_path.clone()), args.branch.clone(), args.title, args.project_id);
-            if args.tab == Tab::Canned {
-                prompt.folder = None;
-            }
+            let is_global_tab = args.tab == Tab::Canned || args.tab == Tab::Snippets;
+            let folder = if is_global_tab { None } else { Some(args.project_path.clone()) };
+            let branch = if is_global_tab { None } else { args.branch.clone() };
+            let project_id = if is_global_tab { None } else { args.project_id };
+
+            let mut prompt = contracts::Prompt::new(args.text, r#type, folder, branch, args.title, project_id);
 
             // A new item is never staged by default, but let's be safe
             if (args.tab == Prompts || args.tab == Tab::Canned) && Processor::is_draft(&Processor::get_display_title(&prompt.text).0) {

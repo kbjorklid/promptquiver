@@ -9,7 +9,7 @@ async fn test_editor_scrollbar_render() {
 
     let mut lines = Vec::new();
     for i in 0..50 {
-        lines.push(format!("Line {}", i));
+        lines.push(format!("Line {i}"));
     }
     app.enter_editor(lines.join("\n"), None);
 
@@ -44,7 +44,7 @@ async fn test_editor_scrollbar_render() {
                 found_scrollbar = true;
             }
         }
-        println!("{}", line_str);
+        println!("{line_str}");
     }
     
     // We expect a scrollbar to be rendered.

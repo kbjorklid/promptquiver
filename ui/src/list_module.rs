@@ -64,11 +64,12 @@ impl ListModule {
         // Ensure project info is saved
         let _ = storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
 
+        let is_global_tab = self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets;
         let filter = PromptFilter {
-            folder: if !self.folder_filter || self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets { None } else { Some(path) },
-            branch: if self.branch_filter { self.current_branch.clone() } else { None },
-            project_id: if self.project_filter { self.projects_manager.active_project_id } else { None },
-            project_filter: self.project_filter,
+            folder: if !self.folder_filter || is_global_tab { None } else { Some(path) },
+            branch: if self.branch_filter && !is_global_tab { self.current_branch.clone() } else { None },
+            project_id: if self.project_filter && !is_global_tab { self.projects_manager.active_project_id } else { None },
+            project_filter: self.project_filter && !is_global_tab,
             tab: Some(self.active_tab),
         };
 

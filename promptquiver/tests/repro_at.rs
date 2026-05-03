@@ -7,7 +7,7 @@ async fn test_repro_at_symbol_typing() {
     let (mut app, _, _, _) = setup_app();
     
     // Enter editor
-    app.enter_editor("".to_string(), None);
+    app.enter_editor(String::new(), None);
     
     // Simulate typing '@' with Shift
     let event = Event::Key(KeyEvent {
@@ -37,7 +37,7 @@ async fn test_at_symbol_altgr_typing() {
     let (mut app, _, _, _) = setup_app();
     
     // Enter editor
-    app.enter_editor("".to_string(), None);
+    app.enter_editor(String::new(), None);
     
     // Simulate typing '@' with Ctrl+Alt (AltGr on Windows)
     let event = Event::Key(KeyEvent {
