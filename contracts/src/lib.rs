@@ -173,6 +173,7 @@ pub struct PromptFilter {
     pub branch: Option<String>,
     pub tab: Option<Tab>,
     pub project_filter: bool,
+    pub staged: Option<bool>,
 }
 
 #[async_trait]

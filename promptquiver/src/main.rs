@@ -1,11 +1,12 @@
 use anyhow::Result;
 use promptquiver::app::App;
 use promptquiver::tui::{self, Tui};
-use contracts::{Clipboard, Git, Storage};
+use contracts::{Clipboard, Git, Storage, PromptFilter};
 use infra::{RealClipboard, RealGit, SqliteStorage};
 use ratatui::Terminal;
 use ratatui_toaster::{ToastEngineBuilder, ToastType};
 use std::{io, sync::Arc, time::Duration};
+use clap::Parser;
 
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
@@ -13,6 +14,18 @@ macro_rules! handle_error {
             $app.notify(format!("Error: {e}"), ToastType::Error);
         }
     };
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Output the staged prompt to STDOUT and exit
+    #[arg(long)]
+    output_staged: bool,
+
+    /// Move the staged prompt to archive and exit
+    #[arg(long)]
+    process_staged: bool,
 }
 
 type AppInfra = (
@@ -24,7 +37,19 @@ type AppInfra = (
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = Args::parse();
     let (storage, clipboard, git, service) = setup_infra();
+
+    if args.output_staged || args.process_staged {
+        if args.output_staged {
+            output_staged(storage.clone()).await?;
+        }
+        if args.process_staged {
+            archive_staged(storage.clone()).await?;
+        }
+        return Ok(());
+    }
+
     let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
     handle_error!(app, app.init_project().await);
 
@@ -43,6 +68,37 @@ async fn main() -> Result<()> {
 
     run_app_loop(&mut app, &mut tui, &mut branch_rx, &mut file_result_rx, &mut db_sync_rx).await?;
     tui.exit()?;
+    Ok(())
+}
+
+async fn output_staged(storage: Arc<dyn Storage>) -> Result<()> {
+    let filter = PromptFilter {
+        staged: Some(true),
+        ..Default::default()
+    };
+    let prompts = storage.get_prompts(filter).await?;
+    if let Some(prompt) = prompts.first() {
+        let snippets = storage.get_prompts(PromptFilter {
+            tab: Some(contracts::Tab::Snippets),
+            ..Default::default()
+        }).await?;
+        let processed = contracts::Processor::process(&prompt.text, &snippets);
+        print!("{}", processed.trim());
+    }
+    Ok(())
+}
+
+async fn archive_staged(storage: Arc<dyn Storage>) -> Result<()> {
+    let filter = PromptFilter {
+        staged: Some(true),
+        ..Default::default()
+    };
+    let prompts = storage.get_prompts(filter).await?;
+    if let Some(mut prompt) = prompts.into_iter().next() {
+        prompt.staged = false;
+        prompt.is_archived = true;
+        storage.save_prompt(prompt).await?;
+    }
     Ok(())
 }
 

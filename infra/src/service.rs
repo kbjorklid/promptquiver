@@ -240,6 +240,7 @@ impl AppService for RealAppService {
                     branch: if args.tab == Tab::Prompts { args.branch } else { None },
                     tab: Some(args.tab),
                     project_filter: args.project_id.is_some(),
+                    staged: None,
                 };
                 let existing = self.storage.get_prompts(filter).await?;
                 

@@ -48,6 +48,11 @@ impl Storage for InMemoryStorage {
         if let Some(branch) = filter.branch {
             filtered.retain(|p| p.branch.as_deref() == Some(&branch));
         }
+
+        if let Some(staged) = filter.staged {
+            filtered.retain(|p| p.staged == staged);
+        }
+
         if let Some(tab) = filter.tab {
             match tab {
                 Tab::Prompts => {

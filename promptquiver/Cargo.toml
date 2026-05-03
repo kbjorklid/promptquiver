@@ -1,6 +1,6 @@
 [package]
 name = "promptquiver"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 
 [lints]
@@ -27,6 +27,7 @@ thiserror.workspace = true
 serde.workspace = true
 regex.workspace = true
 notify = "8.2.0"
+clap.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

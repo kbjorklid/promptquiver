@@ -34,6 +34,15 @@ mod tests {
         let filtered_branch = storage.get_prompts(PromptFilter { branch: Some("main".to_string()), ..Default::default() }).await.unwrap();
         assert_eq!(filtered_branch.len(), 1);
 
+        let mut staged_prompt = prompt.clone();
+        staged_prompt.id = Uuid::new_v4();
+        staged_prompt.staged = true;
+        storage.save_prompt(staged_prompt).await.unwrap();
+
+        let filtered_staged = storage.get_prompts(PromptFilter { staged: Some(true), ..Default::default() }).await.unwrap();
+        assert_eq!(filtered_staged.len(), 1);
+        assert!(filtered_staged[0].staged);
+
         // Test all tabs
         for tab in [Tab::Prompts, Tab::Canned, Tab::Notes, Tab::Snippets, Tab::Archive, Tab::Settings] {
             let _ = storage.get_prompts(PromptFilter { tab: Some(tab), ..Default::default() }).await.unwrap();
@@ -105,6 +114,15 @@ mod tests {
         let filtered_branch = storage.get_prompts(PromptFilter { branch: Some("main".to_string()), ..Default::default() }).await.unwrap();
         assert_eq!(filtered_branch.len(), 1);
 
+        let mut staged_prompt = prompt.clone();
+        staged_prompt.id = Uuid::new_v4();
+        staged_prompt.staged = true;
+        storage.save_prompt(staged_prompt).await.unwrap();
+
+        let filtered_staged = storage.get_prompts(PromptFilter { staged: Some(true), ..Default::default() }).await.unwrap();
+        assert_eq!(filtered_staged.len(), 1);
+        assert!(filtered_staged[0].staged);
+
         // Test all tabs in SQLite
         for tab in [Tab::Prompts, Tab::Canned, Tab::Notes, Tab::Snippets, Tab::Archive, Tab::Settings] {
             let _ = storage.get_prompts(PromptFilter { tab: Some(tab), ..Default::default() }).await.unwrap();
@@ -116,8 +134,8 @@ mod tests {
         storage.save_prompt(updated).await.unwrap();
         
         let loaded_updated = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
-        assert_eq!(loaded_updated.len(), 1);
-        assert_eq!(loaded_updated[0].text, "updated");
+        assert_eq!(loaded_updated.len(), 2);
+        assert!(loaded_updated.iter().any(|p| p.text == "updated"));
         
         // Test save_prompts (plural)
         let prompts = vec![
@@ -176,7 +194,7 @@ mod tests {
         // Test delete
         storage.delete_prompt(prompt.id).await.unwrap();
         let loaded_deleted = storage.get_prompts(PromptFilter { folder: Some("/path/to/project".to_string()), ..Default::default() }).await.unwrap();
-        assert_eq!(loaded_deleted.len(), 0);
+        assert_eq!(loaded_deleted.len(), 1); // staged_prompt is still there
     }
 
     #[tokio::test]

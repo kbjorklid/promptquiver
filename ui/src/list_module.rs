@@ -71,6 +71,7 @@ impl ListModule {
             project_id: if self.project_filter && !is_global_tab { self.projects_manager.active_project_id } else { None },
             project_filter: self.project_filter && !is_global_tab,
             tab: Some(self.active_tab),
+            ..Default::default()
         };
 
         let mut prompts = storage.get_prompts(filter).await?;

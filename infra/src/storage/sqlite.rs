@@ -122,6 +122,11 @@ impl Storage for SqliteStorage {
                 query.push_str(" AND branch = ?");
                 params.push(branch);
             }
+
+            if let Some(staged) = filter.staged {
+                query.push_str(" AND staged = ?");
+                params.push(if staged { "1".to_string() } else { "0".to_string() });
+            }
             
             if let Some(tab) = filter.tab {
                 match tab {
