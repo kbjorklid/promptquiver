@@ -588,3 +588,51 @@ async fn test_app_handle_message_global_handlers() {
     assert_eq!(app.mode, promptquiver::app::Mode::AddProject);
 }
 
+#[tokio::test]
+async fn test_coverage_boost_list_module_extra() {
+    let (mut app, storage, _, _) = setup_app();
+
+    // 1. Stage notes/snippets
+    app.set_tab(Tab::Notes);
+    storage.save_prompts(vec![
+        contracts::Prompt::new("note".into(), contracts::PromptType::Note, Some(common::TEST_PATH.to_string()), None, None, None),
+    ]).await.unwrap();
+    app.load_prompts().await.unwrap();
+    app.handle_message(ui::AppMessage::StageSelected).await.unwrap();
+
+    // 2. Restore from Archive
+    app.set_tab(Tab::Archive);
+    let mut arch_prompt = contracts::Prompt::new("archived".into(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
+    arch_prompt.is_archived = true;
+    storage.save_prompts(vec![arch_prompt]).await.unwrap();
+    app.load_prompts().await.unwrap();
+    app.handle_message(ui::AppMessage::RestoreSelected).await.unwrap();
+    
+    // 3. Toggle Settings - Startup behavior/project
+    app.set_tab(Tab::Settings);
+    let tabs_len = Tab::settings_display_len();
+    app.nav.selected_index = tabs_len + 4; // Startup behavior
+    app.handle_message(ui::AppMessage::ToggleSetting).await.unwrap();
+    app.nav.selected_index = tabs_len + 5; // Startup project
+    app.handle_message(ui::AppMessage::ToggleSetting).await.unwrap();
+
+    // 4. Projects delete
+    app.handle_message(ui::AppMessage::AddProject("New Project".into())).await.unwrap();
+    let proj_id = app.nav.projects_manager.projects[0].id;
+    app.handle_message(ui::AppMessage::DeleteProject(proj_id)).await.unwrap();
+
+    // 5. Search & Paste
+    app.handle_message(ui::AppMessage::Search("query".into())).await.unwrap();
+    app.handle_message(ui::AppMessage::Paste("pasted".into())).await.unwrap();
+    app.handle_message(ui::AppMessage::SearchInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::empty()))).await.unwrap();
+    app.handle_message(ui::AppMessage::SearchInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('a'), crossterm::event::KeyModifiers::empty()))).await.unwrap();
+
+    // 6. Project Picker Input
+    app.handle_message(ui::AppMessage::SelectProject).await.unwrap();
+    app.handle_message(ui::AppMessage::ProjectPickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('j'), crossterm::event::KeyModifiers::empty()))).await.unwrap();
+    app.handle_message(ui::AppMessage::ProjectPickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('k'), crossterm::event::KeyModifiers::empty()))).await.unwrap();
+    app.handle_message(ui::AppMessage::ProjectPickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::empty()))).await.unwrap();
+    app.handle_message(ui::AppMessage::ProjectPickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('x'), crossterm::event::KeyModifiers::empty()))).await.unwrap();
+    app.handle_message(ui::AppMessage::ProjectPickerInput(crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Tab, crossterm::event::KeyModifiers::empty()))).await.unwrap();
+}
+

@@ -36,8 +36,66 @@ pub fn render(
     f.render_widget(Block::default().bg(palette.bg), f.area());
 
     let is_searching = state.mode == Mode::Search;
-    
-    // 1. Vertical Split for Header, Main, Search, Footer, Statusline
+    let (header_chunk, main_chunk, search_chunk, footer_chunk, statusline_chunk) = split_layout(f, is_searching);
+
+    header::render(f, header_chunk, state.nav.active_tab, state.settings);
+
+    if let Some(s_chunk) = search_chunk {
+        render_search_bar(f, s_chunk, &state.nav.search_query, palette.accent);
+    }
+
+    // 2. Main Chunk Layout (List + Preview)
+    let (content_chunk, preview_chunk) = split_main_chunk(main_chunk, &state);
+
+    let mut editor_content_area = None;
+
+    if state.mode == Mode::Editor || state.mode == Mode::ConfirmDiscard || state.mode == Mode::ThemePicker {
+        if state.nav.active_tab == Tab::Settings {
+            settings::render(f, content_chunk, &mut state);
+        } else {
+            editor_content_area = Some(editor::render(f, content_chunk, &mut state));
+
+            if state.mode == Mode::ConfirmDiscard {
+                render_discard_popup(f, &palette);
+            }
+        }
+    } else if state.nav.active_tab == Tab::Settings {
+        settings::render(f, content_chunk, &mut state);
+    } else {
+        list::render(f, content_chunk, &mut state);
+        if let Some(p_chunk) = preview_chunk {
+            let selected_prompt = state.nav.prompts.get(state.nav.selected_index);
+            list::render_preview(f, p_chunk, selected_prompt, state.settings);
+        }
+    }
+
+    if let Some(area) = editor_content_area {
+        editor::render_autocomplete(f, area, &mut state);
+    }
+
+    // Modals
+    if state.mode == Mode::ProjectPicker || state.mode == Mode::AddProject {
+        project_picker::render_picker(
+            f,
+            &state.nav.projects_manager.projects,
+            &mut state.nav.projects_manager.project_list_state,
+            state.settings,
+            if state.mode == Mode::AddProject { Some(&state.nav.projects_manager.new_project_name) } else { None },
+            state.nav.project_filter,
+            state.nav.projects_manager.selecting_startup_project,
+        );
+    }
+
+    statusline::render(f, statusline_chunk, &state);
+    footer::render(f, footer_chunk, &state);
+
+    if let Some(ref mut toaster) = toaster {
+        toaster.set_area(f.area());
+        f.render_widget(&*toaster, f.area());
+    }
+}
+
+fn split_layout(f: &Frame<'_>, is_searching: bool) -> (ratatui::layout::Rect, ratatui::layout::Rect, Option<ratatui::layout::Rect>, ratatui::layout::Rect, ratatui::layout::Rect) {
     let mut v_constraints = vec![
         Constraint::Length(1), // Header
         Constraint::Min(5),    // Main content
@@ -56,30 +114,25 @@ pub fn render(
     let header_chunk = v_chunks[0];
     let main_chunk = v_chunks[1];
     
-    let (search_chunk, footer_chunk, statusline_chunk) = if is_searching {
-        (Some(v_chunks[2]), v_chunks[3], v_chunks[4])
+    if is_searching {
+        (header_chunk, main_chunk, Some(v_chunks[2]), v_chunks[3], v_chunks[4])
     } else {
-        (None, v_chunks[2], v_chunks[3])
-    };
-
-    header::render(f, header_chunk, state.nav.active_tab, state.settings);
-
-    if let Some(s_chunk) = search_chunk {
-        let query = &state.nav.search_query;
-        let prefix = "Search: /";
-        let text = format!("{prefix}{query}");
-        let paragraph = Paragraph::new(text).style(Style::default().fg(palette.accent));
-        f.render_widget(paragraph, s_chunk);
+        (header_chunk, main_chunk, None, v_chunks[2], v_chunks[3])
     }
+}
 
-    // 2. Main Chunk Layout (List + Preview)
+fn render_search_bar(f: &mut Frame<'_>, area: ratatui::layout::Rect, query: &str, color: ratatui::style::Color) {
+    let prefix = "Search: /";
+    let text = format!("{prefix}{query}");
+    let paragraph = Paragraph::new(text).style(Style::default().fg(color));
+    f.render_widget(paragraph, area);
+}
+
+fn split_main_chunk(main_chunk: ratatui::layout::Rect, state: &RenderState<'_, '_>) -> (ratatui::layout::Rect, Option<ratatui::layout::Rect>) {
     let show_preview = state.mode != Mode::Editor 
         && state.mode != Mode::ConfirmDiscard 
         && state.nav.active_tab != Tab::Settings
         && state.settings.preview_mode != PreviewMode::Hidden;
-
-    let content_chunk;
-    let mut preview_chunk = None;
 
     if show_preview {
         match state.settings.preview_mode {
@@ -88,108 +141,32 @@ pub fn render(
                     .direction(Direction::Horizontal)
                     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .split(main_chunk);
-                content_chunk = chunks[0];
-                preview_chunk = Some(chunks[1]);
+                (chunks[0], Some(chunks[1]))
             }
             PreviewMode::Bottom => {
-                // Check if there's enough height
                 if main_chunk.height >= 10 {
                     let preview_h = if main_chunk.height > 15 { 10 } else { main_chunk.height - 5 };
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
                         .constraints([Constraint::Min(5), Constraint::Length(preview_h)])
                         .split(main_chunk);
-                    content_chunk = chunks[0];
-                    preview_chunk = Some(chunks[1]);
+                    (chunks[0], Some(chunks[1]))
                 } else {
-                    content_chunk = main_chunk;
+                    (main_chunk, None)
                 }
             }
-            PreviewMode::Hidden => {
-                content_chunk = main_chunk;
-            }
+            PreviewMode::Hidden => (main_chunk, None),
         }
     } else {
-        content_chunk = main_chunk;
+        (main_chunk, None)
     }
+}
 
-    let mut editor_content_area = None;
-
-    if state.mode == Mode::Editor || state.mode == Mode::ConfirmDiscard || state.mode == Mode::ThemePicker {
-        if state.nav.active_tab == Tab::Settings {
-            settings::render(
-                f,
-                content_chunk,
-                &mut state,
-            );
-        } else {
-            editor_content_area = Some(editor::render(
-                f,
-                content_chunk,
-                &mut state,
-            ));
-
-            if state.mode == Mode::ConfirmDiscard {
-                let text = ratatui::text::Text::from("\n  Are you sure you want to discard changes?  \n\n            (y) Yes, (n) No            ");
-                let popup = tui_popup::Popup::new(text)
-                    .title(" Discard Changes? ")
-                    .style(Style::default().bg(palette.accent).fg(palette.bg))
-                    .border_style(Style::default().fg(palette.accent));
-                f.render_widget(&popup, f.area());
-            }
-        }
-    } else {
-        if state.nav.active_tab == Tab::Settings {
-            settings::render(
-                f,
-                content_chunk,
-                &mut state,
-            );
-        } else {
-            list::render(f, content_chunk, &mut state);
-            
-            if let Some(p_chunk) = preview_chunk {
-                let selected_prompt = state.nav.prompts.get(state.nav.selected_index);
-                list::render_preview(f, p_chunk, selected_prompt, state.settings);
-            }
-        }
-    }
-
-    if let Some(area) = editor_content_area {
-        editor::render_autocomplete(
-            f, 
-            area, 
-            &mut state,
-        );
-    }
-
-    // Modals
-    if state.mode == Mode::ProjectPicker || state.mode == Mode::AddProject {
-        project_picker::render_picker(
-            f,
-            &state.nav.projects_manager.projects,
-            &mut state.nav.projects_manager.project_list_state,
-            state.settings,
-            if state.mode == Mode::AddProject { Some(&state.nav.projects_manager.new_project_name) } else { None },
-            state.nav.project_filter,
-            state.nav.projects_manager.selecting_startup_project,
-        );
-    }
-
-    statusline::render(
-        f,
-        statusline_chunk,
-        &state,
-    );
-
-    footer::render(
-        f,
-        footer_chunk,
-        &state,
-    );
-
-    if let Some(ref mut toaster) = toaster {
-        toaster.set_area(f.area());
-        f.render_widget(&*toaster, f.area());
-    }
+fn render_discard_popup(f: &mut Frame<'_>, palette: &ratatui_themes::ThemePalette) {
+    let text = ratatui::text::Text::from("\n  Are you sure you want to discard changes?  \n\n            (y) Yes, (n) No            ");
+    let popup = tui_popup::Popup::new(text)
+        .title(" Discard Changes? ")
+        .style(Style::default().bg(palette.accent).fg(palette.bg))
+        .border_style(Style::default().fg(palette.accent));
+    f.render_widget(&popup, f.area());
 }

@@ -147,9 +147,8 @@ pub fn get_action(key: KeyEvent, mode: Mode, active_tab: Tab, autocomplete_open:
 fn get_list_action(key: KeyEvent, active_tab: Tab) -> Option<ShortcutAction> {
     match key.code {
         KeyCode::Char('q') => Some(ShortcutAction::Quit),
-        KeyCode::Right | KeyCode::Char('l') => Some(ShortcutAction::NextTab),
+        KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => Some(ShortcutAction::NextTab),
         KeyCode::Left | KeyCode::Char('h') => Some(ShortcutAction::PrevTab),
-        KeyCode::Tab => Some(ShortcutAction::NextTab), // For simplicity, though Settings has special logic
         KeyCode::Char('1') => Some(ShortcutAction::SetTab(Tab::Prompts)),
         KeyCode::Char('2') => Some(ShortcutAction::SetTab(Tab::Canned)),
         KeyCode::Char('3') => Some(ShortcutAction::SetTab(Tab::Notes)),

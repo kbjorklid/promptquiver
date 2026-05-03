@@ -17,7 +17,7 @@ pub fn render(
     let formatted_path = format_path(current_path);
     let branch_name = state.current_branch.unwrap_or("no branch");
     
-    let active_project_title = state.nav.projects_manager.active_project_id.map_or(None, |id| {
+    let active_project_title = state.nav.projects_manager.active_project_id.and_then(|id| {
         state.nav.projects_manager.projects.iter().find(|p| p.id == id).map(|p| p.title.as_str())
     });
     let project_name = active_project_title.unwrap_or("Default");

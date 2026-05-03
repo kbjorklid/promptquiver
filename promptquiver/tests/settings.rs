@@ -81,4 +81,48 @@ async fn test_save_slash_command_with_enter() {
     assert!(updated_settings.slash_commands.contains(&"enter_save".to_string()));
 }
 
+#[tokio::test]
+async fn test_coverage_boost_settings_render() {
+    let (mut app, _, _, _) = setup_app();
+    let backend = ratatui::backend::TestBackend::new(80, 10); // Small height to trigger scrolling
+    let mut terminal = ratatui::Terminal::new(backend).unwrap();
+
+    app.set_tab(Tab::Settings);
+    app.settings.startup_behavior = contracts::StartupBehavior::Specific;
+    app.settings.slash_commands = vec!["one".into(), "two".into(), "three".into()];
+    app.load_prompts().await.unwrap();
+
+    // Scroll down
+    for _ in 0..10 {
+        app.move_down();
+    }
+
+    terminal.draw(|f| {
+        ui::render(f, ui::RenderState {
+            nav: &mut app.nav,
+            editor: &mut app.editor,
+            mode: app.mode,
+            settings: &app.settings,
+            current_branch: None,
+        }, &mut None);
+    }).unwrap();
+
+    // Edit slash command (textarea rendering)
+    app.nav.selected_index = Tab::settings_display_len();
+    app.mode = promptquiver::app::Mode::Editor;
+    let mut ta = ratatui_textarea::TextArea::default();
+    ta.insert_str("edit");
+    app.editor.textarea = ta;
+    
+    terminal.draw(|f| {
+        ui::render(f, ui::RenderState {
+            nav: &mut app.nav,
+            editor: &mut app.editor,
+            mode: app.mode,
+            settings: &app.settings,
+            current_branch: None,
+        }, &mut None);
+    }).unwrap();
+}
+
 

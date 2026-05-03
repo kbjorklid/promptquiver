@@ -71,7 +71,7 @@ impl HistoryManager {
     async fn save_list(&self, prompts: &[Prompt], storage: &Arc<dyn Storage>) -> Result<()> {
         let mut prompts = prompts.to_vec();
         for (i, p) in prompts.iter_mut().enumerate() {
-            p.order_index = i as i32;
+            p.order_index = i32::try_from(i).unwrap_or(i32::MAX);
         }
         storage.save_prompts(prompts).await?;
         Ok(())
