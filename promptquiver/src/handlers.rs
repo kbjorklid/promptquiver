@@ -50,7 +50,7 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
         let messages = match event {
             Event::Key(key) => {
                 if key.kind == crossterm::event::KeyEventKind::Press || key.kind == crossterm::event::KeyEventKind::Repeat {
-                    if let Some(action) = get_action(*key, app.mode, app.nav.active_tab, app.editor.autocomplete.open) {
+                    if let Some(action) = get_action(*key, app.mode, app.nav.active_tab, app.editor.autocomplete.open, app.show_help) {
                         map_action_to_messages(app, action)
                     } else {
                         // Fallback for keys not handled by ShortcutAction (e.g. typing in editor)
@@ -184,6 +184,9 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
         ShortcutAction::SelectSuggestion => messages.push(AppMessage::SelectSuggestion),
         ShortcutAction::MoveItemDown => messages.push(AppMessage::MoveItemDown),
         ShortcutAction::MoveItemUp => messages.push(AppMessage::MoveItemUp),
+        ShortcutAction::ToggleHelp => messages.push(AppMessage::ToggleHelp),
+        ShortcutAction::ScrollHelpUp => messages.push(AppMessage::ScrollHelpUp),
+        ShortcutAction::ScrollHelpDown => messages.push(AppMessage::ScrollHelpDown),
         _ => {}
     }
     messages

@@ -70,6 +70,9 @@ pub enum AppMessage {
     ReloadPrompts,
     ToggleStartupBehavior,
     SelectStartupProject,
+    ToggleHelp,
+    ScrollHelpUp,
+    ScrollHelpDown,
 }
 
 #[derive(Debug)]
@@ -79,6 +82,8 @@ pub struct RenderState<'a, 'b> {
     pub mode: Mode,
     pub settings: &'a Settings,
     pub current_branch: Option<&'a str>,
+    pub show_help: bool,
+    pub help_scroll: u16,
 }
 
 pub struct UpdateContext<'a> {

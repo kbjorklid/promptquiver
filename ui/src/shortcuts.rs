@@ -49,6 +49,10 @@ pub enum ShortcutAction {
     // Move actions
     MoveItemDown,
     MoveItemUp,
+
+    ToggleHelp,
+    ScrollHelpUp,
+    ScrollHelpDown,
 }
 
 #[derive(Debug)]
@@ -134,7 +138,15 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
     }
 }
 
-pub fn get_action(key: KeyEvent, mode: Mode, active_tab: Tab, autocomplete_open: bool) -> Option<ShortcutAction> {
+pub fn get_action(key: KeyEvent, mode: Mode, active_tab: Tab, autocomplete_open: bool, show_help: bool) -> Option<ShortcutAction> {
+    if show_help {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => return Some(ShortcutAction::ToggleHelp),
+            KeyCode::Char('k') | KeyCode::Up => return Some(ShortcutAction::ScrollHelpUp),
+            KeyCode::Char('j') | KeyCode::Down => return Some(ShortcutAction::ScrollHelpDown),
+            _ => return None,
+        }
+    }
     match mode {
         Mode::List => get_list_action(key, active_tab),
         Mode::Editor => get_editor_action(key, autocomplete_open),
@@ -179,6 +191,7 @@ fn get_list_action(key: KeyEvent, active_tab: Tab) -> Option<ShortcutAction> {
         KeyCode::Char('m') => Some(ShortcutAction::ToggleMoveMode),
         KeyCode::Char(' ') if active_tab == Tab::Settings => Some(ShortcutAction::ToggleSetting),
         KeyCode::Char('y' | 'c') => Some(ShortcutAction::CopySelected),
+        KeyCode::Char('?') => Some(ShortcutAction::ToggleHelp),
         _ => None,
     }
 }

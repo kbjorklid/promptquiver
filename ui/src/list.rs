@@ -130,34 +130,37 @@ pub fn render_preview(
 ) {
     let palette = get_palette(settings.theme_name.as_deref()); 
 
-    let (color, mut title_prefix) = prompt.map_or_else(|| (palette.muted, " Preview ".to_string()), |p| {
-        let prefix = match p.r#type {
-            contracts::PromptType::Prompt => " Preview (Prompt) ",
-            contracts::PromptType::Snippet => " Preview (Snippet) ",
-            contracts::PromptType::Note => " Preview (Note) ",
-        };
-        let color = match p.r#type {
-            contracts::PromptType::Prompt => palette.success,
-            contracts::PromptType::Snippet => palette.secondary,
-            contracts::PromptType::Note => palette.info,
-        };
-        (color, prefix.to_string())
-    });
+    let (color, title) = prompt.map_or_else(
+        || (palette.muted, " Preview ".to_string()),
+        |p| {
+            let color = match p.r#type {
+                contracts::PromptType::Prompt => palette.success,
+                contracts::PromptType::Snippet => palette.secondary,
+                contracts::PromptType::Note => palette.info,
+            };
 
-    if let Some(p) = prompt {
-        if contracts::Processor::is_draft(&contracts::Processor::get_display_title(&p.text).0) {
-            title_prefix = format!("{title_prefix}[DRAFT] ");
-        }
-    }
+            let (display_title, _is_draft) = contracts::Processor::get_display_title(&p.text);
+            let has_explicit_title = contracts::Processor::extract_title(&p.text).0.is_some();
+
+            let title = if has_explicit_title {
+                format!(" Preview: {display_title} ")
+            } else {
+                " Preview ".to_string()
+            };
+
+            (color, title)
+        },
+    );
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
         .bg(palette.bg)
-        .title(title_prefix);
+        .title(title);
 
     if let Some(prompt) = prompt {
-        let lines = crate::utils::highlight_text(&prompt.text, &palette);
+        let (_, display_content) = contracts::Processor::extract_title(&prompt.text);
+        let lines = crate::utils::highlight_text(&display_content, &palette);
         let paragraph = Paragraph::new(lines)
             .block(block)
             .wrap(ratatui::widgets::Wrap { trim: true });

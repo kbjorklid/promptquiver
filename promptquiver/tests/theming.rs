@@ -138,6 +138,8 @@ fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'st
         mode: app.mode,
         settings: &app.settings,
         current_branch: app.current_branch.as_deref(),
+        show_help: app.show_help,
+        help_scroll: app.help_scroll,
     }
 }
 

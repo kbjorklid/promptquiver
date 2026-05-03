@@ -1,10 +1,11 @@
 use contracts::{Tab, PreviewMode};
-use ratatui::layout::{Layout, Constraint, Direction};
+use ratatui::layout::{Layout, Constraint, Direction, Rect};
 use ratatui::widgets::{Paragraph, Block};
 use ratatui::style::Style;
 use ratatui::Frame;
 use ratatui::prelude::Stylize;
 use ratatui_toaster::{ToastEngine, ToastMessage};
+use ratatui::widgets::{Clear};
 
 pub mod header;
 pub mod list;
@@ -89,6 +90,10 @@ pub fn render(
     statusline::render(f, statusline_chunk, &state);
     footer::render(f, footer_chunk, &state);
 
+    if state.show_help {
+        render_help_modal(f, &palette, state.help_scroll);
+    }
+
     if let Some(ref mut toaster) = toaster {
         toaster.set_area(f.area());
         f.render_widget(&*toaster, f.area());
@@ -169,4 +174,36 @@ fn render_discard_popup(f: &mut Frame<'_>, palette: &ratatui_themes::ThemePalett
         .style(Style::default().bg(palette.accent).fg(palette.bg))
         .border_style(Style::default().fg(palette.accent));
     f.render_widget(&popup, f.area());
+}
+
+fn render_help_modal(f: &mut Frame<'_>, palette: &ratatui_themes::ThemePalette, scroll: u16) {
+    let help_text = include_str!("../../help.md");
+    let text = tui_markdown::from_str(help_text);
+    
+    let area = f.area();
+    let width = (area.width.saturating_sub(10)).min(100);
+    let height = (area.height.saturating_sub(6)).min(40);
+    
+    let popup_area = Rect {
+        x: area.x + (area.width - width) / 2,
+        y: area.y + (area.height - height) / 2,
+        width,
+        height,
+    };
+
+    f.render_widget(Clear, popup_area);
+    
+    let block = Block::default()
+        .title(" Prompt Quiver Help ")
+        .borders(ratatui::widgets::Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(Style::default().fg(palette.accent))
+        .bg(palette.bg);
+    
+    let paragraph = Paragraph::new(text)
+        .block(block)
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .scroll((scroll, 0));
+        
+    f.render_widget(paragraph, popup_area);
 }

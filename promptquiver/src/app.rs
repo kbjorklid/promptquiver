@@ -19,6 +19,8 @@ pub struct App<'a> {
     pub settings: contracts::Settings,
     pub last_notification_time: Option<std::time::Instant>,
     pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
+    pub show_help: bool,
+    pub help_scroll: u16,
 }
 
 
@@ -131,6 +133,18 @@ impl App<'_> {
                 self.mode = Mode::AddProject;
                 self.nav.projects_manager.new_project_name.clear();
             }
+            AppMessage::ToggleHelp => {
+                self.show_help = !self.show_help;
+                if !self.show_help {
+                    self.help_scroll = 0;
+                }
+            }
+            AppMessage::ScrollHelpUp => {
+                self.help_scroll = self.help_scroll.saturating_sub(1);
+            }
+            AppMessage::ScrollHelpDown => {
+                self.help_scroll = self.help_scroll.saturating_add(1);
+            }
             _ => {}
         }
         Ok(None)
@@ -157,6 +171,8 @@ impl App<'_> {
             settings: contracts::Settings::default(),
             last_notification_time: None,
             file_search_tx: None,
+            show_help: false,
+            help_scroll: 0,
         }
     }
 

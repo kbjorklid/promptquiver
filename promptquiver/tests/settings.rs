@@ -104,6 +104,8 @@ async fn test_coverage_boost_settings_render() {
             mode: app.mode,
             settings: &app.settings,
             current_branch: None,
+            show_help: app.show_help,
+            help_scroll: app.help_scroll,
         }, &mut None);
     }).unwrap();
 
@@ -121,6 +123,8 @@ async fn test_coverage_boost_settings_render() {
             mode: app.mode,
             settings: &app.settings,
             current_branch: None,
+            show_help: app.show_help,
+            help_scroll: app.help_scroll,
         }, &mut None);
     }).unwrap();
 }

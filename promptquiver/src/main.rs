@@ -148,6 +148,8 @@ async fn run_app_loop(
                 mode: app.mode,
                 settings: &app.settings,
                 current_branch: app.current_branch.as_deref(),
+                show_help: app.show_help,
+                help_scroll: app.help_scroll,
             };
             ui::render(f, state, &mut app.toaster);
         })?;

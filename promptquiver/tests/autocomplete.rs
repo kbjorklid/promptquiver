@@ -107,6 +107,8 @@ async fn test_autocomplete_slash_command_title() {
                     mode: app.mode,
                     settings: &app.settings,
                     current_branch: app.current_branch.as_deref(),
+                    show_help: app.show_help,
+                    help_scroll: app.help_scroll,
                 },
                 &mut None,
             );
@@ -195,6 +197,8 @@ async fn test_autocomplete_positioning_below_cursor() {
             mode: app.mode,
             settings: &app.settings,
             current_branch: app.current_branch.as_deref(),
+            show_help: app.show_help,
+            help_scroll: app.help_scroll,
         }, &mut None);
     }).unwrap();
     
@@ -269,6 +273,8 @@ async fn test_autocomplete_positioning_above_cursor() {
             mode: app.mode,
             settings: &app.settings,
             current_branch: app.current_branch.as_deref(),
+            show_help: app.show_help,
+            help_scroll: app.help_scroll,
         }, &mut None);
     }).unwrap();
     
