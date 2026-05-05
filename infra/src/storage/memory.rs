@@ -172,4 +172,21 @@ impl Storage for InMemoryStorage {
     async fn get_data_version(&self) -> Result<u32> {
         Ok(0)
     }
+
+    async fn get_all_data(&self) -> Result<contracts::DatabaseExport> {
+        Ok(contracts::DatabaseExport {
+            prompts: self.prompts.read().await.clone(),
+            projects: self.projects.read().await.clone(),
+            project_info: self.project_info.read().await.clone(),
+            settings: self.settings.read().await.clone(),
+        })
+    }
+
+    async fn restore_all_data(&self, data: contracts::DatabaseExport) -> Result<()> {
+        *self.prompts.write().await = data.prompts;
+        *self.projects.write().await = data.projects;
+        *self.project_info.write().await = data.project_info;
+        *self.settings.write().await = data.settings;
+        Ok(())
+    }
 }

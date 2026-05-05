@@ -296,4 +296,17 @@ impl AppService for RealAppService {
         
         Ok(scored_results.into_iter().take(20).map(|(_, p)| p).collect())
     }
+
+    async fn export_data(&self, include_archived: bool) -> Result<String> {
+        let mut data = self.storage.get_all_data().await?;
+        if !include_archived {
+            data.prompts.retain(|p| !p.is_archived);
+        }
+        toml::to_string_pretty(&data).map_err(|e| contracts::Error::Storage(e.to_string()))
+    }
+
+    async fn import_data(&self, toml_data: &str) -> Result<()> {
+        let data: contracts::DatabaseExport = toml::from_str(toml_data).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+        self.storage.restore_all_data(data).await
+    }
 }

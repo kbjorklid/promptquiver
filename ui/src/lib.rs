@@ -21,6 +21,7 @@ pub mod history_manager;
 pub mod project_manager;
 pub mod editor_module;
 pub mod project_picker;
+pub mod data_manager;
 
 pub use types::{Mode, AppMessage, UpdateContext, RenderState};
 pub use list_module::ListModule;
@@ -75,13 +76,19 @@ pub fn render(
     }
 
     // Modals
-    if state.mode == Mode::ProjectPicker || state.mode == Mode::AddProject {
+    if state.mode == Mode::ExportDialog {
+        data_manager::render_export_dialog(f, &state);
+    }
+    if state.mode == Mode::ImportDialog {
+        data_manager::render_import_dialog(f, &state);
+    }
+    if state.mode == Mode::ProjectPicker || state.mode == Mode::AddProject || state.mode == Mode::RenameProject {
         project_picker::render_picker(
             f,
             &state.nav.projects_manager.projects,
             &mut state.nav.projects_manager.project_list_state,
             state.settings,
-            if state.mode == Mode::AddProject { Some(&state.nav.projects_manager.new_project_name) } else { None },
+            if state.mode == Mode::AddProject || state.mode == Mode::RenameProject { Some(&state.nav.projects_manager.new_project_name) } else { None },
             state.nav.project_filter,
             state.nav.projects_manager.selecting_startup_project,
         );

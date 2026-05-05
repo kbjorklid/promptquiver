@@ -56,4 +56,16 @@ pub trait AppService: Send + Sync {
     /// # Errors
     /// Returns an error if the search fails.
     async fn search_files(&self, base_dir: &str, query: &str) -> Result<Vec<Prompt>>;
+
+    /// Exports all application data to a TOML string.
+    ///
+    /// # Errors
+    /// Returns an error if the data cannot be exported.
+    async fn export_data(&self, include_archived: bool) -> Result<String>;
+
+    /// Imports application data from a TOML string.
+    ///
+    /// # Errors
+    /// Returns an error if the data cannot be imported.
+    async fn import_data(&self, toml_data: &str) -> Result<()>;
 }

@@ -44,7 +44,7 @@ pub enum ShortcutAction {
     CancelDiscard,
     MoveSuggestionUp,
     MoveSuggestionDown,
-    SelectSuggestion,
+    SelectSuggestion { add_space: bool },
 
     // Move actions
     MoveItemDown,
@@ -209,7 +209,8 @@ const fn get_editor_action(key: KeyEvent, autocomplete_open: bool) -> Option<Sho
         KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(ShortcutAction::SaveAndStage),
         KeyCode::Up if autocomplete_open => Some(ShortcutAction::MoveSuggestionUp),
         KeyCode::Down if autocomplete_open => Some(ShortcutAction::MoveSuggestionDown),
-        KeyCode::Enter if autocomplete_open => Some(ShortcutAction::SelectSuggestion),
+        KeyCode::Enter if autocomplete_open => Some(ShortcutAction::SelectSuggestion { add_space: false }),
+        KeyCode::Tab if autocomplete_open => Some(ShortcutAction::SelectSuggestion { add_space: true }),
         _ => None,
     }
 }

@@ -62,7 +62,7 @@ impl App<'_> {
                 Mode::Editor | Mode::ConfirmDiscard => {
                     self.editor.update(msg.clone(), &mut ctx, self.nav.current_path.clone(), &self.file_search_tx).await?
                 }
-                Mode::List | Mode::Move | Mode::Search | Mode::ThemePicker | Mode::ProjectPicker | Mode::AddProject => {
+                Mode::ExportDialog | Mode::ImportDialog | Mode::List | Mode::Move | Mode::Search | Mode::ThemePicker | Mode::ProjectPicker | Mode::AddProject | Mode::RenameProject => {
                     self.nav.update(msg.clone(), &mut ctx).await?
                 }
             };
@@ -92,7 +92,16 @@ impl App<'_> {
             AppMessage::ProjectPickerInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
                 self.mode = Mode::List;
             }
-            AppMessage::SetProject(_) | AppMessage::AddProject(_) => {
+            AppMessage::SetProject(_) | AppMessage::AddProject(_) | AppMessage::RenameProject(_, _) | AppMessage::DeleteProject(_) => {
+                self.mode = Mode::List;
+            }
+            AppMessage::ExportData(_, _) | AppMessage::ImportData(_) => {
+                self.mode = Mode::List;
+            }
+            AppMessage::ExportDialogInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
+                self.mode = Mode::List;
+            }
+            AppMessage::ImportDialogInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
                 self.mode = Mode::List;
             }
             _ => {}
@@ -132,6 +141,15 @@ impl App<'_> {
             AppMessage::EnterAddProject => {
                 self.mode = Mode::AddProject;
                 self.nav.projects_manager.new_project_name.clear();
+            }
+            AppMessage::EnterRenameProject(_) => {
+                self.mode = Mode::RenameProject;
+            }
+            AppMessage::EnterExport => {
+                self.mode = Mode::ExportDialog;
+            }
+            AppMessage::EnterImport => {
+                self.mode = Mode::ImportDialog;
             }
             AppMessage::ToggleHelp => {
                 self.show_help = !self.show_help;
@@ -324,8 +342,8 @@ impl App<'_> {
     ///
     /// # Errors
     /// Returns an error if the suggestion cannot be selected.
-    pub async fn select_suggestion(&mut self) -> contracts::Result<()> {
-        self.handle_message(AppMessage::SelectSuggestion).await
+    pub async fn select_suggestion(&mut self, add_space: bool) -> contracts::Result<()> {
+        self.handle_message(AppMessage::SelectSuggestion(add_space)).await
     }
 
     pub fn enter_editor(&mut self, text: String, id: Option<uuid::Uuid>) {
@@ -391,10 +409,13 @@ impl App<'_> {
             let tabs_len = Tab::settings_display_len();
             let slash_len = self.settings.slash_commands.len();
 
-            let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
-            let trimmed = text.trim();
+            let re = regex::Regex::new("^[a-zA-Z0-9_:-]+$").unwrap();
+            let mut trimmed = text.trim();
+            if trimmed.starts_with('/') {
+                trimmed = &trimmed[1..];
+            }
             if !trimmed.is_empty() && !re.is_match(trimmed) {
-                self.notify("Slash command must match [a-zA-Z0-9_-]+", ToastType::Error);
+                self.notify("Slash command must match [a-zA-Z0-9_:-]+", ToastType::Error);
                 return Ok(());
             }
 

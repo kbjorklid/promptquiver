@@ -60,6 +60,9 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
                             Mode::ThemePicker => vec![AppMessage::ThemePickerInput(*key)],
                             Mode::ProjectPicker => vec![AppMessage::ProjectPickerInput(*key)],
                             Mode::AddProject => handle_add_project_events(app, *key),
+                            Mode::RenameProject => vec![AppMessage::RenameProjectInput(*key)],
+                            Mode::ExportDialog => vec![AppMessage::ExportDialogInput(*key)],
+                            Mode::ImportDialog => vec![AppMessage::ImportDialogInput(*key)],
                             _ => Vec::new(),
                         }
                     }
@@ -94,11 +97,8 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
         ShortcutAction::Quit => messages.push(AppMessage::Quit),
         ShortcutAction::NextTab => {
             if app.mode == Mode::List && app.nav.active_tab == Tab::Settings {
-                let tabs_len = Tab::settings_display_len();
-                let slash_len = app.settings.slash_commands.len();
-                let advanced_idx = tabs_len + slash_len + 1;
-
-                if app.nav.selected_index < advanced_idx {
+                let total_settings = app.nav.total_settings_count(&app.settings);
+                if app.nav.selected_index < total_settings - 1 {
                     messages.push(AppMessage::MoveDown);
                 } else {
                     messages.push(AppMessage::MoveToTop);
@@ -141,17 +141,21 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
             if app.nav.active_tab == Tab::Settings {
                 let tabs_len = Tab::settings_display_len();
                 let slash_len = app.settings.slash_commands.len();
-                let advanced_idx = tabs_len + slash_len + 1;
-                if app.nav.selected_index == advanced_idx + 2 {
-                    messages.push(AppMessage::SelectTheme);
-                } else if app.nav.selected_index == advanced_idx + 4 {
-                    messages.push(AppMessage::SelectStartupProject);
-                } else if app.nav.selected_index < tabs_len 
+                let maintenance_idx = tabs_len + slash_len + 1;
+                let advanced_idx = maintenance_idx + 2;
+                
+                if app.nav.selected_index < tabs_len 
+                    || app.nav.selected_index == maintenance_idx 
+                    || app.nav.selected_index == maintenance_idx + 1
                     || app.nav.selected_index == advanced_idx 
                     || app.nav.selected_index == advanced_idx + 1 
                     || app.nav.selected_index == advanced_idx + 3 
                 {
                     messages.push(AppMessage::ToggleSetting);
+                } else if app.nav.selected_index == advanced_idx + 2 {
+                    messages.push(AppMessage::SelectTheme);
+                } else if app.nav.selected_index == advanced_idx + 4 {
+                    messages.push(AppMessage::SelectStartupProject);
                 } else {
                     messages.push(AppMessage::EditSetting);
                 }
@@ -181,7 +185,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
         ShortcutAction::CancelDiscard => messages.push(AppMessage::CancelDiscard),
         ShortcutAction::MoveSuggestionUp => messages.push(AppMessage::MoveSuggestionUp),
         ShortcutAction::MoveSuggestionDown => messages.push(AppMessage::MoveSuggestionDown),
-        ShortcutAction::SelectSuggestion => messages.push(AppMessage::SelectSuggestion),
+        ShortcutAction::SelectSuggestion { add_space } => messages.push(AppMessage::SelectSuggestion(add_space)),
         ShortcutAction::MoveItemDown => messages.push(AppMessage::MoveItemDown),
         ShortcutAction::MoveItemUp => messages.push(AppMessage::MoveItemUp),
         ShortcutAction::ToggleHelp => messages.push(AppMessage::ToggleHelp),

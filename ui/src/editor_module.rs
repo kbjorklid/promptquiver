@@ -162,10 +162,10 @@ impl AutocompleteState {
         None
     }
 
-    pub fn select_suggestion(&mut self, textarea: &mut TextArea<'_>) {
+    pub fn select_suggestion(&mut self, textarea: &mut TextArea<'_>, add_space: bool) {
         if !self.suggestions.is_empty() && self.open {
             let snippet = &self.suggestions[self.index];
-            let name = snippet.name.as_deref().unwrap_or(&snippet.text);
+            let name = snippet.name.as_deref() .unwrap_or(&snippet.text);
             
             let cursor = textarea.cursor();
             let row = cursor.0;
@@ -200,13 +200,17 @@ impl AutocompleteState {
                 }
             }
             if let Some(trigger) = best_trigger {
-                let replacement = match trigger {
+                let mut replacement = match trigger {
                     "$$" => format!("$${name}"),
                     "$" => snippet.text.clone(),
                     "@" => format!("@{name}"),
                     "/" => format!("/{name}"),
                     _ => name.to_string(),
                 };
+
+                if add_space {
+                    replacement.push(' ');
+                }
 
                 let mut new_line = line[..best_pos].to_string();
                 new_line.push_str(&replacement);
@@ -263,7 +267,7 @@ impl<'a> EditorModule<'a> {
             }
             AppMessage::MoveSuggestionDown => self.autocomplete.move_down(),
             AppMessage::MoveSuggestionUp => self.autocomplete.move_up(),
-            AppMessage::SelectSuggestion => self.autocomplete.select_suggestion(&mut self.textarea),
+            AppMessage::SelectSuggestion(add_space) => self.autocomplete.select_suggestion(&mut self.textarea, add_space),
             AppMessage::Paste(content) => {
                 self.handle_paste(content, ctx.active_tab);
                 return Ok(Some(AppMessage::UpdateAutocomplete));
@@ -289,10 +293,13 @@ impl<'a> EditorModule<'a> {
         let text = self.textarea.lines().join("\n");
 
         if ctx.active_tab == Tab::Settings {
-            let re = regex::Regex::new("^[a-zA-Z0-9_-]+$").expect("Static regex");
-            let trimmed = text.trim();
+            let re = regex::Regex::new("^[a-zA-Z0-9_:-]+$").expect("Static regex");
+            let mut trimmed = text.trim();
+            if trimmed.starts_with('/') {
+                trimmed = &trimmed[1..];
+            }
             if !trimmed.is_empty() && !re.is_match(trimmed) {
-                return Some(AppMessage::Notify("Slash command must match [a-zA-Z0-9_-]+".into(), ratatui_toaster::ToastType::Error));
+                return Some(AppMessage::Notify("Slash command must match [a-zA-Z0-9_:-]+".into(), ratatui_toaster::ToastType::Error));
             }
         }
 

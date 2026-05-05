@@ -129,4 +129,40 @@ async fn test_coverage_boost_settings_render() {
     }).unwrap();
 }
 
+#[tokio::test]
+async fn test_slash_command_colon_and_leading_slash() {
+    let (mut app, _, _, _) = setup_app();
+
+    app.set_tab(Tab::Settings);
+    app.load_prompts().await.unwrap();
+
+    let tabs_len = Tab::settings_display_len();
+    let slash_len = app.settings.slash_commands.len();
+    app.nav.selected_index = tabs_len + slash_len; // "Add New Slash Command"
+
+    // Case 1: Try to add with colon (should succeed now)
+    app.edit_setting();
+    app.editor.textarea = ratatui_textarea::TextArea::from(vec!["fix:bug".to_string()]);
+    app.save_editor().await.unwrap();
+    
+    assert!(app.settings.slash_commands.contains(&"fix:bug".to_string()), "Colon should succeed");
+
+    // Case 2: Try to add with leading slash (should be stripped and succeed)
+    app.nav.selected_index = tabs_len + app.settings.slash_commands.len(); // Next "Add New"
+    app.edit_setting();
+    app.editor.textarea = ratatui_textarea::TextArea::from(vec!["/fix".to_string()]);
+    app.save_editor().await.unwrap();
+    assert!(app.settings.slash_commands.contains(&"fix".to_string()), "Leading slash should be stripped");
+    assert!(!app.settings.slash_commands.contains(&"/fix".to_string()));
+
+    // Case 3: Verify autocomplete works with colon in query
+    app.set_tab(Tab::Prompts);
+    app.mode = promptquiver::app::Mode::Editor;
+    app.editor.textarea = ratatui_textarea::TextArea::default();
+    app.editor.textarea.insert_str("/fix:");
+    app.update_autocomplete().await.unwrap();
+    assert!(app.editor.autocomplete.open);
+    assert!(app.editor.autocomplete.suggestions.iter().any(|p| p.text == "fix:bug"));
+}
+
 

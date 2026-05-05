@@ -131,6 +131,40 @@ async fn test_theme_preview_preserved_on_reload() {
     assert_eq!(app.settings.theme_name, Some("Default".to_string()));
 }
 
+#[tokio::test]
+async fn test_theme_change_persistence() {
+    use contracts::Storage;
+    use ui::AppMessage;
+    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+    let (mut app, storage, _, _) = common::setup_app();
+
+    // 1. Initial theme should be None
+    assert_eq!(app.settings.theme_name, None);
+
+    // 2. Open Theme Picker
+    app.handle_message(AppMessage::SelectTheme).await.unwrap();
+    assert_eq!(app.mode, Mode::ThemePicker);
+
+    // 3. Move to the second theme (index 1)
+    let down_key = KeyEvent::new(KeyCode::Down, KeyModifiers::empty());
+    app.handle_message(AppMessage::ThemePickerInput(down_key)).await.unwrap();
+    
+    let themes = ratatui_themes::ThemeName::all();
+    let second_theme = format!("{:?}", themes[1]);
+    assert_eq!(app.settings.theme_name, Some(second_theme.clone()));
+
+    // 4. Press Enter to confirm selection
+    let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    app.handle_message(AppMessage::ThemePickerInput(enter_key)).await.unwrap();
+    
+    assert_eq!(app.mode, Mode::List);
+    assert_eq!(app.settings.theme_name, Some(second_theme.clone()));
+
+    // 5. Verify if it's saved in storage
+    let saved_settings = storage.get_settings().await.unwrap();
+    assert_eq!(saved_settings.theme_name, Some(second_theme));
+}
+
 fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'static> {
     ui::RenderState {
         nav: &mut app.nav,

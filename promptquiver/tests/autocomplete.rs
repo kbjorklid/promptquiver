@@ -27,7 +27,7 @@ async fn test_autocomplete() {
     assert!(app.editor.autocomplete.open);
     assert_eq!(app.editor.autocomplete.suggestions.len(), 1);
 
-    app.select_suggestion().await.unwrap();
+    app.select_suggestion(false).await.unwrap();
     assert_eq!(app.editor.textarea.lines()[0], "Hello $$ts");
 }
 
@@ -70,7 +70,7 @@ async fn test_autocomplete_file() {
     assert!(app.editor.autocomplete.open);
     assert!(app.editor.autocomplete.suggestions.iter().any(|s| s.name.as_deref() == Some("test_file_for_autocomplete.txt")));
 
-    app.select_suggestion().await.unwrap();
+    app.select_suggestion(false).await.unwrap();
     let line = &app.editor.textarea.lines()[0];
     assert!(line.contains("@test_file_for_autocomplete.txt"));
     assert!(!line.contains("Check @test ")); // Ensure it didn't just append
@@ -390,4 +390,113 @@ async fn test_autocomplete_folders_logic() {
     // Test 3: Trailing slash in name
     assert!(results[0].name.as_ref().unwrap().ends_with('/'));
 }
+
+#[tokio::test]
+async fn test_autocomplete_tab_adds_space() {
+    let (mut app, storage, _, _) = setup_app();
+
+    // Setup a snippet
+    let s1 = contracts::Prompt::new(
+        "test_content".to_string(),
+        contracts::PromptType::Snippet,
+        None,
+        None,
+        Some("ts".to_string()),
+        None,
+    );
+    storage.save_prompt(s1).await.unwrap();
+    
+    // Enter editor and start typing trigger
+    app.enter_editor("Hello ".to_string(), None);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+
+    // Type $$t
+    for c in "$$t".chars() {
+        promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char(c),
+            crossterm::event::KeyModifiers::empty(),
+        )).await;
+    }
+    app.update_autocomplete().await.unwrap();
+    
+    assert!(app.editor.autocomplete.open);
+    assert_eq!(app.editor.autocomplete.suggestions.len(), 1);
+
+    // Press Tab
+    promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Tab,
+        crossterm::event::KeyModifiers::empty(),
+    )).await;
+    
+    // Check if it's completed AND has a space
+    let line = &app.editor.textarea.lines()[0];
+    assert_eq!(line, "Hello $$ts ", "Tab should complete and add a space");
+}
+
+#[tokio::test]
+async fn test_autocomplete_enter_no_space() {
+    let (mut app, storage, _, _) = setup_app();
+
+    // Setup a snippet
+    let s1 = contracts::Prompt::new(
+        "test_content".to_string(),
+        contracts::PromptType::Snippet,
+        None,
+        None,
+        Some("ts".to_string()),
+        None,
+    );
+    storage.save_prompt(s1).await.unwrap();
+    
+    // Enter editor and start typing trigger
+    app.enter_editor("Hello ".to_string(), None);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+
+    // Type $$t
+    for c in "$$t".chars() {
+        promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char(c),
+            crossterm::event::KeyModifiers::empty(),
+        )).await;
+    }
+    app.update_autocomplete().await.unwrap();
+    
+    assert!(app.editor.autocomplete.open);
+
+    // Press Enter
+    promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+    )).await;
+    
+    // Check if it's completed AND has NO space
+    let line = &app.editor.textarea.lines()[0];
+    assert_eq!(line, "Hello $$ts", "Enter should complete WITHOUT adding a space");
+}
+
+#[tokio::test]
+async fn test_snippets_tab_focus_toggle_when_autocomplete_closed() {
+    let (mut app, _, _, _) = setup_app();
+    app.set_tab(contracts::Tab::Snippets);
+    
+    app.enter_editor(String::new(), None);
+    assert!(app.editor.title_focused);
+
+    // Press Tab when autocomplete is NOT open
+    promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Tab,
+        crossterm::event::KeyModifiers::empty(),
+    )).await;
+    
+    assert!(!app.editor.title_focused, "Tab should toggle focus to content when autocomplete is closed");
+
+    // Press Tab again
+    promptquiver::handlers::handle_key_event(&mut app, crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Tab,
+        crossterm::event::KeyModifiers::empty(),
+    )).await;
+    
+    assert!(app.editor.title_focused, "Tab should toggle focus back to title when autocomplete is closed");
+}
+
 

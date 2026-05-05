@@ -7,6 +7,7 @@ use chrono;
 pub struct ProjectManager {
     pub projects: Vec<Project>,
     pub new_project_name: String,
+    pub renaming_project_id: Option<Uuid>,
     pub selecting_startup_project: bool,
     pub active_project_id: Option<Uuid>,
     pub project_list_state: ratatui::widgets::ListState,
@@ -42,6 +43,19 @@ impl ProjectManager {
         storage.save_settings(settings.clone()).await?;
         self.load_projects(storage).await?;
         Ok(project)
+    }
+
+    /// Renames a project.
+    ///
+    /// # Errors
+    /// Returns an error if the project cannot be saved.
+    pub async fn rename_project(&mut self, id: Uuid, new_name: &str, storage: &Arc<dyn Storage>) -> Result<()> {
+        if let Some(project) = self.projects.iter_mut().find(|p| p.id == id) {
+            project.title = new_name.to_string();
+            storage.save_project(project.clone()).await?;
+        }
+        self.load_projects(storage).await?;
+        Ok(())
     }
 
     /// Deletes a project by ID.

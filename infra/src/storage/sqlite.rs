@@ -451,4 +451,105 @@ impl Storage for SqliteStorage {
             Ok(version)
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
+
+    async fn get_all_data(&self) -> Result<contracts::DatabaseExport> {
+        let prompts = self.get_prompts(contracts::PromptFilter::default()).await?;
+        let projects = self.get_projects().await?;
+        let settings = self.get_settings().await?;
+
+        let db_path = self.db_path.clone();
+        let project_info = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let mut stmt = conn.prepare("SELECT folder, data FROM project_info")
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let iter = stmt.query_map([], |row| {
+                let folder: String = row.get(0)?;
+                let data_str: String = row.get(1)?;
+                let info: ProjectInfo = serde_json::from_str(&data_str).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e)))?;
+                Ok((folder, info))
+            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+            let mut map = std::collections::HashMap::new();
+            for item in iter {
+                let (folder, info) = item.map_err(|e| contracts::Error::Storage(e.to_string()))?;
+                map.insert(folder, info);
+            }
+            Ok::<std::collections::HashMap<String, ProjectInfo>, contracts::Error>(map)
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
+        Ok(contracts::DatabaseExport {
+            prompts,
+            projects,
+            project_info,
+            settings,
+        })
+    }
+
+    async fn restore_all_data(&self, data: contracts::DatabaseExport) -> Result<()> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+            // Clear existing data
+            tx.execute("DELETE FROM prompts", []).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            tx.execute("DELETE FROM projects", []).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            tx.execute("DELETE FROM project_info", []).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            tx.execute("DELETE FROM settings", []).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+            // Restore projects
+            for p in data.projects {
+                tx.execute(
+                    "INSERT INTO projects (id, title, created_at) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![p.id.to_string(), p.title, p.created_at.to_rfc3339()],
+                ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            }
+
+            // Restore prompts
+            for p in data.prompts {
+                tx.execute(
+                    "INSERT INTO prompts (id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                    rusqlite::params![
+                        p.id.to_string(),
+                        p.text,
+                        format!("{:?}", p.r#type),
+                        p.folder,
+                        p.project_id.map(|id| id.to_string()),
+                        p.branch,
+                        p.name,
+                        p.staged,
+                        p.last_copied,
+                        p.is_archived,
+                        p.created_at.to_rfc3339(),
+                        p.updated_at.to_rfc3339(),
+                        p.order_index,
+                    ],
+                ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            }
+
+            // Restore project_info
+            for (folder, info) in data.project_info {
+                let data_str = serde_json::to_string(&info).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+                tx.execute(
+                    "INSERT INTO project_info (folder, data) VALUES (?1, ?2)",
+                    rusqlite::params![folder, data_str],
+                ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            }
+
+            // Restore settings
+            let settings_str = serde_json::to_string(&data.settings).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            tx.execute(
+                "INSERT INTO settings (id, data) VALUES (1, ?1)",
+                rusqlite::params![settings_str],
+            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
+            tx.commit().map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok::<(), contracts::Error>(())
+        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
+        self.increment_data_version().await
+    }
 }

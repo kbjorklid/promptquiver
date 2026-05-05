@@ -20,11 +20,12 @@ pub fn render_picker(
     f.render_widget(Clear, area);
 
     // Split area into list and footer for toggle
-    let constraints = if hide_filter {
+    let mut constraints = if hide_filter {
         vec![Constraint::Min(3)]
     } else {
         vec![Constraint::Min(3), Constraint::Length(1)]
     };
+    constraints.push(Constraint::Length(1)); // Shortcut hints
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -37,7 +38,8 @@ pub fn render_picker(
     }
     
     if let Some(name) = adding_name {
-        items.push(ListItem::new(format!("  [ New: {name} ]  "))
+        let label = if name.is_empty() { " " } else { name };
+        items.push(ListItem::new(format!("  [ {label} ]  "))
             .fg(palette.accent)
             .add_modifier(Modifier::BOLD));
     } else {
@@ -58,13 +60,20 @@ pub fn render_picker(
 
     f.render_stateful_widget(list, chunks[0], state);
 
+    let mut current_chunk = 1;
     if !hide_filter {
         let filter_status = if project_filter { "[x]" } else { "[ ]" };
         let footer = ratatui::widgets::Paragraph::new(format!("  {filter_status} Filter by Project (Tab to toggle)  "))
             .style(Style::default().fg(if project_filter { palette.accent } else { palette.muted }))
             .block(Block::default().bg(palette.bg));
-        f.render_widget(footer, chunks[1]);
+        f.render_widget(footer, chunks[current_chunk]);
+        current_chunk += 1;
     }
+
+    let hints = ratatui::widgets::Paragraph::new("  (r) Rename  (d/del) Delete  ")
+        .style(Style::default().fg(palette.muted))
+        .block(Block::default().bg(palette.bg));
+    f.render_widget(hints, chunks[current_chunk]);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

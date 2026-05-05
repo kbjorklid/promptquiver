@@ -176,6 +176,14 @@ pub struct PromptFilter {
     pub staged: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseExport {
+    pub prompts: Vec<Prompt>,
+    pub projects: Vec<Project>,
+    pub project_info: HashMap<String, ProjectInfo>,
+    pub settings: Settings,
+}
+
 #[async_trait]
 pub trait Storage: Send + Sync {
     /// Gets prompts matching the filter.
@@ -249,6 +257,18 @@ pub trait Storage: Send + Sync {
     /// # Errors
     /// Returns a `Storage` error if the version cannot be retrieved.
     async fn get_data_version(&self) -> Result<u32>;
+
+    /// Gets all data for export.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if data cannot be retrieved.
+    async fn get_all_data(&self) -> Result<DatabaseExport>;
+
+    /// Restores all data from an export.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if data cannot be restored.
+    async fn restore_all_data(&self, data: DatabaseExport) -> Result<()>;
 }
 
 

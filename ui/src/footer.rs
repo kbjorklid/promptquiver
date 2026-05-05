@@ -32,6 +32,9 @@ pub fn render(
         crate::types::Mode::ThemePicker => "Theme Picker",
         crate::types::Mode::ProjectPicker => "Project Picker",
         crate::types::Mode::AddProject => "Add Project",
+        crate::types::Mode::RenameProject => "Rename Project",
+        crate::types::Mode::ExportDialog => "Export Data",
+        crate::types::Mode::ImportDialog => "Import Data",
     };
 
     let has_suggestions = !state.editor.autocomplete.suggestions.is_empty();

@@ -27,9 +27,12 @@ pub fn render(
         advanced_count += 1;
     }
     let advanced_height = u16::try_from(advanced_count + 2).unwrap_or(u16::MAX);
-    let total_height = tab_height + slash_height + advanced_height;
+    
+    let maintenance_height = 4;
+    
+    let total_height = tab_height + slash_height + maintenance_height + advanced_height;
 
-    update_scroll_offset(area, state, total_height, tab_height, slash_height, tabs_len, slash_len);
+    update_scroll_offset(area, state, total_height, tab_height, slash_height, maintenance_height, tabs_len, slash_len);
 
     let scroll_offset = state.nav.settings_scroll_offset;
 
@@ -51,10 +54,19 @@ pub fn render(
     };
     render_slash_commands(f, area, slash_area, state, tabs_len);
 
+    // Maintenance
+    let maintenance_area = Rect {
+        x: area.x,
+        y: area.y.saturating_add(tab_height).saturating_add(slash_height).saturating_sub(scroll_offset),
+        width: area.width,
+        height: maintenance_height,
+    };
+    render_maintenance(f, area, maintenance_area, state, tabs_len, slash_len);
+
     // Advanced
     let advanced_area = Rect {
         x: area.x,
-        y: area.y.saturating_add(tab_height).saturating_add(slash_height).saturating_sub(scroll_offset),
+        y: area.y.saturating_add(tab_height).saturating_add(slash_height).saturating_add(maintenance_height).saturating_sub(scroll_offset),
         width: area.width,
         height: advanced_height,
     };
@@ -73,6 +85,7 @@ fn update_scroll_offset(
     total_height: u16,
     tab_height: u16,
     slash_height: u16,
+    maintenance_height: u16,
     tabs_len: usize,
     slash_len: usize,
 ) {
@@ -81,8 +94,10 @@ fn update_scroll_offset(
         u16::try_from(selected_index).unwrap_or(u16::MAX).saturating_add(1)
     } else if selected_index <= tabs_len + slash_len {
         tab_height.saturating_add(u16::try_from(selected_index - tabs_len).unwrap_or(u16::MAX)).saturating_add(1)
+    } else if selected_index <= tabs_len + slash_len + 2 {
+        tab_height.saturating_add(slash_height).saturating_add(u16::try_from(selected_index - (tabs_len + slash_len + 1)).unwrap_or(u16::MAX)).saturating_add(1)
     } else {
-        tab_height.saturating_add(slash_height).saturating_add(u16::try_from(selected_index.saturating_sub(tabs_len + slash_len + 1)).unwrap_or(u16::MAX)).saturating_add(1)
+        tab_height.saturating_add(slash_height).saturating_add(maintenance_height).saturating_add(u16::try_from(selected_index.saturating_sub(tabs_len + slash_len + 3)).unwrap_or(u16::MAX)).saturating_add(1)
     };
 
     let scroll_offset = &mut state.nav.settings_scroll_offset;
@@ -222,6 +237,38 @@ fn render_slash_editor(
     }
 }
 
+fn render_maintenance(
+    f: &mut Frame<'_>,
+    area: Rect,
+    maintenance_area: Rect,
+    state: &RenderState<'_, '_>,
+    tabs_len: usize,
+    slash_len: usize,
+) {
+    let palette = get_palette(state.settings.theme_name.as_deref());
+    let selected_index = state.nav.selected_index;
+    let maintenance_idx = tabs_len + slash_len + 1;
+    let is_maintenance_focused = selected_index >= maintenance_idx && selected_index < maintenance_idx + 2;
+    
+    let maintenance_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Maintenance (Enter to run) ")
+        .border_style(if is_maintenance_focused { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) });
+
+    let items = vec![
+        ListItem::new(format!("{} Export Data (TOML)", if selected_index == maintenance_idx { ">" } else { " " }))
+            .style(if selected_index == maintenance_idx { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
+        ListItem::new(format!("{} Import Data (TOML)", if selected_index == maintenance_idx + 1 { ">" } else { " " }))
+            .style(if selected_index == maintenance_idx + 1 { Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD) } else { Style::default().fg(palette.fg) }),
+    ];
+
+    let maintenance_list = List::new(items).block(maintenance_block).style(Style::default().bg(palette.bg));
+    
+    if maintenance_area.y < area.y + area.height && maintenance_area.y + maintenance_area.height > area.y {
+        f.render_widget(maintenance_list, area.intersection(maintenance_area));
+    }
+}
+
 fn render_advanced(
     f: &mut Frame<'_>,
     area: Rect,
@@ -232,7 +279,8 @@ fn render_advanced(
 ) {
     let palette = get_palette(state.settings.theme_name.as_deref());
     let selected_index = state.nav.selected_index;
-    let advanced_idx = tabs_len + slash_len + 1;
+    let maintenance_len = 2;
+    let advanced_idx = tabs_len + slash_len + 1 + maintenance_len;
     let is_advanced_focused = selected_index >= advanced_idx;
     
     let advanced_block = Block::default()
@@ -313,4 +361,3 @@ fn render_theme_picker(f: &mut Frame<'_>, palette: &ThemePalette, theme_list_sta
     f.render_widget(Clear, picker_area);
     f.render_stateful_widget(list, picker_area, theme_list_state);
 }
-

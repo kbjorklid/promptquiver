@@ -13,6 +13,9 @@ pub enum Mode {
     ThemePicker,
     ProjectPicker,
     AddProject,
+    RenameProject,
+    ExportDialog,
+    ImportDialog,
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +46,7 @@ pub enum AppMessage {
     CloseAutocomplete,
     MoveSuggestionDown,
     MoveSuggestionUp,
-    SelectSuggestion,
+    SelectSuggestion(bool),
     ToggleSetting,
     ToggleBranchFilter,
     ToggleFolderFilter,
@@ -51,9 +54,12 @@ pub enum AppMessage {
     SelectProject,
     SetProject(Option<Uuid>),
     AddProject(String),
+    RenameProject(Uuid, String),
     DeleteProject(Uuid),
     EnterAddProject,
+    EnterRenameProject(Uuid),
     ProjectPickerInput(crossterm::event::KeyEvent),
+    RenameProjectInput(crossterm::event::KeyEvent),
     Search(String),
     Notify(String, ratatui_toaster::ToastType),
     EditSetting,
@@ -68,11 +74,18 @@ pub enum AppMessage {
     SelectTheme,
     CyclePreviewMode,
     ReloadPrompts,
+    ToggleSettingValue,
     ToggleStartupBehavior,
     SelectStartupProject,
     ToggleHelp,
     ScrollHelpUp,
     ScrollHelpDown,
+    EnterExport,
+    EnterImport,
+    ExportData(String, bool),
+    ImportData(String),
+    ExportDialogInput(crossterm::event::KeyEvent),
+    ImportDialogInput(crossterm::event::KeyEvent),
 }
 
 #[derive(Debug)]

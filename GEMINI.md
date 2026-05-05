@@ -35,12 +35,12 @@ The following specifications are available in the `docs/` directory. Review them
 You must operate in a strict **Test-Implement-Refactor** cycle for every feature and bug fix:
 
 **CRITICAL MANDATE (STRICT TDD COMPLIANCE):**
-You **MUST** follow a strict **Red-Green-Refactor** cycle. Writing a "passing" test to document existing behavior is a violation of this mandate. The test must define the **intended** behavior and **fail** before any implementation code is touched.
+You **MUST** follow a strict **Red-Green-Refactor** cycle. Writing a "passing" test to document existing behavior, bugs, or limitations is a **strict violation** of this mandate. The test must define the **intended** behavior and **fail** before any implementation code is touched.
 
 1.  **Red Phase:**
-    - Define the **target state** or **fix** in a new test case.
+    - Define the **target state** or **fix** in a new test case (assert what SHOULD happen, not what is currently failing).
     - Run the test and **verify it fails**.
-    - Do NOT write tests that confirm unwanted current behavior.
+    - **NEVER** write a test that passes because a bug exists. A "Red" test must fail because the feature/fix isn't there yet.
 2.  **Green Phase:**
     - Write the minimal code required to make the test pass.
     - Verify the test now passes.
