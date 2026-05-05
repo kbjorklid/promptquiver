@@ -43,7 +43,7 @@ impl Default for ListModule {
             history: HistoryManager::default(),
             projects_manager: ProjectManager::default(),
             branch_filter: false,
-            folder_filter: true,
+            folder_filter: false,
             project_filter: false,
             search_query: String::new(),
             current_path: std::env::current_dir()

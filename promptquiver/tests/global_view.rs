@@ -24,8 +24,9 @@ async fn test_global_view_toggle() {
     storage.save_prompt(prompt_b).await.unwrap();
     storage.save_prompt(prompt_a).await.unwrap();
 
-    // 2. Set current path to project A
+    // 2. Set current path to project A and enable folder filter (it's off by default now)
     app.nav.current_path = project_a.to_string();
+    app.nav.folder_filter = true;
     app.load_prompts().await.unwrap();
 
     // 3. Verify only Prompt A is visible initially
