@@ -15,6 +15,44 @@ async fn test_tab_navigation() {
 
     app.prev_tab();
     assert_eq!(app.nav.active_tab, Tab::Canned);
+
+    // Test warping from Settings
+    app.set_tab(Tab::Settings);
+    app.next_tab();
+    assert_eq!(app.nav.active_tab, Tab::Prompts);
+}
+
+#[tokio::test]
+async fn test_settings_arrow_navigation() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, KeyEventKind, KeyEventState};
+    use promptquiver::handlers::handle_key_event;
+    
+    let (mut app, _, _, _) = setup_app();
+    app.set_tab(Tab::Settings);
+    assert_eq!(app.nav.active_tab, Tab::Settings);
+
+    // Right arrow should warp to Prompts
+    let right_arrow = KeyEvent {
+        code: KeyCode::Right,
+        modifiers: KeyModifiers::empty(),
+        kind: KeyEventKind::Press,
+        state: KeyEventState::empty(),
+    };
+    handle_key_event(&mut app, right_arrow).await;
+    assert_eq!(app.nav.active_tab, Tab::Prompts);
+
+    // Back to Settings
+    app.set_tab(Tab::Settings);
+    
+    // Left arrow should go to Archive
+    let left_arrow = KeyEvent {
+        code: KeyCode::Left,
+        modifiers: KeyModifiers::empty(),
+        kind: KeyEventKind::Press,
+        state: KeyEventState::empty(),
+    };
+    handle_key_event(&mut app, left_arrow).await;
+    assert_eq!(app.nav.active_tab, Tab::Archive);
 }
 
 #[tokio::test]

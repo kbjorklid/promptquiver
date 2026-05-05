@@ -95,18 +95,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
     let mut messages = Vec::new();
     match action {
         ShortcutAction::Quit => messages.push(AppMessage::Quit),
-        ShortcutAction::NextTab => {
-            if app.mode == Mode::List && app.nav.active_tab == Tab::Settings {
-                let total_settings = app.nav.total_settings_count(&app.settings);
-                if app.nav.selected_index < total_settings - 1 {
-                    messages.push(AppMessage::MoveDown);
-                } else {
-                    messages.push(AppMessage::MoveToTop);
-                }
-            } else {
-                messages.push(AppMessage::NextTab);
-            }
-        }
+        ShortcutAction::NextTab => messages.push(AppMessage::NextTab),
         ShortcutAction::PrevTab => messages.push(AppMessage::PrevTab),
         ShortcutAction::SetTab(tab) => messages.push(AppMessage::SetTab(tab)),
         ShortcutAction::Undo => messages.push(AppMessage::Undo),

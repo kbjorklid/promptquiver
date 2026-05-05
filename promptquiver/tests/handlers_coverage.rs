@@ -407,7 +407,8 @@ async fn test_settings_tab_key() {
     };
 
     handle_key_event(&mut app, tab_key).await;
-    assert_eq!(app.nav.selected_index, 1);
+    assert_eq!(app.nav.active_tab, Tab::Prompts);
+    assert_eq!(app.nav.selected_index, 0);
 }
 
 #[tokio::test]
