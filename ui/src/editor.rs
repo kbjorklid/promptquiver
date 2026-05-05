@@ -1,6 +1,7 @@
 use contracts::Tab;
 use ratatui::widgets::{Block, Borders, List, ListItem, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::style::Style;
+use ratatui::prelude::Stylize;
 use ratatui::Frame;
 use ratatui::layout::{Rect, Layout, Constraint, Direction};
 use crate::types::RenderState;
@@ -49,7 +50,8 @@ pub fn render(
                 .borders(Borders::ALL)
                 .border_type(ratatui::widgets::BorderType::Rounded)
                 .title(" Snippet Name ([a-zA-Z0-9_-]+) ")
-                .border_style(if title_focused { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) }),
+                .border_style(if title_focused { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) })
+                .bg(palette.bg),
         );
         title_textarea.set_style(Style::default().bg(palette.bg).fg(palette.fg));
 
@@ -70,7 +72,8 @@ pub fn render(
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
             .title(main_title)
-            .border_style(if !title_focused || !is_snippet { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) }),
+            .border_style(if !title_focused || !is_snippet { Style::default().fg(palette.accent) } else { Style::default().fg(palette.fg) })
+            .bg(palette.bg),
     );
     f.render_widget(&*textarea, editor_area);
 
