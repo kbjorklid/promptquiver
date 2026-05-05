@@ -57,6 +57,12 @@ pub trait AppService: Send + Sync {
     /// Returns an error if the search fails.
     async fn search_files(&self, base_dir: &str, query: &str) -> Result<Vec<Prompt>>;
 
+    /// Discovers Claude commands for the given project path.
+    ///
+    /// # Errors
+    /// Returns an error if the discovery fails.
+    async fn get_claude_commands(&self, project_path: &str) -> Result<Vec<Prompt>>;
+
     /// Exports all application data to a TOML string.
     ///
     /// # Errors

@@ -21,6 +21,7 @@ pub struct App<'a> {
     pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
     pub show_help: bool,
     pub help_scroll: u16,
+    pub claude_commands: Vec<contracts::Prompt>,
 }
 
 
@@ -56,6 +57,7 @@ impl App<'_> {
                 settings: &mut self.settings,
                 active_tab: self.nav.active_tab,
                 selected_index: self.nav.selected_index,
+                claude_commands: &self.claude_commands,
             };
 
             let next_msg = match self.mode {
@@ -191,6 +193,7 @@ impl App<'_> {
             file_search_tx: None,
             show_help: false,
             help_scroll: 0,
+            claude_commands: Vec::new(),
         }
     }
 

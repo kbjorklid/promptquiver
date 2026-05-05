@@ -45,6 +45,7 @@ impl AutocompleteState {
         current_path: String,
         file_search_tx: &Option<tokio::sync::mpsc::Sender<(String, String)>>,
         snippet_cache: &mut Vec<Prompt>,
+        claude_commands: &[Prompt],
     ) -> contracts::Result<()> {
         if let Some((trigger, query)) = query_opt {
             let matcher = SkimMatcherV2::default();
@@ -81,10 +82,20 @@ impl AutocompleteState {
                 }
                 "/" => {
                     let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = settings.slash_commands
-                        .iter()
+                    
+                    let mut combined_commands: Vec<Prompt> = settings.slash_commands.iter().map(|cmd| {
+                        Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()), None)
+                    }).collect();
+
+                    if settings.enable_claude_commands {
+                        combined_commands.extend(claude_commands.iter().cloned());
+                    }
+
+                    let mut scored_suggestions: Vec<(i64, Prompt)> = combined_commands
+                        .into_iter()
                         .filter_map(|cmd| {
-                            matcher.fuzzy_match(&cmd.to_lowercase(), &query_lower).map(|score| (score, Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()), None)))
+                            let name = cmd.name.as_deref().unwrap_or(&cmd.text);
+                            matcher.fuzzy_match(&name.to_lowercase(), &query_lower).map(|score| (score, cmd))
                         })
                         .collect();
                         
@@ -260,7 +271,7 @@ impl<'a> EditorModule<'a> {
             }
             AppMessage::UpdateAutocomplete => {
                 let query_opt = AutocompleteState::get_current_query(&self.textarea);
-                self.autocomplete.update(query_opt, ctx.storage.clone(), ctx.settings, current_path, file_search_tx, &mut self.snippet_cache).await?;
+                self.autocomplete.update(query_opt, ctx.storage.clone(), ctx.settings, current_path, file_search_tx, &mut self.snippet_cache, ctx.claude_commands).await?;
             }
             AppMessage::CloseAutocomplete => {
                 self.autocomplete.clear();

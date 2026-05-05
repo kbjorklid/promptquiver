@@ -297,6 +297,10 @@ impl AppService for RealAppService {
         Ok(scored_results.into_iter().take(20).map(|(_, p)| p).collect())
     }
 
+    async fn get_claude_commands(&self, project_path: &str) -> Result<Vec<Prompt>> {
+        Ok(crate::claude::discover_commands(project_path))
+    }
+
     async fn export_data(&self, include_archived: bool) -> Result<String> {
         let mut data = self.storage.get_all_data().await?;
         if !include_archived {

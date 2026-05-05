@@ -52,6 +52,10 @@ async fn main() -> Result<()> {
 
     let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
     handle_error!(app, app.init_project().await);
+    
+    if let Ok(commands) = service.get_claude_commands(&app.nav.current_project_path()).await {
+        app.claude_commands = commands;
+    }
 
     let mut branch_rx = setup_git_poller(git.clone());
     let mut file_result_rx = setup_file_searcher(&mut app, service.clone());

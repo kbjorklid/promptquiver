@@ -113,7 +113,7 @@ pub fn render_autocomplete(
         let col = screen_cursor.col;
         let row = screen_cursor.row;
         
-        let popup_width = 60;
+        let popup_width = 80;
         let popup_height_pref = (u16::try_from(suggestions.len()).unwrap_or(u16::MAX).saturating_add(2)).min(10);
         
         // Absolute screen coordinates of the cursor
@@ -167,12 +167,18 @@ pub fn render_autocomplete(
             .enumerate()
             .map(|(i, s)| {
                 let name = s.name.as_deref().unwrap_or(&s.text);
+                let display_text = if s.r#type == contracts::PromptType::Prompt && !s.text.is_empty() && s.text != *name {
+                    format!("{name} - {}", s.text)
+                } else {
+                    name.to_string()
+                };
+                
                 let style = if i == suggestion_index {
                     Style::default().bg(palette.accent).fg(palette.bg)
                 } else {
                     Style::default().fg(palette.fg)
                 };
-                ListItem::new(name).style(style)
+                ListItem::new(display_text).style(style)
             })
             .collect();
         

@@ -107,6 +107,7 @@ pub struct UpdateContext<'a> {
     pub settings: &'a mut Settings,
     pub active_tab: Tab,
     pub selected_index: usize,
+    pub claude_commands: &'a [contracts::Prompt],
 }
 
 impl std::fmt::Debug for UpdateContext<'_> {

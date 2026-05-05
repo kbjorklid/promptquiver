@@ -2,6 +2,7 @@ pub mod clipboard;
 pub mod git;
 pub mod storage;
 pub mod service;
+pub mod claude;
 
 pub use clipboard::{MockClipboard, RealClipboard};
 pub use git::{MockGit, RealGit};
