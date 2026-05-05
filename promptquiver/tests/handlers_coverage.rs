@@ -305,7 +305,8 @@ async fn test_toggle_setting_key() {
     // ...
     
     let tabs_len = Tab::settings_display_len();
-    app.nav.selected_index = tabs_len + app.settings.slash_commands.len() + 1; // enable_claude_commands
+    let maintenance_len = 2;
+    app.nav.selected_index = tabs_len + app.settings.slash_commands.len() + 1 + maintenance_len; // enable_claude_commands
 
     let original = app.settings.enable_claude_commands;
 

@@ -11,7 +11,7 @@ pub fn render_export_dialog(f: &mut Frame<'_>, state: &RenderState<'_, '_>) {
     
     let width = 60;
     let height = 12;
-    let popup_area = crate::utils::centered_rect(width, height, area);
+    let popup_area = crate::utils::centered_rect_fixed(width, height, area);
 
     f.render_widget(Clear, popup_area);
     
@@ -74,7 +74,7 @@ pub fn render_import_dialog(f: &mut Frame<'_>, state: &RenderState<'_, '_>) {
     
     let width = 60;
     let height = 10;
-    let popup_area = crate::utils::centered_rect(width, height, area);
+    let popup_area = crate::utils::centered_rect_fixed(width, height, area);
 
     f.render_widget(Clear, popup_area);
     

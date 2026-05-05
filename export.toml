@@ -1,0 +1,808 @@
+[[prompts]]
+id = "776b1654-6f52-4ae8-958b-2bda53c1c729"
+text = """
+Look at @REFACTORING_SUGGESTIONS.md
+
+Refactor code, following this procedure:
+
+1. Take the first item in the file
+2. Check code coverage around the code to be refactored
+3. Increase code coverage to at least 85% if possible. e2e tests are priority
+4. Do the refactoring
+5. Run all tests and make sure they pass
+6. Delete what you have refactored from the file as it is now done."""
+type = "prompt"
+folder = 'F:\code\promptquiver\docs'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = false
+created_at = "2026-05-02T13:58:39.889132700Z"
+updated_at = "2026-05-02T13:59:45.603435200Z"
+order_index = 0
+
+[[prompts]]
+id = "44caea4b-f881-4169-ae26-79f93b4b38a3"
+text = """
+Refactor code, following this procedure:
+
+1. Identify something to refactor
+2. Check code coverage around the code to be refactored
+3. Increase code coverage to at least 85% if possible. e2e tests are priority
+4. Do the refactoring
+5. Run all tests and make sure they pass"""
+type = "prompt"
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = false
+created_at = "2026-05-02T13:57:29.288462Z"
+updated_at = "2026-05-02T13:57:29.288462Z"
+order_index = 0
+
+[[prompts]]
+id = "cb6febad-6399-489b-a34c-37a391862da9"
+text = "test"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T13:37:23.993534600Z"
+updated_at = "2026-05-02T13:37:23.993534600Z"
+order_index = 0
+
+[[prompts]]
+id = "42ce24bb-85a5-458f-9dfd-fce7f2e6cea1"
+text = "test"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T13:37:17.187540700Z"
+updated_at = "2026-05-02T13:37:17.187540700Z"
+order_index = 0
+
+[[prompts]]
+id = "b83a7959-99d1-4d2f-a4bb-44749a710f8d"
+text = """
+test
+"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T13:37:10.090883100Z"
+updated_at = "2026-05-02T13:37:10.090883100Z"
+order_index = 0
+
+[[prompts]]
+id = "44c5eb7c-f8d6-46b9-9540-028589f48b0c"
+text = """
+-- bug: 'a' to create
+
+When I press 'a' on the prompt (or notes or other such list), I expect the new item to be added below the currently selected item. Now it looks like it is added as the first item.
+
+'i' should add it above currently selected item
+'I' should add it as first item, no matter what is selected
+'A' should add it as last item, no matter what is selected"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "bug: 'a' to create"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T10:33:20.407060Z"
+updated_at = "2026-05-02T10:33:20.407060Z"
+order_index = 0
+
+[[prompts]]
+id = "c7c231d3-ae8c-4f24-a1bd-868937906411"
+text = "new"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T10:31:43.850460500Z"
+updated_at = "2026-05-02T10:31:43.850460500Z"
+order_index = 0
+
+[[prompts]]
+id = "b381c3ce-0527-4735-9962-45a87c1ba129"
+text = """
+1. As you recommend, although I guess name field is not used for prompts/canned? If you agree (look at the code pls) then let's not try to match with that field.
+2. as you suggest.
+3. as you suggest.
+4. as you recommend.
+5. as you suggest, I don't care about implementation detail. Do it the best way possible."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:40:32.485245100Z"
+updated_at = "2026-05-02T06:40:32.485245100Z"
+order_index = 0
+
+[[prompts]]
+id = "09a9f77d-305b-44e8-aa2c-92cf368c1e92"
+text = """
+1. as you recommend.
+2. as you recommend
+3. no, draft functionality works only for 'prompts' and 'canned (prompts)' functionality
+4. as you recommend.
+5. as you recommend.
+6. `Fix welcome email [Draft]` should be presented in the list view as `[DRAFT] Fix welcome emali`
+7. as you recommend."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:34:27.047068Z"
+updated_at = "2026-05-02T06:37:31.203685600Z"
+order_index = 0
+
+[[prompts]]
+id = "207f22a4-bc85-4a9f-be46-ae206fc9d426"
+text = """
+-- Project should not be persisted in db
+
+I believe the currently active project is persisted in db and synced accross all instances?
+
+Adust this so that the active project is only held in runtime memory. Active project is the project to which new prompts are crated in (associated with), and it also functions as filter. If we have two or more sessions, they may be about two or more projects so we don't want the project switching to happen between instances.
+
+At app start, if there are projects defined (e.g. at least one other project in addition to Default), show a modal pop-up for project selection. However, let user in settings select one of the following:
+- Always start with the last previously activated project (the info about the last project activation needs to be stored in db for this to wokr)
+- Always start with a specific project (let user select which one in the settings)
+- Ask (the behavior described above).
+
+$$grill-me"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Project should not be persisted in db"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:17:42.501425900Z"
+updated_at = "2026-05-02T10:00:18.441559400Z"
+order_index = 0
+
+[[prompts]]
+id = "47cc7623-60d6-4b8f-beb0-adbe5bb1d6ee"
+text = "When I put 'project filter on' I see the status in the footer bar as the background becomes text color and text color becomes black (or dark grey?) Do this same for the path/folder and git branch filter indicators in the footer."
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:06:12.151263300Z"
+updated_at = "2026-05-02T06:06:12.151263300Z"
+order_index = 0
+
+[[prompts]]
+id = "90ed6c32-72d3-465e-a341-0d5777b5cc78"
+text = '''
+-- deal with 'draft' in title
+
+Add the notion of draft prompts to the system.
+
+Note that this relies on existing functionality, where the first line of prompt, if it starts with `--` is considered the title used in the prompt list, but not used when prompt is copied to clipboard.
+
+If a prompt is considered draft:
+- Its title is dimmed in prompt list
+- Its title is presented like so: `[DRAFT] Fix welcome email`
+- It cannot be staged
+
+A prompt is considered draft, if its title (after trimming whitespace) starts with:
+- `Draft\s` (ignoring case)
+- `[Draft]` (ignoring case)
+...or if it ends with:
+- `[Draft] (ignoring case)
+
+In all other cases it is not considered a draft.
+
+$$grill-me'''
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "deal with 'draft' in title"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:01:54.879006400Z"
+updated_at = "2026-05-02T06:33:22.601092600Z"
+order_index = 0
+
+[[prompts]]
+id = "4b9cddc1-7866-48b6-9646-51f4e9617582"
+text = "Bug: When I create a new project by opening the project selection dialog, selecting add new, and typing the project name, when I press enter, this project is not shown in the footer. If I open up the project selection dialog, it does seem like the new project was selected (correct)"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:00:11.573139200Z"
+updated_at = "2026-05-02T06:00:11.573139200Z"
+order_index = 0
+
+[[prompts]]
+id = "cb3be626-932d-4095-97fb-3dbf8a0039ae"
+text = "If I paste text on the prompts list, I would like a prompt with the pasted content to be created - if possible. Now the app executes the keystrokes one by one."
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T15:02:36.742207900Z"
+updated_at = "2026-05-01T15:02:36.742207900Z"
+order_index = 0
+
+[[prompts]]
+id = "1b4df765-4174-42bf-bf41-0c43d161e91c"
+text = """
+-- Pasting is slow
+
+When I paste a lot of text to the editor, it takes a quite a while for the text to be "written" (pasting is not instantaneous) - at least on Windows. Is this something that can be fixed?
+
+$$tdd"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "Pasting is slow"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T15:01:47.575757200Z"
+updated_at = "2026-05-01T15:04:11.755232700Z"
+order_index = 0
+
+[[prompts]]
+id = "456b331f-b02f-496b-84ff-3730288c124a"
+text = "If possible, write one or more failing test cases for this functionality before implementing the functionality. Make sure the tests fail first. Then write the implementation. Make sure the tests now pass. If you are able to, refactor the new functionality for simplicity, readability and maintainability. After refactoring, make sure the full suite of tests pass. "
+type = "snippet"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "tdd"
+staged = false
+last_copied = false
+is_archived = false
+created_at = "2026-05-01T14:57:38.775496500Z"
+updated_at = "2026-05-01T14:57:38.775496500Z"
+order_index = 0
+
+[[prompts]]
+id = "b5fc1ad8-e345-49de-9d94-a036a6f385b7"
+text = """
+-- Esc closes autocomplete popup
+
+When an auto-complete pop-up is open (for snippets, slash-commaands or files), esc should close it.
+
+$$tdd """
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "Esc closes autocomplete popup"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T14:55:45.221111200Z"
+updated_at = "2026-05-01T14:58:27.317310800Z"
+order_index = 0
+
+[[prompts]]
+id = "9d56f906-4735-4976-b4e7-6cc722128db3"
+text = """
+Interview me relentlessly about every aspect of this plan until
+we reach a shared understanding. Walk down each branch of the design
+tree resolving dependencies between decisions one by one.
+
+If a question can be answered by exploring the codebase, explore
+the codebase instead.
+
+For each question, provide your recommended answer."""
+type = "snippet"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "grill-me"
+staged = false
+last_copied = false
+is_archived = false
+created_at = "2026-05-01T14:54:27.071530800Z"
+updated_at = "2026-05-01T14:54:27.071530800Z"
+order_index = 0
+
+[[prompts]]
+id = "38420bd0-4c50-41d5-8bef-d158077768ef"
+text = """
+-- Settings view scrolling
+
+Add scrolling to the whole settings view. Now advanced settings, tab visiblity checkboxes and probably also Slash commands go hiding if there is not enugh vertical space."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "Settings view scrolling"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T07:17:34.895445700Z"
+updated_at = "2026-05-01T07:17:34.895445700Z"
+order_index = 0
+
+[[prompts]]
+id = "abc1c5c2-b7dd-48f0-a105-1dffc949cd76"
+text = "test 11"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-04-29T18:38:49.897725800Z"
+updated_at = "2026-04-29T18:38:49.897725800Z"
+order_index = 0
+
+[[prompts]]
+id = "0962458d-2162-4860-91ed-cc78bcdf2477"
+text = "Test"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-04-29T18:38:21.405639400Z"
+updated_at = "2026-04-29T18:38:21.405639400Z"
+order_index = 0
+
+[[prompts]]
+id = "83dba57f-28e9-4863-8c4a-49f1bcf419fe"
+text = "Test 3"
+type = "prompt"
+folder = 'C:\Users'
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-04-29T17:47:37.542414600Z"
+updated_at = "2026-04-29T17:47:37.542414600Z"
+order_index = 0
+
+[[prompts]]
+id = "188d1e37-2fc3-454f-a093-0322cd5464b7"
+text = "Test a"
+type = "prompt"
+folder = 'C:\Users'
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-04-29T17:46:47.766536500Z"
+updated_at = "2026-04-29T17:47:17.736462600Z"
+order_index = 0
+
+[[prompts]]
+id = "3ceb5b5b-e43c-4877-9105-ca3cf644f5c3"
+text = "Test prompt"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-04-29T17:45:54.972006800Z"
+updated_at = "2026-04-29T17:45:54.972006800Z"
+order_index = 0
+
+[[prompts]]
+id = "bc2ba611-890a-45f0-b565-5396c8ed092f"
+text = """
+-- Settings enhancements for startup behavior
+
+In settings screen:
+- Startup behavior -> rename to 'Project selection at startup'
+- Allow pressing enter (alias to space) to toggle the behavior
+- When using the 'select specific project' behavior, the modal that opens should not have the 'filter by project' checkbox (does not make sense in this context), so maybe hide the checkbox in this case."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Settings enhancements for startup behavior"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T10:31:13.736209900Z"
+updated_at = "2026-05-02T10:31:13.736209900Z"
+order_index = 1
+
+[[prompts]]
+id = "b1d5f0f7-30cf-4802-acb6-02abc01ae69d"
+text = """
+I want to add a new concept called 'projects'.
+
+- Each project has a title. 
+- There is always one project, called Default, that cannot be deleted (this does not need to be in the database, this can be representend like this to the user when project = null for a prompt (and set project = null when using default project and creating a new prompt)
+- When a new prompt or note is created (not canned or snippet), it is associated with the active project
+- You can filter by project (just like by pwd-folder and git branch).
+- User can select the active project with ctrl-p. This will open a modal with scrollable project list. Enter selects, esc cancels
+
+Interview me relentlessly about every aspect of this plan until
+we reach a shared understanding. Walk down each branch of the design
+tree resolving dependencies between decisions one by one.
+
+If a question can be answered by exploring the codebase, explore
+the codebase instead.
+
+For each question, provide your recommended answer."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T14:54:15.515082300Z"
+updated_at = "2026-05-01T16:32:58.436789500Z"
+order_index = 1
+
+[[prompts]]
+id = "dec9a7cd-1005-4661-a5e8-3d1bd249d497"
+text = """
+-- Theme selector bug
+
+When I enter the theme selector which previews themes as you move up/down the list, the preview only shows for a very short time. I think this is because of the 'sync' functionality (database is polled every 500ms I believe for changes in other instances of the app). I wonder why the poll seems to indicate that database status has changed and the theme is therefore changed back. In any case (1) prevent database sync changing theme while in theme selector, (2) see if you can spot a bug in the database sync mechanism - I would not like extra load / cpu/disk use because of constantly thinking database has changed."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "Theme selector bug"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T07:16:47.071699700Z"
+updated_at = "2026-05-01T07:16:47.071699700Z"
+order_index = 1
+
+[[prompts]]
+id = "be7ddf41-7e5c-47c7-b466-5bdf3953f171"
+text = """
+-- Fix parts overriding theme colors
+
+Some items are not following the theme selected in settings. I think some items have explicitly defined colors. This includes: tab backgrounds, and the 'Tab Visibility' box in Settings screen. Go through the whole UI and clean these up."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+branch = "master"
+name = "Fix parts overriding theme colors"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-01T07:18:21.649343200Z"
+updated_at = "2026-05-01T07:18:21.649343200Z"
+order_index = 2
+
+[[prompts]]
+id = "c2467cd2-6dd7-4204-af85-efdba7bda56c"
+text = "hello"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T16:08:14.410751300Z"
+updated_at = "2026-05-02T16:08:14.410751300Z"
+order_index = 9
+
+[[prompts]]
+id = "0f530f4d-c9a9-47a6-9262-be87f63d9fcf"
+text = """
+-- cli option to get the staged prompt
+
+Add a CLI option that will write the staged prompt, if any, to STDOUT. If no staged prompt, do nothing.
+```
+quiver --output-staged
+```"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "cli option to get the staged prompt"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:03:00.656114800Z"
+updated_at = "2026-05-03T17:51:12.432531500Z"
+order_index = 10
+
+[[prompts]]
+id = "a2685728-4fe9-4353-8857-a024a6d10d62"
+text = """
+-- Rename and Delete projects
+
+Allow user to rename and delete projects in the project selection modal. Add 'r' for Rename and 'd'/'del' for delete, show these as keyboard shortcut hints at the bottom of the modal"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Rename and Delete projects"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-05T15:00:52.376650500Z"
+updated_at = "2026-05-05T15:00:52.376650500Z"
+order_index = 11
+
+[[prompts]]
+id = "249e633f-3299-4c98-9110-a27fa907a0ad"
+text = """
+Allow ':' in slash commands, e.g. make '/some:command' legal slash command
+
+Secondly, when user adds (or edits) a slash command, accept the '/' at the start of the command name, right now when creating new commands you're supposed to write the command without the slash, but it's a 'mistake' often made to have the '/' preceding the command name, handle this gracefully.
+
+"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-05T15:02:31.519312100Z"
+updated_at = "2026-05-05T15:02:31.519312100Z"
+order_index = 12
+
+[[prompts]]
+id = "33200346-2a11-4f8f-9b79-056080ab0223"
+text = """
+-- Tab in autocomplete
+
+When autocomplete popup (for files, slash commands or snippets) is shown, tab should accept the highlighted suggestion and add one space ' ' character after the completed item. """
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Tab in autocomplete"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-05T15:03:49.928020100Z"
+updated_at = "2026-05-05T15:03:49.928020100Z"
+order_index = 13
+
+[[prompts]]
+id = "b815287c-f505-4564-a21f-79f33f2680b5"
+text = """
+-- Import/export
+
+Allow importing / exporting full content of the database in one file (.toml?) Round-trip should return the app to exactly the same state as it was at time of export. Only option for now is whether user wants to export *everything* or everyhthing *except* archived prompots. Export/import functionality should live in Settings. When exporting, open a modal dialog where user can select file location (see if you can find a nice existing widget solution for this), and whether they want to export archived prompts."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Import/export"
+staged = true
+last_copied = false
+is_archived = false
+created_at = "2026-05-05T15:08:35.956907800Z"
+updated_at = "2026-05-05T15:10:17.381885300Z"
+order_index = 14
+
+[[prompts]]
+id = "3ee52813-310a-4a99-892a-b8d519a53f01"
+text = "test"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T13:37:59.776922900Z"
+updated_at = "2026-05-02T13:37:59.776922900Z"
+order_index = 20
+
+[[prompts]]
+id = "11ac7af1-296e-4bcf-828a-9b4790b10a49"
+text = """
+-- Research Clauude Code integration
+
+Research if it is possible to integrate this app to Claude Code. Idea would be to be able to send a prompt to Claude code. Do a web search. There is a concept of 'channels' - would that be useable here?"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Research Clauude Code integration"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T06:01:26.098443900Z"
+updated_at = "2026-05-03T08:45:39.646453600Z"
+order_index = 30
+
+[[prompts]]
+id = "e91bbfff-8b1b-4160-9945-a2dcdb0a6f9a"
+text = """
+Prompt preview currently has the prompt title in the beginning of the previev content.
+
+
+I'd like the title to be moved to the header of the preview block (where it currently says `Preview (Prompt)`:
+- If prompt has a title, the header of the preview block should say: `Preview: <title here>`
+- If prompt does not have a title, the header should say just `Preview`
+
+If the prompt is draft, the title should be normalized to same form as it is in the list, e,g `[DRAFT] <title here>`
+
+$$grill-me"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-03T07:11:51.437896800Z"
+updated_at = "2026-05-03T07:15:54.270024900Z"
+order_index = 31
+
+[[prompts]]
+id = "f1aa1667-dcf9-4508-a038-ab33de478b91"
+text = """
+-- Bug: Snippets are project-specific
+
+Snippets (and canned prompts) should be global: no matter what filter (project/folder/branch) is enabled, every snippet/canned prompt should always be visible. Upon creation, do not associate them with any project, branch or folder."""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Bug: Snippets are project-specific"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-03T05:57:52.555987200Z"
+updated_at = "2026-05-03T05:57:52.555987200Z"
+order_index = 31
+
+[[prompts]]
+id = "9eadc41f-6dea-4e71-b6d3-ca69e7c2d0bd"
+text = """
+The file autocomplete should also suggest folders. If I enter '@foo' and a 'foo' folder exists, then that should be the first
+   suggestion, rathr than 'foo/bar' or 'foo/bar/notes.txt'.
+
+$$grill-me"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T13:40:19.705103700Z"
+updated_at = "2026-05-02T13:40:19.705103700Z"
+order_index = 31
+
+[[prompts]]
+id = "abe5ff17-d547-4b60-9ab0-a49cf3013b92"
+text = """
+-- Selection to created prompt
+
+- Just after creating a prompt/note/snippet (when saving and getting back to the list of prompts), selection should be on that prompt.
+- When creating a prompt/note/snippet, the title of the text area should be 'Create *', not 'Edit *'"""
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+name = "Selection to created prompt"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T16:09:44.599368100Z"
+updated_at = "2026-05-02T16:09:44.599368100Z"
+order_index = 32
+
+[[prompts]]
+id = "6e0fe95b-efbe-437c-a88d-f54433a8d73d"
+text = "Test"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T16:08:07.916258200Z"
+updated_at = "2026-05-02T16:08:07.916258200Z"
+order_index = 32
+
+[[prompts]]
+id = "feeee280-11d3-48c3-acd1-b49a119f7e05"
+text = "test"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T16:08:02.519747600Z"
+updated_at = "2026-05-02T16:08:02.519747600Z"
+order_index = 32
+
+[[prompts]]
+id = "65795661-144a-45db-a1cf-5e2eea05e160"
+text = "hello"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T16:12:26.247564500Z"
+updated_at = "2026-05-02T16:12:26.247564500Z"
+order_index = 33
+
+[[prompts]]
+id = "0d2b974a-d5b7-4850-b141-1b94b2c5027a"
+text = "hi"
+type = "prompt"
+folder = 'F:\code\promptquiver'
+project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+branch = "master"
+staged = false
+last_copied = false
+is_archived = true
+created_at = "2026-05-02T16:12:49.405072700Z"
+updated_at = "2026-05-02T16:12:49.405072700Z"
+order_index = 34
+
+[[projects]]
+id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+title = "PromptQuiver"
+created_at = "2026-05-02T05:58:32.461203700Z"
+
+[project_info.'F:\code\promptquiver']
+path = 'F:\code\promptquiver'
+
+[project_info.'C:\Users\kalle']
+path = 'C:\Users\kalle'
+
+[project_info.'F:\code\promptquiver\docs']
+path = 'F:\code\promptquiver\docs'
+
+[project_info.'C:\Users']
+path = 'C:\Users'
+
+[settings]
+slash_commands = []
+enable_claude_commands = true
+use_nerd_font = true
+theme_name = "Nord"
+preview_mode = "Bottom"
+startup_behavior = "LastActivated"
+last_active_project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+specific_project_id = "b8a261a0-8052-4993-8a25-ab0283894dff"
+
+[settings.tab_visibility]

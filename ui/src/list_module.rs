@@ -226,7 +226,8 @@ impl ListModule {
             AppMessage::MoveItemUp | AppMessage::MoveItemDown | AppMessage::StageSelected | AppMessage::ArchiveSelected | AppMessage::DuplicateSelected | AppMessage::RestoreSelected => {
                 self.handle_item_ops(msg, ctx).await
             }
-            AppMessage::ToggleSetting | AppMessage::ToggleBranchFilter | AppMessage::ToggleFolderFilter | AppMessage::ToggleProjectFilter | AppMessage::CyclePreviewMode => {
+            AppMessage::ToggleSetting | AppMessage::ToggleBranchFilter | AppMessage::ToggleFolderFilter | AppMessage::ToggleProjectFilter | AppMessage::CyclePreviewMode |
+            AppMessage::EnterExport | AppMessage::EnterImport | AppMessage::ExportData(_, _) | AppMessage::ImportData(_) | AppMessage::ExportDialogInput(_) | AppMessage::ImportDialogInput(_) => {
                 self.handle_settings_ops(msg, ctx).await
             }
             AppMessage::SelectProject | AppMessage::SetProject(_) | AppMessage::ToggleStartupBehavior | AppMessage::SelectStartupProject | AppMessage::AddProject(_) | AppMessage::RenameProject(_, _) | AppMessage::DeleteProject(_) | AppMessage::ProjectPickerInput(_) | AppMessage::RenameProjectInput(_) | AppMessage::EnterRenameProject(_) => {

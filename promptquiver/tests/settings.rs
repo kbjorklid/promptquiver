@@ -16,10 +16,11 @@ async fn test_settings_navigation_and_tab_focus() {
     for _ in 0..15 {
         app.move_down();
     }
-    assert_eq!(app.nav.selected_index, 9);
+    let total = app.nav.total_settings_count(&app.settings);
+    assert_eq!(app.nav.selected_index, total - 1);
 
     app.move_up();
-    assert_eq!(app.nav.selected_index, 8);
+    assert_eq!(app.nav.selected_index, total - 2);
 }
 
 #[tokio::test]

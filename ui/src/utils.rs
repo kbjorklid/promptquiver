@@ -50,6 +50,26 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
+pub fn centered_rect_fixed(width: u16, height: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(height),
+            Constraint::Min(0),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(width),
+            Constraint::Min(0),
+        ])
+        .split(popup_layout[1])[1]
+}
+
 pub fn highlight_text<'a>(text: &'a str, palette: &ThemePalette) -> Vec<Line<'a>> {
     text.lines()
         .map(|line| {

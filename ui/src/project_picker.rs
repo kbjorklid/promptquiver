@@ -1,6 +1,6 @@
 use ratatui::widgets::{List, ListItem, Block, Borders, Clear};
 use ratatui::Frame;
-use ratatui::layout::{Rect, Layout, Constraint, Direction};
+use ratatui::layout::{Layout, Constraint, Direction};
 use ratatui::style::{Style, Modifier};
 use ratatui::prelude::Stylize;
 use crate::utils::get_palette;
@@ -15,7 +15,7 @@ pub fn render_picker(
     hide_filter: bool,
 ) {
     let palette = get_palette(settings.theme_name.as_deref());
-    let area = centered_rect(60, 40, f.area());
+    let area = crate::utils::centered_rect(60, 40, f.area());
     
     f.render_widget(Clear, area);
 
@@ -74,24 +74,4 @@ pub fn render_picker(
         .style(Style::default().fg(palette.muted))
         .block(Block::default().bg(palette.bg));
     f.render_widget(hints, chunks[current_chunk]);
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }

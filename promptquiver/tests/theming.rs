@@ -16,9 +16,9 @@ async fn test_theming_selection() {
     app.load_prompts().await.unwrap();
 
     // 2. Select Theme item in Advanced section
-    // Tab Visibility (6 items) + Slash Commands (0 initial + 1 Add New) + Claude (1) + Nerd (1) + Theme (1)
-    // selected_index for Theme should be 6 + 1 + 2 = 9
-    app.nav.selected_index = 9;
+    // Tab Visibility (5 items) + Slash Commands (0 initial + 1 Add New) + Maintenance (2) + Claude (1) + Nerd (1) + Theme (1)
+    // selected_index for Theme should be 5 + 1 + 2 + 2 = 10
+    app.nav.selected_index = 10;
 
     // 3. Open Theme Picker
     app.mode = Mode::ThemePicker;
@@ -66,9 +66,10 @@ async fn test_theme_picker_opening_and_dismissal() {
     app.load_prompts().await.unwrap();
 
     // 1. Verify opening theme picker via Enter
-    let tabs_len = 5; // Settings tab is hidden in visibility list
+    let tabs_len = Tab::settings_display_len();
     let slash_len = app.settings.slash_commands.len();
-    let theme_idx = tabs_len + slash_len + 3; // theme item index: 5 + slash + 1 (claude) + 1 (nerd) + 1 (theme) = 8 + slash
+    let maintenance_len = 2;
+    let theme_idx = tabs_len + slash_len + 1 + maintenance_len + 2; // theme item index: 5 + slash + 1 (Add New) + 2 (Maintenance) + 2 (claude, nerd) = 10 + slash
     app.nav.selected_index = theme_idx;
 
     let enter_key = KeyEvent {
