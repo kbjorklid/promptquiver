@@ -257,7 +257,10 @@ impl App<'_> {
                     });
                 }
                 #[cfg(not(feature = "ai"))]
-                self.notify("AI feature not compiled in this build", ToastType::Error);
+                self.notify(
+                    "Rebuild with --features ai to enable model download",
+                    ToastType::Error,
+                );
             }
             _ => {}
         }
