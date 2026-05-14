@@ -173,10 +173,7 @@ impl App<'_> {
             });
         }
         #[cfg(not(feature = "ai"))]
-        self.notify(
-            "Rebuild with --features ai to enable model download",
-            ToastType::Error,
-        );
+        self.notify("Rebuild with --features ai to enable model download", ToastType::Error);
     }
 
     async fn apply_global_action(
