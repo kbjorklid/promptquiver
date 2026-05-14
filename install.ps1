@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "Compiling Prompt Quiver (release mode)..."
-cargo build --release
+Write-Host "Compiling Prompt Quiver (release mode, AI features enabled)..."
+cargo build --release --features ai
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Compilation failed."
