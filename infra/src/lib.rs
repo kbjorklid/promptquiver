@@ -5,10 +5,10 @@ pub mod git;
 pub mod service;
 pub mod storage;
 
-pub use ai::download::ModelDownloader;
-pub use ai::{AiEngine, MockAiEngine, NoopEngine};
 #[cfg(feature = "ai")]
 pub use ai::candle::CandleEngine;
+pub use ai::download::ModelDownloader;
+pub use ai::{AiEngine, MockAiEngine, NoopEngine};
 pub use clipboard::{MockClipboard, RealClipboard};
 pub use git::{MockGit, RealGit};
 pub use service::RealAppService;

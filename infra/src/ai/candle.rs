@@ -69,10 +69,8 @@ impl CandleEngine {
         let tokenizer_path = repo.get("tokenizer.json")?;
         let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(anyhow::Error::msg)?;
 
-        let eos_token_id = tokenizer
-            .token_to_id("</s>")
-            .or_else(|| tokenizer.token_to_id("<eos>"))
-            .unwrap_or(1);
+        let eos_token_id =
+            tokenizer.token_to_id("</s>").or_else(|| tokenizer.token_to_id("<eos>")).unwrap_or(1);
 
         let model_files = load_safetensor_paths(&repo)?;
         // Safety: memory-mapping downloaded model files is safe; we trust the files
@@ -171,8 +169,7 @@ impl AiEngine for CandleEngine {
                 .get_ids()
                 .to_vec();
 
-            let mut logits_processor =
-                LogitsProcessor::from_sampling(42, Sampling::ArgMax);
+            let mut logits_processor = LogitsProcessor::from_sampling(42, Sampling::ArgMax);
 
             let mut all_tokens = tokens.clone();
             let mut output_ids: Vec<u32> = Vec::new();
@@ -196,17 +193,12 @@ impl AiEngine for CandleEngine {
                 output_ids.push(next_token);
             }
 
-            let text = inner
-                .tokenizer
-                .decode(&output_ids, true)
-                .map_err(anyhow::Error::msg)?;
+            let text = inner.tokenizer.decode(&output_ids, true).map_err(anyhow::Error::msg)?;
             Ok(text)
         })
     }
 }
 
 fn format_chat_prompt(user_message: &str) -> String {
-    format!(
-        "<start_of_turn>user\n{user_message}<end_of_turn>\n<start_of_turn>model\n"
-    )
+    format!("<start_of_turn>user\n{user_message}<end_of_turn>\n<start_of_turn>model\n")
 }

@@ -1,7 +1,7 @@
-pub mod download;
-pub mod titler;
 #[cfg(feature = "ai")]
 pub mod candle;
+pub mod download;
+pub mod titler;
 
 use async_trait::async_trait;
 use contracts::ModelTier;

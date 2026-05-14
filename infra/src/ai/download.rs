@@ -44,9 +44,7 @@ impl ModelDownloader {
         std::fs::read_dir(&snapshots)
             .ok()
             .and_then(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .find(|e| e.path().join("tokenizer.json").exists())
+                entries.filter_map(|e| e.ok()).find(|e| e.path().join("tokenizer.json").exists())
             })
             .is_some()
     }
@@ -76,22 +74,16 @@ impl ModelDownloader {
                 let map = index["weight_map"]
                     .as_object()
                     .ok_or_else(|| anyhow::anyhow!("invalid model.safetensors.index.json"))?;
-                let names: std::collections::BTreeSet<String> = map
-                    .values()
-                    .filter_map(|v| v.as_str())
-                    .map(str::to_string)
-                    .collect();
+                let names: std::collections::BTreeSet<String> =
+                    map.values().filter_map(|v| v.as_str()).map(str::to_string).collect();
                 names.into_iter().collect::<Vec<_>>()
             }
             Err(_) => vec!["model.safetensors".to_string()],
         };
 
         let static_files = ["tokenizer.json", "config.json", "tokenizer_config.json"];
-        let all_files: Vec<String> = static_files
-            .iter()
-            .map(|s| s.to_string())
-            .chain(shard_names)
-            .collect();
+        let all_files: Vec<String> =
+            static_files.iter().map(|s| s.to_string()).chain(shard_names).collect();
 
         let total = u32::try_from(all_files.len()).unwrap_or(u32::MAX);
         for (i, name) in all_files.iter().enumerate() {
@@ -123,9 +115,7 @@ mod tests {
     fn is_downloaded_when_snapshot_has_tokenizer() {
         let dir = tempdir().unwrap();
         let dl = ModelDownloader::new(dir.path().to_path_buf());
-        let snap = dl
-            .snapshot_base("google/gemma-4-E2B-it")
-            .join("abc123");
+        let snap = dl.snapshot_base("google/gemma-4-E2B-it").join("abc123");
         std::fs::create_dir_all(&snap).unwrap();
         std::fs::write(snap.join("tokenizer.json"), "{}").unwrap();
         assert!(dl.is_downloaded("google/gemma-4-E2B-it"));

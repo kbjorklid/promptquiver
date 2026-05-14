@@ -205,10 +205,7 @@ impl App<'_> {
             }
             AppMessage::TitleGenerated(id, title) => {
                 self.ai_pending_titles.remove(&id);
-                let all = self
-                    .storage
-                    .get_prompts(contracts::PromptFilter::default())
-                    .await?;
+                let all = self.storage.get_prompts(contracts::PromptFilter::default()).await?;
                 if let Some(mut prompt) = all.into_iter().find(|p| p.id == id) {
                     prompt.name = Some(title);
                     self.storage.save_prompt(prompt).await?;
@@ -235,9 +232,7 @@ impl App<'_> {
                         let mid = infra::ai::model_id(settings.ai_model_tier);
                         let token = settings.hf_token.as_deref().map(str::to_string);
                         let (prog_tx, mut prog_rx) =
-                            tokio::sync::mpsc::channel::<infra::ai::download::DownloadProgress>(
-                                20,
-                            );
+                            tokio::sync::mpsc::channel::<infra::ai::download::DownloadProgress>(20);
                         let dl_fut = downloader.download(mid, token.as_deref(), prog_tx);
                         tokio::pin!(dl_fut);
                         loop {

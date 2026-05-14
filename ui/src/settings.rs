@@ -130,10 +130,9 @@ fn update_scroll_offset(
     let selected_index = state.nav.selected_index;
     let maintenance_start = tabs_len + slash_len + 1;
     let advanced_start = maintenance_start + 2;
-    let ai_start = advanced_start + 5
-        + usize::from(
-            state.settings.startup_behavior == contracts::StartupBehavior::Specific,
-        );
+    let ai_start = advanced_start
+        + 5
+        + usize::from(state.settings.startup_behavior == contracts::StartupBehavior::Specific);
 
     let selected_y = if selected_index < tabs_len {
         u16::try_from(selected_index).unwrap_or(u16::MAX).saturating_add(1)
@@ -144,26 +143,20 @@ fn update_scroll_offset(
     } else if selected_index < maintenance_start + 2 {
         tab_height
             .saturating_add(slash_height)
-            .saturating_add(
-                u16::try_from(selected_index - maintenance_start).unwrap_or(u16::MAX),
-            )
+            .saturating_add(u16::try_from(selected_index - maintenance_start).unwrap_or(u16::MAX))
             .saturating_add(1)
     } else if selected_index < ai_start {
         tab_height
             .saturating_add(slash_height)
             .saturating_add(maintenance_height)
-            .saturating_add(
-                u16::try_from(selected_index - advanced_start).unwrap_or(u16::MAX),
-            )
+            .saturating_add(u16::try_from(selected_index - advanced_start).unwrap_or(u16::MAX))
             .saturating_add(1)
     } else {
         tab_height
             .saturating_add(slash_height)
             .saturating_add(maintenance_height)
             .saturating_add(advanced_height)
-            .saturating_add(
-                u16::try_from(selected_index - ai_start).unwrap_or(u16::MAX),
-            )
+            .saturating_add(u16::try_from(selected_index - ai_start).unwrap_or(u16::MAX))
             .saturating_add(1)
     };
 
@@ -527,7 +520,8 @@ fn render_ai(
 
     let maintenance_start = tabs_len + slash_len + 1;
     let advanced_start = maintenance_start + 2;
-    let ai_idx = advanced_start + 5
+    let ai_idx = advanced_start
+        + 5
         + usize::from(s.startup_behavior == contracts::StartupBehavior::Specific);
     let is_ai_focused = selected_index >= ai_idx;
 

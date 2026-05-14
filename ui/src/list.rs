@@ -94,18 +94,13 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
                 style = style.add_modifier(Modifier::DIM);
             }
 
-            let ai_indicator = if state
-                .ai_pending_titles
-                .is_some_and(|s| s.contains(&p.id))
-            {
+            let ai_indicator = if state.ai_pending_titles.is_some_and(|s| s.contains(&p.id)) {
                 " …"
             } else {
                 ""
             };
-            ListItem::new(format!(
-                "{prefix}{staged_icon}{copy_icon}{display_name}{ai_indicator}"
-            ))
-            .style(style)
+            ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}{ai_indicator}"))
+                .style(style)
         })
         .collect();
 

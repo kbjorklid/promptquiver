@@ -277,8 +277,7 @@ fn setup_ai_engine(settings: &contracts::Settings, data_dir: &PathBuf) -> AiChan
         let model_id = infra::ai::model_id(settings.ai_model_tier);
         let downloader = infra::ModelDownloader::new(data_dir.clone());
         if settings.ai_enabled && downloader.is_downloaded(model_id) {
-            let (title_req_tx, mut title_req_rx) =
-                tokio::sync::mpsc::channel::<(Uuid, String)>(10);
+            let (title_req_tx, mut title_req_rx) = tokio::sync::mpsc::channel::<(Uuid, String)>(10);
             let (title_res_tx, title_res_rx) = tokio::sync::mpsc::channel::<(Uuid, String)>(10);
             let data_dir = data_dir.clone();
             let hf_token = settings.hf_token.clone();
@@ -295,9 +294,7 @@ fn setup_ai_engine(settings: &contracts::Settings, data_dir: &PathBuf) -> AiChan
                     }
                 };
                 while let Some((id, text)) = title_req_rx.recv().await {
-                    if let Some(title) =
-                        infra::ai::titler::generate_title(&text, &engine).await
-                    {
+                    if let Some(title) = infra::ai::titler::generate_title(&text, &engine).await {
                         let _ = title_res_tx.send((id, title)).await;
                     }
                 }

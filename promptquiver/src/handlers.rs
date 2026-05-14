@@ -154,8 +154,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                 let ai_idx = advanced_idx
                     + 5
                     + usize::from(
-                        app.settings.startup_behavior
-                            == contracts::StartupBehavior::Specific,
+                        app.settings.startup_behavior == contracts::StartupBehavior::Specific,
                     );
 
                 if app.nav.selected_index >= ai_idx {
