@@ -1,6 +1,53 @@
 mod common;
 use common::setup_app;
 use contracts::{Storage, Tab};
+use promptquiver::app::{AppMessage, Mode};
+
+#[tokio::test]
+async fn test_ai_toggle_does_not_open_project_picker() {
+    let (mut app, storage, _, _) = setup_app();
+    app.set_tab(Tab::Settings);
+    app.load_prompts().await.unwrap();
+
+    let tabs_len = contracts::Tab::settings_display_len();
+    let slash_len = app.settings.slash_commands.len();
+    let maintenance_start = tabs_len + slash_len + 1;
+    let advanced_start = maintenance_start + 2;
+    let ai_idx = advanced_start + 5; // no slash cmds, not Specific
+
+    app.nav.selected_index = ai_idx;
+
+    app.handle_message(AppMessage::ToggleSetting).await.unwrap();
+
+    // Must stay in List mode — not jump to ProjectPicker
+    assert_eq!(app.mode, Mode::List);
+    // ai_enabled should have flipped
+    let saved = storage.get_settings().await.unwrap();
+    assert!(saved.ai_enabled);
+}
+
+#[tokio::test]
+async fn test_ai_download_enter_triggers_download_message() {
+    let (mut app, _, _, _) = setup_app();
+    app.set_tab(Tab::Settings);
+    app.load_prompts().await.unwrap();
+
+    let tabs_len = contracts::Tab::settings_display_len();
+    let slash_len = app.settings.slash_commands.len();
+    let maintenance_start = tabs_len + slash_len + 1;
+    let advanced_start = maintenance_start + 2;
+    let ai_idx = advanced_start + 5;
+
+    // "Download model" is ai_idx + 3
+    app.nav.selected_index = ai_idx + 3;
+
+    // ToggleSetting is what both Space and Enter send for AI items now.
+    // Handling RequestModelDownload sets ai_download_progress.
+    app.handle_message(AppMessage::ToggleSetting).await.unwrap();
+
+    // Not Specific, no token, so download starts (progress set to Some(0.0))
+    assert_eq!(app.ai_download_progress, Some(0.0));
+}
 
 #[tokio::test]
 async fn test_settings_navigation_and_tab_focus() {

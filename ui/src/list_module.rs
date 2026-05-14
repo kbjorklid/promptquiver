@@ -733,7 +733,11 @@ impl ListModule {
                 )))
             }
             idx if idx == advanced_start + 4 => Ok(Some(AppMessage::ToggleStartupBehavior)),
-            idx if idx == advanced_start + 5 => Ok(Some(AppMessage::SelectStartupProject)),
+            idx if idx == advanced_start + 5
+                && ctx.settings.startup_behavior == contracts::StartupBehavior::Specific =>
+            {
+                Ok(Some(AppMessage::SelectStartupProject))
+            }
             _ => {
                 let ai_idx = advanced_start
                     + 5

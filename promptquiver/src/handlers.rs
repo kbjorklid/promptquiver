@@ -151,8 +151,17 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                 let slash_len = app.settings.slash_commands.len();
                 let maintenance_idx = tabs_len + slash_len + 1;
                 let advanced_idx = maintenance_idx + 2;
+                let ai_idx = advanced_idx
+                    + 5
+                    + usize::from(
+                        app.settings.startup_behavior
+                            == contracts::StartupBehavior::Specific,
+                    );
 
-                if app.nav.selected_index < tabs_len
+                if app.nav.selected_index >= ai_idx {
+                    // AI section: all items handled via ToggleSetting
+                    messages.push(AppMessage::ToggleSetting);
+                } else if app.nav.selected_index < tabs_len
                     || app.nav.selected_index == maintenance_idx
                     || app.nav.selected_index == maintenance_idx + 1
                     || app.nav.selected_index == advanced_idx
