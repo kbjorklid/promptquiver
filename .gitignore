@@ -6,3 +6,5 @@ debug.log
 *.profdata
 
 lcov.info
+
+/.claude/*.local.*
