@@ -1,18 +1,14 @@
-use ratatui::widgets::Paragraph;
-use ratatui::Frame;
-use ratatui::layout::Rect;
-use ratatui::text::{Span, Line};
-use ratatui::style::{Style, Modifier};
-use ratatui::prelude::Stylize;
-use contracts::Tab;
 use crate::shortcuts;
 use crate::types::RenderState;
+use contracts::Tab;
+use ratatui::layout::Rect;
+use ratatui::prelude::Stylize;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
-pub fn render(
-    f: &mut Frame<'_>,
-    area: Rect,
-    state: &RenderState<'_, '_>,
-) {
+pub fn render(f: &mut Frame<'_>, area: Rect, state: &RenderState<'_, '_>) {
     let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
     let tab_name = match state.nav.active_tab {
         Tab::Prompts => "Prompts",
@@ -39,7 +35,7 @@ pub fn render(
 
     let has_suggestions = !state.editor.autocomplete.suggestions.is_empty();
     let all_shortcuts = shortcuts::get_shortcuts(mode_str, tab_name, has_suggestions);
-    
+
     let mut lines = Vec::new();
     let mut current_line = Vec::new();
     let mut current_width = 0;
@@ -50,10 +46,8 @@ pub fn render(
             shortcut.key,
             Style::default().fg(palette.accent).add_modifier(Modifier::BOLD),
         );
-        let desc_span = Span::styled(
-            format!(": {}", shortcut.desc),
-            Style::default().fg(palette.fg),
-        );
+        let desc_span =
+            Span::styled(format!(": {}", shortcut.desc), Style::default().fg(palette.fg));
         let separator = if i < all_shortcuts.len() - 1 { " | " } else { "" };
         let sep_span = Span::styled(separator, Style::default().fg(palette.muted));
 
@@ -71,7 +65,7 @@ pub fn render(
             current_line.push(sep_span);
         }
         current_width += shortcut_width;
-        
+
         if lines.len() >= 2 {
             break; // Max 2 lines
         }

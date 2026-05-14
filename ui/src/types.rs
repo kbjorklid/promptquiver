@@ -1,7 +1,7 @@
-use contracts::{Tab};
-use uuid::Uuid;
+use contracts::Tab;
+use contracts::{AppService, Clipboard, Git, Settings, Storage};
 use std::sync::Arc;
-use contracts::{Storage, Clipboard, Git, AppService, Settings};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {

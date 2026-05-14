@@ -1,6 +1,6 @@
+use crate::types::Mode;
 use contracts::Tab;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use crate::types::Mode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShortcutAction {
@@ -75,7 +75,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("1-6/Tab/hl", "Tabs"),
                 Shortcut::new("j/k/g/G", "Nav"),
             ];
-            
+
             if tab_name == "Archive" {
                 shortcuts.push(Shortcut::new("r", "Restore"));
             }
@@ -104,10 +104,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
             }
             shortcuts
         }
-        "Move" => vec![
-            Shortcut::new("j/k", "Move"),
-            Shortcut::new("Esc/m/Ent", "Back"),
-        ],
+        "Move" => vec![Shortcut::new("j/k", "Move"), Shortcut::new("Esc/m/Ent", "Back")],
         "Editor" => {
             if has_suggestions {
                 vec![
@@ -116,9 +113,7 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                     Shortcut::new("Esc", "Close"),
                 ]
             } else {
-                let mut shortcuts = vec![
-                    Shortcut::new("Ctrl+s", "Save"),
-                ];
+                let mut shortcuts = vec![Shortcut::new("Ctrl+s", "Save")];
                 if tab_name != "Notes" && tab_name != "Snippets" {
                     shortcuts.push(Shortcut::new("Ctrl+g", "Save & Stage"));
                 }
@@ -126,22 +121,22 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 shortcuts
             }
         }
-        "Search" => vec![
-            Shortcut::new("Enter", "Confirm"),
-            Shortcut::new("Esc", "Cancel"),
-        ],
-        "Confirm Discard" => vec![
-            Shortcut::new("y", "Discard"),
-            Shortcut::new("n", "Cancel"),
-        ],
+        "Search" => vec![Shortcut::new("Enter", "Confirm"), Shortcut::new("Esc", "Cancel")],
+        "Confirm Discard" => vec![Shortcut::new("y", "Discard"), Shortcut::new("n", "Cancel")],
         _ => vec![],
     }
 }
 
-pub fn get_action(key: KeyEvent, mode: Mode, active_tab: Tab, autocomplete_open: bool, show_help: bool) -> Option<ShortcutAction> {
+pub fn get_action(
+    key: KeyEvent,
+    mode: Mode,
+    active_tab: Tab,
+    autocomplete_open: bool,
+    show_help: bool,
+) -> Option<ShortcutAction> {
     if show_help {
         match key.code {
-            KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => return Some(ShortcutAction::ToggleHelp),
+            KeyCode::Esc | KeyCode::Char('?' | 'q') => return Some(ShortcutAction::ToggleHelp),
             KeyCode::Char('k') | KeyCode::Up => return Some(ShortcutAction::ScrollHelpUp),
             KeyCode::Char('j') | KeyCode::Down => return Some(ShortcutAction::ScrollHelpDown),
             _ => return None,
@@ -168,9 +163,15 @@ fn get_list_action(key: KeyEvent, active_tab: Tab) -> Option<ShortcutAction> {
         KeyCode::Char('5') => Some(ShortcutAction::SetTab(Tab::Archive)),
         KeyCode::Char('6') => Some(ShortcutAction::SetTab(Tab::Settings)),
         KeyCode::Char('u') => Some(ShortcutAction::Undo),
-        KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(ShortcutAction::Redo),
-        KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(ShortcutAction::CyclePreviewMode),
-        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(ShortcutAction::SelectProject),
+        KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(ShortcutAction::Redo)
+        }
+        KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(ShortcutAction::CyclePreviewMode)
+        }
+        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(ShortcutAction::SelectProject)
+        }
         KeyCode::Char('j') | KeyCode::Down => Some(ShortcutAction::MoveDown),
         KeyCode::Char('k') | KeyCode::Up => Some(ShortcutAction::MoveUp),
         KeyCode::Char('s') => Some(ShortcutAction::StageSelected),
@@ -205,12 +206,20 @@ const fn get_editor_action(key: KeyEvent, autocomplete_open: bool) -> Option<Sho
                 Some(ShortcutAction::ExitEditor) // Will be transformed to ConfirmDiscard if dirty in handlers
             }
         }
-        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(ShortcutAction::Save),
-        KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(ShortcutAction::SaveAndStage),
+        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(ShortcutAction::Save)
+        }
+        KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(ShortcutAction::SaveAndStage)
+        }
         KeyCode::Up if autocomplete_open => Some(ShortcutAction::MoveSuggestionUp),
         KeyCode::Down if autocomplete_open => Some(ShortcutAction::MoveSuggestionDown),
-        KeyCode::Enter if autocomplete_open => Some(ShortcutAction::SelectSuggestion { add_space: false }),
-        KeyCode::Tab if autocomplete_open => Some(ShortcutAction::SelectSuggestion { add_space: true }),
+        KeyCode::Enter if autocomplete_open => {
+            Some(ShortcutAction::SelectSuggestion { add_space: false })
+        }
+        KeyCode::Tab if autocomplete_open => {
+            Some(ShortcutAction::SelectSuggestion { add_space: true })
+        }
         _ => None,
     }
 }

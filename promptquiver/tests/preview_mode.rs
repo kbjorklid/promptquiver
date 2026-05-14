@@ -1,8 +1,8 @@
 mod common;
 use common::setup_app;
-use contracts::{Tab, PreviewMode, Storage};
+use contracts::{PreviewMode, Storage, Tab};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use promptquiver::handlers::handle_key_event;
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, KeyEventKind, KeyEventState};
 
 #[tokio::test]
 async fn test_cycle_preview_mode() {

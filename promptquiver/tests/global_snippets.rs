@@ -1,4 +1,4 @@
-use contracts::{Tab, PromptType, Storage};
+use contracts::{PromptType, Storage, Tab};
 use promptquiver::app::AppMessage;
 use uuid::Uuid;
 
@@ -10,18 +10,24 @@ async fn test_snippets_are_global_across_projects() {
 
     // 1. Setup two projects
     let p1_id = Uuid::new_v4();
-    storage.save_project(contracts::Project {
-        id: p1_id,
-        title: "Project 1".to_string(),
-        created_at: chrono::Utc::now(),
-    }).await.unwrap();
+    storage
+        .save_project(contracts::Project {
+            id: p1_id,
+            title: "Project 1".to_string(),
+            created_at: chrono::Utc::now(),
+        })
+        .await
+        .unwrap();
 
     let p2_id = Uuid::new_v4();
-    storage.save_project(contracts::Project {
-        id: p2_id,
-        title: "Project 2".to_string(),
-        created_at: chrono::Utc::now(),
-    }).await.unwrap();
+    storage
+        .save_project(contracts::Project {
+            id: p2_id,
+            title: "Project 2".to_string(),
+            created_at: chrono::Utc::now(),
+        })
+        .await
+        .unwrap();
 
     // 2. Select Project 1
     app.handle_message(AppMessage::SetProject(Some(p1_id))).await.unwrap();
@@ -36,7 +42,7 @@ async fn test_snippets_are_global_across_projects() {
     // 4. Switch to Project 2
     app.handle_message(AppMessage::SetProject(Some(p2_id))).await.unwrap();
     app.handle_message(AppMessage::ReloadPrompts).await.unwrap();
-    
+
     // 5. Verify Snippet is STILL visible (This should fail if it's associated with P1)
     app.handle_message(AppMessage::SetTab(Tab::Snippets)).await.unwrap();
     assert_eq!(app.nav.prompts.len(), 1, "Snippet should be visible in Project 2");
@@ -44,7 +50,8 @@ async fn test_snippets_are_global_across_projects() {
 
     // 6. Check storage directly to ensure it has NO project association
     let prompts = storage.get_prompts(contracts::PromptFilter::default()).await.unwrap();
-    let snippet = prompts.iter().find(|p| p.r#type == PromptType::Snippet).expect("Snippet not found");
+    let snippet =
+        prompts.iter().find(|p| p.r#type == PromptType::Snippet).expect("Snippet not found");
     assert!(snippet.project_id.is_none(), "Snippet should not be associated with a project");
 }
 
@@ -72,7 +79,10 @@ async fn test_canned_prompts_are_global_across_branches() {
 
     // 5. Check storage directly
     let prompts = storage.get_prompts(contracts::PromptFilter::default()).await.unwrap();
-    let canned = prompts.iter().find(|p| p.folder.is_none() && p.r#type == PromptType::Prompt).expect("Canned prompt not found");
+    let canned = prompts
+        .iter()
+        .find(|p| p.folder.is_none() && p.r#type == PromptType::Prompt)
+        .expect("Canned prompt not found");
     assert!(canned.branch.is_none(), "Canned prompt should not be associated with a branch");
 }
 
@@ -82,18 +92,24 @@ async fn test_canned_prompts_are_global_across_projects() {
 
     // 1. Setup two projects
     let p1_id = Uuid::new_v4();
-    storage.save_project(contracts::Project {
-        id: p1_id,
-        title: "Project 1".to_string(),
-        created_at: chrono::Utc::now(),
-    }).await.unwrap();
+    storage
+        .save_project(contracts::Project {
+            id: p1_id,
+            title: "Project 1".to_string(),
+            created_at: chrono::Utc::now(),
+        })
+        .await
+        .unwrap();
 
     let p2_id = Uuid::new_v4();
-    storage.save_project(contracts::Project {
-        id: p2_id,
-        title: "Project 2".to_string(),
-        created_at: chrono::Utc::now(),
-    }).await.unwrap();
+    storage
+        .save_project(contracts::Project {
+            id: p2_id,
+            title: "Project 2".to_string(),
+            created_at: chrono::Utc::now(),
+        })
+        .await
+        .unwrap();
 
     // 2. Select Project 1 and enable project filter
     app.handle_message(AppMessage::SetProject(Some(p1_id))).await.unwrap();
@@ -102,19 +118,22 @@ async fn test_canned_prompts_are_global_across_projects() {
 
     // 3. Create a Canned Prompt while Project 1 is active
     app.handle_message(AppMessage::SetTab(Tab::Canned)).await.unwrap();
-    app.handle_message(AppMessage::EnterEditor("Canned Project Text".to_string(), None)).await.unwrap();
+    app.handle_message(AppMessage::EnterEditor("Canned Project Text".to_string(), None))
+        .await
+        .unwrap();
     app.handle_message(AppMessage::SaveEditor).await.unwrap();
 
     // 4. Switch to Project 2
     app.handle_message(AppMessage::SetProject(Some(p2_id))).await.unwrap();
     app.handle_message(AppMessage::ReloadPrompts).await.unwrap();
-    
+
     // 5. Verify Canned Prompt is STILL visible
     app.handle_message(AppMessage::SetTab(Tab::Canned)).await.unwrap();
     assert_eq!(app.nav.prompts.len(), 1, "Canned prompt should be visible in Project 2");
 
     // 6. Check storage directly
     let prompts = storage.get_prompts(contracts::PromptFilter::default()).await.unwrap();
-    let canned = prompts.iter().find(|p| p.text == "Canned Project Text").expect("Canned prompt not found");
+    let canned =
+        prompts.iter().find(|p| p.text == "Canned Project Text").expect("Canned prompt not found");
     assert!(canned.project_id.is_none(), "Canned prompt should not be associated with a project");
 }

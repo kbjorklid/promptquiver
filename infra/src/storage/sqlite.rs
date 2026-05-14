@@ -1,9 +1,11 @@
 use async_trait::async_trait;
-use contracts::{ProjectInfo, Prompt, Project, Result, Settings, Storage, PromptFilter, Tab, PromptType};
+use chrono::{DateTime, Utc};
+use contracts::{
+    Project, ProjectInfo, Prompt, PromptFilter, PromptType, Result, Settings, Storage, Tab,
+};
+use rusqlite::OptionalExtension;
 use std::path::PathBuf;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use rusqlite::OptionalExtension;
 
 #[derive(Debug)]
 pub struct SqliteStorage {
@@ -12,9 +14,9 @@ pub struct SqliteStorage {
 
 impl SqliteStorage {
     /// Creates a new `SqliteStorage`
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the database cannot be initialized.
     pub fn new(db_path: PathBuf) -> Self {
         let storage = Self { db_path };
@@ -25,7 +27,7 @@ impl SqliteStorage {
     fn init(&self) -> Result<()> {
         let conn = rusqlite::Connection::open(&self.db_path)
             .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-        
+
         conn.execute("PRAGMA journal_mode=WAL", []).ok();
 
         conn.execute(
@@ -35,7 +37,8 @@ impl SqliteStorage {
                 created_at TEXT NOT NULL
             )",
             [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+        )
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS prompts (
@@ -54,10 +57,12 @@ impl SqliteStorage {
                 order_index INTEGER NOT NULL DEFAULT 0
             )",
             [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+        )
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
         // Migrations
-        let _ = conn.execute("ALTER TABLE prompts ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn
+            .execute("ALTER TABLE prompts ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0", []);
         let _ = conn.execute("ALTER TABLE prompts RENAME COLUMN project TO project_id", []);
 
         conn.execute(
@@ -66,7 +71,8 @@ impl SqliteStorage {
                 data TEXT NOT NULL
             )",
             [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+        )
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS settings (
@@ -74,7 +80,8 @@ impl SqliteStorage {
                 data TEXT NOT NULL
             )",
             [],
-        ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+        )
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
         Ok(())
     }
@@ -84,12 +91,15 @@ impl SqliteStorage {
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let current: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+            let current: u32 = conn
+                .query_row("PRAGMA user_version", [], |row| row.get(0))
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute(&format!("PRAGMA user_version = {}", current + 1), [])
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<(), contracts::Error>(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 }
 
@@ -100,7 +110,7 @@ impl Storage for SqliteStorage {
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
+
             let mut query = "SELECT id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index FROM prompts WHERE 1=1".to_string();
             let mut params: Vec<String> = Vec::new();
 
@@ -108,7 +118,7 @@ impl Storage for SqliteStorage {
                 query.push_str(" AND folder = ?");
                 params.push(folder);
             }
-            
+
             if filter.project_filter {
                 if let Some(id) = filter.project_id {
                     query.push_str(" AND project_id = ?");
@@ -127,7 +137,7 @@ impl Storage for SqliteStorage {
                 query.push_str(" AND staged = ?");
                 params.push(if staged { "1".to_string() } else { "0".to_string() });
             }
-            
+
             if let Some(tab) = filter.tab {
                 match tab {
                     Tab::Prompts => {
@@ -154,7 +164,7 @@ impl Storage for SqliteStorage {
             query.push_str(" ORDER BY order_index ASC, created_at DESC");
 
             let mut stmt = conn.prepare(&query).map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
+
             let prompt_iter = stmt.query_map(rusqlite::params_from_iter(params), |row| {
                 Ok(Prompt {
                     id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
@@ -190,7 +200,7 @@ impl Storage for SqliteStorage {
         let changed = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
+
             conn.execute(
                 "INSERT INTO prompts (id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
@@ -206,8 +216,8 @@ impl Storage for SqliteStorage {
                     is_archived=excluded.is_archived,
                     updated_at=excluded.updated_at,
                     order_index=excluded.order_index
-                 WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
-                    OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
+                 WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder
+                    OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name
                     OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
                     OR order_index != excluded.order_index",
                 rusqlite::params![
@@ -228,7 +238,7 @@ impl Storage for SqliteStorage {
             ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<bool, contracts::Error>(conn.changes() > 0)
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        
+
         if changed {
             self.increment_data_version().await?;
         }
@@ -240,7 +250,7 @@ impl Storage for SqliteStorage {
         let changed = tokio::task::spawn_blocking(move || {
             let mut conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
+
             let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
             let mut any_changed = false;
 
@@ -260,8 +270,8 @@ impl Storage for SqliteStorage {
                         is_archived=excluded.is_archived,
                         updated_at=excluded.updated_at,
                         order_index=excluded.order_index
-                     WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder 
-                        OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name 
+                     WHERE text != excluded.text OR type != excluded.type OR folder IS NOT excluded.folder
+                        OR project_id IS NOT excluded.project_id OR branch IS NOT excluded.branch OR name IS NOT excluded.name
                         OR staged != excluded.staged OR last_copied != excluded.last_copied OR is_archived != excluded.is_archived
                         OR order_index != excluded.order_index",
                     rusqlite::params![
@@ -302,7 +312,9 @@ impl Storage for SqliteStorage {
             conn.execute("DELETE FROM prompts WHERE id = ?", [id.to_string()])
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<(), contracts::Error>(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))??;
         self.increment_data_version().await
     }
 
@@ -311,22 +323,27 @@ impl Storage for SqliteStorage {
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT id, title, created_at FROM projects ORDER BY title ASC")
+            let mut stmt = conn
+                .prepare("SELECT id, title, created_at FROM projects ORDER BY title ASC")
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let project_iter = stmt.query_map([], |row| {
-                Ok(Project {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                    title: row.get(1)?,
-                    created_at: row.get::<_, String>(2)?.parse::<DateTime<Utc>>().unwrap(),
+            let project_iter = stmt
+                .query_map([], |row| {
+                    Ok(Project {
+                        id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                        title: row.get(1)?,
+                        created_at: row.get::<_, String>(2)?.parse::<DateTime<Utc>>().unwrap(),
+                    })
                 })
-            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
             let mut projects = Vec::new();
             for project in project_iter {
                 projects.push(project.map_err(|e| contracts::Error::Storage(e.to_string()))?);
             }
             Ok(projects)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
     async fn save_project(&self, project: Project) -> Result<()> {
@@ -342,9 +359,12 @@ impl Storage for SqliteStorage {
                     project.title,
                     project.created_at.to_rfc3339(),
                 ],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            )
+            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))??;
 
         if changed {
             self.increment_data_version().await?;
@@ -358,16 +378,21 @@ impl Storage for SqliteStorage {
             let mut conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             let tx = conn.transaction().map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
+
             tx.execute("DELETE FROM projects WHERE id = ?", [id.to_string()])
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            tx.execute("UPDATE prompts SET project_id = NULL WHERE project_id = ?", [id.to_string()])
-                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
+
+            tx.execute(
+                "UPDATE prompts SET project_id = NULL WHERE project_id = ?",
+                [id.to_string()],
+            )
+            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+
             tx.commit().map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<(), contracts::Error>(())
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))??;
         self.increment_data_version().await
     }
 
@@ -377,13 +402,21 @@ impl Storage for SqliteStorage {
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT data FROM project_info WHERE folder = ?")
+            let mut stmt = conn
+                .prepare("SELECT data FROM project_info WHERE folder = ?")
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data: Option<String> = stmt.query_row([folder], |row| row.get(0)).optional()
+            let data: Option<String> = stmt
+                .query_row([folder], |row| row.get(0))
+                .optional()
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            data.map_or_else(|| Ok(ProjectInfo::default()), |d| serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string())))
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+
+            data.map_or_else(
+                || Ok(ProjectInfo::default()),
+                |d| serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string())),
+            )
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
     async fn save_project_info(&self, folder: &str, info: ProjectInfo) -> Result<()> {
@@ -392,15 +425,19 @@ impl Storage for SqliteStorage {
         let changed = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data = serde_json::to_string(&info).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let data = serde_json::to_string(&info)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute(
                 "INSERT INTO project_info (folder, data) VALUES (?1, ?2)
                  ON CONFLICT(folder) DO UPDATE SET data=excluded.data WHERE data != excluded.data",
                 rusqlite::params![folder, data],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            )
+            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
         if changed {
             self.increment_data_version().await?;
         }
@@ -412,13 +449,21 @@ impl Storage for SqliteStorage {
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT data FROM settings WHERE id = 1")
+            let mut stmt = conn
+                .prepare("SELECT data FROM settings WHERE id = 1")
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data: Option<String> = stmt.query_row([], |row| row.get(0)).optional()
+            let data: Option<String> = stmt
+                .query_row([], |row| row.get(0))
+                .optional()
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            
-            data.map_or_else(|| Ok(Settings::default()), |d| serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string())))
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+
+            data.map_or_else(
+                || Ok(Settings::default()),
+                |d| serde_json::from_str(&d).map_err(|e| contracts::Error::Storage(e.to_string())),
+            )
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
     async fn save_settings(&self, settings: Settings) -> Result<()> {
@@ -426,15 +471,19 @@ impl Storage for SqliteStorage {
         let changed = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let data = serde_json::to_string(&settings).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let data = serde_json::to_string(&settings)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             conn.execute(
                 "INSERT INTO settings (id, data) VALUES (1, ?1)
                  ON CONFLICT(id) DO UPDATE SET data=excluded.data WHERE data != excluded.data",
                 rusqlite::params![data],
-            ).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            )
+            .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok::<bool, contracts::Error>(conn.changes() > 0)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-        
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
         if changed {
             self.increment_data_version().await?;
         }
@@ -446,10 +495,13 @@ impl Storage for SqliteStorage {
         tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+            let version: u32 = conn
+                .query_row("PRAGMA user_version", [], |row| row.get(0))
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
             Ok(version)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
     async fn get_all_data(&self) -> Result<contracts::DatabaseExport> {
@@ -461,14 +513,23 @@ impl Storage for SqliteStorage {
         let project_info = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(db_path)
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let mut stmt = conn.prepare("SELECT folder, data FROM project_info")
+            let mut stmt = conn
+                .prepare("SELECT folder, data FROM project_info")
                 .map_err(|e| contracts::Error::Storage(e.to_string()))?;
-            let iter = stmt.query_map([], |row| {
-                let folder: String = row.get(0)?;
-                let data_str: String = row.get(1)?;
-                let info: ProjectInfo = serde_json::from_str(&data_str).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e)))?;
-                Ok((folder, info))
-            }).map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let iter = stmt
+                .query_map([], |row| {
+                    let folder: String = row.get(0)?;
+                    let data_str: String = row.get(1)?;
+                    let info: ProjectInfo = serde_json::from_str(&data_str).map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
+                    Ok((folder, info))
+                })
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
 
             let mut map = std::collections::HashMap::new();
             for item in iter {
@@ -476,14 +537,11 @@ impl Storage for SqliteStorage {
                 map.insert(folder, info);
             }
             Ok::<std::collections::HashMap<String, ProjectInfo>, contracts::Error>(map)
-        }).await.map_err(|e| contracts::Error::Storage(e.to_string()))??;
-
-        Ok(contracts::DatabaseExport {
-            prompts,
-            projects,
-            project_info,
-            settings,
         })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))??;
+
+        Ok(contracts::DatabaseExport { prompts, projects, project_info, settings })
     }
 
     async fn restore_all_data(&self, data: contracts::DatabaseExport) -> Result<()> {

@@ -1,14 +1,14 @@
 mod common;
 use common::setup_app;
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, KeyEventKind, KeyEventState, Event};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 
 #[tokio::test]
 async fn test_repro_at_symbol_typing() {
     let (mut app, _, _, _) = setup_app();
-    
+
     // Enter editor
     app.enter_editor(String::new(), None);
-    
+
     // Simulate typing '@' with Shift
     let event = Event::Key(KeyEvent {
         code: KeyCode::Char('@'),
@@ -35,10 +35,10 @@ async fn test_repro_at_symbol_typing() {
 #[tokio::test]
 async fn test_at_symbol_altgr_typing() {
     let (mut app, _, _, _) = setup_app();
-    
+
     // Enter editor
     app.enter_editor(String::new(), None);
-    
+
     // Simulate typing '@' with Ctrl+Alt (AltGr on Windows)
     let event = Event::Key(KeyEvent {
         code: KeyCode::Char('@'),
@@ -53,13 +53,18 @@ async fn test_at_symbol_altgr_typing() {
             // This represents the fallback logic in main.rs
             if !app.editor.textarea.input(event) {
                 if let KeyCode::Char(c) = key.code {
-                    app.editor.textarea.input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
+                    app.editor
+                        .textarea
+                        .input(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()));
                 }
             }
         }
     }
 
     // Check if it was typed
-    assert_eq!(app.editor.textarea.lines()[0], "@", "AltGr character should be typed using fallback logic");
+    assert_eq!(
+        app.editor.textarea.lines()[0],
+        "@",
+        "AltGr character should be typed using fallback logic"
+    );
 }
-

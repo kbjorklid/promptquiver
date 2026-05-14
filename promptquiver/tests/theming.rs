@@ -1,5 +1,5 @@
-use promptquiver::app::{App, Mode};
 use contracts::Tab;
+use promptquiver::app::{App, Mode};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
@@ -24,13 +24,15 @@ async fn test_theming_selection() {
     app.mode = Mode::ThemePicker;
 
     // Render once to check
-    terminal.draw(|f| {
-        ui::render(f, app_to_render_state(&mut app), &mut None);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            ui::render(f, app_to_render_state(&mut app), &mut None);
+        })
+        .unwrap();
 
     // 4. Select a theme (e.g., the second one)
     app.nav.theme_list_state.select(Some(1));
-    
+
     // Simulate Enter to select theme
     let themes = ratatui_themes::ThemeName::all();
     let theme_name = format!("{:?}", themes[1]);
@@ -42,13 +44,15 @@ async fn test_theming_selection() {
 
     // 6. Render and verify background color (e.g. for Nord theme)
     // Note: Colors depend on the theme palette.
-    terminal.draw(|f| {
-        ui::render(f, app_to_render_state(&mut app), &mut None);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            ui::render(f, app_to_render_state(&mut app), &mut None);
+        })
+        .unwrap();
 
     let buffer = terminal.backend().buffer();
     let palette = ui::utils::get_palette(app.settings.theme_name.as_deref());
-    
+
     // Check if some cell has the theme's background color
     // Usually cells in the list area
     let sample_cell = &buffer[(10, 10)];
@@ -57,8 +61,8 @@ async fn test_theming_selection() {
 
 #[tokio::test]
 async fn test_theme_picker_opening_and_dismissal() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
     use promptquiver::handlers::handle_key_event;
-    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, KeyEventKind, KeyEventState};
 
     let (mut app, _, _, _) = common::setup_app();
 
@@ -116,27 +120,29 @@ async fn test_theme_preview_preserved_on_reload() {
 
     // Simulate moving to a new theme (preview)
     app.settings.theme_name = Some("Nord".to_string());
-    
+
     // Simulate background reload
     app.handle_message(ui::AppMessage::ReloadPrompts).await.unwrap();
-    
+
     // Theme should still be Nord (the preview)
     assert_eq!(app.settings.theme_name, Some("Nord".to_string()));
-    
+
     // Exit theme picker (Esc) - should revert to original
     app.handle_message(ui::AppMessage::ThemePickerInput(crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Esc,
         crossterm::event::KeyModifiers::empty(),
-    ))).await.unwrap();
-    
+    )))
+    .await
+    .unwrap();
+
     assert_eq!(app.settings.theme_name, Some("Default".to_string()));
 }
 
 #[tokio::test]
 async fn test_theme_change_persistence() {
     use contracts::Storage;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use ui::AppMessage;
-    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
     let (mut app, storage, _, _) = common::setup_app();
 
     // 1. Initial theme should be None
@@ -149,7 +155,7 @@ async fn test_theme_change_persistence() {
     // 3. Move to the second theme (index 1)
     let down_key = KeyEvent::new(KeyCode::Down, KeyModifiers::empty());
     app.handle_message(AppMessage::ThemePickerInput(down_key)).await.unwrap();
-    
+
     let themes = ratatui_themes::ThemeName::all();
     let second_theme = format!("{:?}", themes[1]);
     assert_eq!(app.settings.theme_name, Some(second_theme.clone()));
@@ -157,7 +163,7 @@ async fn test_theme_change_persistence() {
     // 4. Press Enter to confirm selection
     let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
     app.handle_message(AppMessage::ThemePickerInput(enter_key)).await.unwrap();
-    
+
     assert_eq!(app.mode, Mode::List);
     assert_eq!(app.settings.theme_name, Some(second_theme.clone()));
 
@@ -177,4 +183,3 @@ fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'st
         help_scroll: app.help_scroll,
     }
 }
-

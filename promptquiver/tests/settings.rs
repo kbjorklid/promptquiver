@@ -1,6 +1,6 @@
 mod common;
 use common::setup_app;
-use contracts::{Tab, Storage};
+use contracts::{Storage, Tab};
 
 #[tokio::test]
 async fn test_settings_navigation_and_tab_focus() {
@@ -12,7 +12,7 @@ async fn test_settings_navigation_and_tab_focus() {
     assert_eq!(app.nav.selected_index, 0);
     app.move_down();
     assert_eq!(app.nav.selected_index, 1);
-    
+
     for _ in 0..15 {
         app.move_down();
     }
@@ -98,17 +98,23 @@ async fn test_coverage_boost_settings_render() {
         app.move_down();
     }
 
-    terminal.draw(|f| {
-        ui::render(f, ui::RenderState {
-            nav: &mut app.nav,
-            editor: &mut app.editor,
-            mode: app.mode,
-            settings: &app.settings,
-            current_branch: None,
-            show_help: app.show_help,
-            help_scroll: app.help_scroll,
-        }, &mut None);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                ui::RenderState {
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
+                    settings: &app.settings,
+                    current_branch: None,
+                    show_help: app.show_help,
+                    help_scroll: app.help_scroll,
+                },
+                &mut None,
+            );
+        })
+        .unwrap();
 
     // Edit slash command (textarea rendering)
     app.nav.selected_index = Tab::settings_display_len();
@@ -116,18 +122,24 @@ async fn test_coverage_boost_settings_render() {
     let mut ta = ratatui_textarea::TextArea::default();
     ta.insert_str("edit");
     app.editor.textarea = ta;
-    
-    terminal.draw(|f| {
-        ui::render(f, ui::RenderState {
-            nav: &mut app.nav,
-            editor: &mut app.editor,
-            mode: app.mode,
-            settings: &app.settings,
-            current_branch: None,
-            show_help: app.show_help,
-            help_scroll: app.help_scroll,
-        }, &mut None);
-    }).unwrap();
+
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                ui::RenderState {
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
+                    settings: &app.settings,
+                    current_branch: None,
+                    show_help: app.show_help,
+                    help_scroll: app.help_scroll,
+                },
+                &mut None,
+            );
+        })
+        .unwrap();
 }
 
 #[tokio::test]
@@ -145,7 +157,7 @@ async fn test_slash_command_colon_and_leading_slash() {
     app.edit_setting();
     app.editor.textarea = ratatui_textarea::TextArea::from(vec!["fix:bug".to_string()]);
     app.save_editor().await.unwrap();
-    
+
     assert!(app.settings.slash_commands.contains(&"fix:bug".to_string()), "Colon should succeed");
 
     // Case 2: Try to add with leading slash (should be stripped and succeed)
@@ -153,7 +165,10 @@ async fn test_slash_command_colon_and_leading_slash() {
     app.edit_setting();
     app.editor.textarea = ratatui_textarea::TextArea::from(vec!["/fix".to_string()]);
     app.save_editor().await.unwrap();
-    assert!(app.settings.slash_commands.contains(&"fix".to_string()), "Leading slash should be stripped");
+    assert!(
+        app.settings.slash_commands.contains(&"fix".to_string()),
+        "Leading slash should be stripped"
+    );
     assert!(!app.settings.slash_commands.contains(&"/fix".to_string()));
 
     // Case 3: Verify autocomplete works with colon in query
@@ -165,5 +180,3 @@ async fn test_slash_command_colon_and_leading_slash() {
     assert!(app.editor.autocomplete.open);
     assert!(app.editor.autocomplete.suggestions.iter().any(|p| p.text == "fix:bug"));
 }
-
-

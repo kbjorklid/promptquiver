@@ -10,17 +10,38 @@ async fn test_order_persistence() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("test_order.db");
     let storage = Arc::new(SqliteStorage::new(db_path));
-    
+
     let (mut app, _, _, _) = setup_app();
     app.storage = storage.clone();
     let test_path = app.nav.current_project_path();
 
     // Create 3 prompts
-    let p1 = Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None, None);
+    let p1 = Prompt::new(
+        "P1".to_string(),
+        contracts::PromptType::Prompt,
+        Some(test_path.clone()),
+        None,
+        None,
+        None,
+    );
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let p2 = Prompt::new("P2".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None, None);
+    let p2 = Prompt::new(
+        "P2".to_string(),
+        contracts::PromptType::Prompt,
+        Some(test_path.clone()),
+        None,
+        None,
+        None,
+    );
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let p3 = Prompt::new("P3".to_string(), contracts::PromptType::Prompt, Some(test_path.clone()), None, None, None);
+    let p3 = Prompt::new(
+        "P3".to_string(),
+        contracts::PromptType::Prompt,
+        Some(test_path.clone()),
+        None,
+        None,
+        None,
+    );
 
     storage.save_prompt(p1).await.unwrap();
     storage.save_prompt(p2).await.unwrap();
@@ -52,14 +73,14 @@ async fn test_sync_efficiency() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("test_sync.db");
     let storage = Arc::new(SqliteStorage::new(db_path));
-    
+
     let (mut app, _, _, _) = setup_app();
     app.storage = storage.clone();
 
     // Initial load
     app.load_prompts().await.unwrap();
     let v1 = storage.get_data_version().await.unwrap();
-    
+
     // Consecutive loads with no change should NOT increment version
     app.load_prompts().await.unwrap();
     let v2 = storage.get_data_version().await.unwrap();
@@ -67,13 +88,27 @@ async fn test_sync_efficiency() {
 
     // Batch save with changes should increment version exactly ONCE
     let prompts = vec![
-        Prompt::new("X".to_string(), contracts::PromptType::Prompt, Some("path".to_string()), None, None, None),
-        Prompt::new("Y".to_string(), contracts::PromptType::Prompt, Some("path".to_string()), None, None, None),
+        Prompt::new(
+            "X".to_string(),
+            contracts::PromptType::Prompt,
+            Some("path".to_string()),
+            None,
+            None,
+            None,
+        ),
+        Prompt::new(
+            "Y".to_string(),
+            contracts::PromptType::Prompt,
+            Some("path".to_string()),
+            None,
+            None,
+            None,
+        ),
     ];
     storage.save_prompts(prompts).await.unwrap();
     let v3 = storage.get_data_version().await.unwrap();
     assert_eq!(v2 + 1, v3, "Version should increment once for a batch save");
-    
+
     // Batch save with SAME data should NOT increment version
     let filter = contracts::PromptFilter { folder: Some("path".to_string()), ..Default::default() };
     let current_prompts = storage.get_prompts(filter).await.unwrap();

@@ -1,7 +1,7 @@
 mod common;
 use common::setup_app;
-use promptquiver::app::{AppMessage, Mode};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use promptquiver::app::{AppMessage, Mode};
 
 #[tokio::test]
 async fn test_editor_discard_confirmation_flow() {
@@ -25,7 +25,8 @@ async fn test_editor_discard_confirmation_flow() {
 
     // 4. Press 'n' to cancel
     let n_key = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::empty());
-    promptquiver::handlers::handle_events(&mut app, vec![crossterm::event::Event::Key(n_key)]).await;
+    promptquiver::handlers::handle_events(&mut app, vec![crossterm::event::Event::Key(n_key)])
+        .await;
     assert_eq!(app.mode, Mode::Editor, "Should stay in editor after cancelling discard");
     assert!(app.editor.is_dirty());
 
@@ -33,7 +34,8 @@ async fn test_editor_discard_confirmation_flow() {
     promptquiver::handlers::handle_events(&mut app, vec![crossterm::event::Event::Key(esc)]).await;
     assert_eq!(app.mode, Mode::ConfirmDiscard);
     let y_key = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
-    promptquiver::handlers::handle_events(&mut app, vec![crossterm::event::Event::Key(y_key)]).await;
+    promptquiver::handlers::handle_events(&mut app, vec![crossterm::event::Event::Key(y_key)])
+        .await;
     assert_eq!(app.mode, Mode::List, "Should exit editor after confirming discard");
     assert!(!app.editor.is_dirty());
 

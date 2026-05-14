@@ -56,8 +56,7 @@ impl Clipboard for RealClipboard {
         tokio::task::spawn_blocking(move || {
             let mut clipboard = arboard::Clipboard::new()
                 .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
-            clipboard.set_text(text)
-                .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
+            clipboard.set_text(text).map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
             Ok(())
         })
         .await
@@ -68,8 +67,7 @@ impl Clipboard for RealClipboard {
         tokio::task::spawn_blocking(|| {
             let mut clipboard = arboard::Clipboard::new()
                 .map_err(|e| contracts::Error::Clipboard(e.to_string()))?;
-            clipboard.get_text()
-                .map_err(|e| contracts::Error::Clipboard(e.to_string()))
+            clipboard.get_text().map_err(|e| contracts::Error::Clipboard(e.to_string()))
         })
         .await
         .map_err(|e| contracts::Error::Clipboard(e.to_string()))?

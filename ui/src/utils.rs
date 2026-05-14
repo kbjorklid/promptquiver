@@ -1,20 +1,22 @@
-use ratatui::layout::{Layout, Constraint, Direction, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::style::{Style, Color};
 use ratatui_themes::{Theme, ThemeName, ThemePalette};
 
 pub fn get_palette(theme_name: Option<&str>) -> ThemePalette {
-    let name = theme_name.and_then(|n| {
-        ThemeName::all().iter().find(|t| format!("{t:?}") == n)
-    }).copied().unwrap_or(ThemeName::Dracula);
-    
+    let name = theme_name
+        .and_then(|n| ThemeName::all().iter().find(|t| format!("{t:?}") == n))
+        .copied()
+        .unwrap_or(ThemeName::Dracula);
+
     Theme::new(name).palette()
 }
 
 pub fn get_zebra_color(color: Color) -> Color {
     match color {
         Color::Rgb(r, g, b) => {
-            let luminance = 0.0722f32.mul_add(f32::from(b), 0.2126f32.mul_add(f32::from(r), 0.7152 * f32::from(g)));
+            let luminance = 0.0722f32
+                .mul_add(f32::from(b), 0.2126f32.mul_add(f32::from(r), 0.7152 * f32::from(g)));
             if luminance < 40.0 {
                 // Very dark - lighten more
                 Color::Rgb(r.saturating_add(15), g.saturating_add(15), b.saturating_add(15))
@@ -53,20 +55,12 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 pub fn centered_rect_fixed(width: u16, height: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(height),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(height), Constraint::Min(0)])
         .split(r);
 
     Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Min(0),
-            Constraint::Length(width),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(width), Constraint::Min(0)])
         .split(popup_layout[1])[1]
 }
 
@@ -79,17 +73,17 @@ pub fn highlight_text<'a>(text: &'a str, palette: &ThemePalette) -> Vec<Line<'a>
             } else {
                 let mut spans = Vec::new();
                 let mut last_pos = 0;
-                
+
                 // Find snippets $$name
                 let mut current_pos = 0;
                 while let Some(pos) = line[current_pos..].find("$$") {
                     let absolute_pos = current_pos + pos;
-                    
+
                     // Push text before snippet
                     if absolute_pos > last_pos {
                         spans.push(Span::raw(&line[last_pos..absolute_pos]));
                     }
-                    
+
                     // Find end of snippet name (alphanumeric, _, -)
                     let start_name = absolute_pos + 2;
                     let mut end_name = start_name;
@@ -102,22 +96,22 @@ pub fn highlight_text<'a>(text: &'a str, palette: &ThemePalette) -> Vec<Line<'a>
                             }
                         }
                     }
-                    
+
                     // Highlight snippet
                     spans.push(Span::styled(
                         &line[absolute_pos..end_name],
                         Style::default().fg(palette.warning),
                     ));
-                    
+
                     last_pos = end_name;
                     current_pos = end_name;
                 }
-                
+
                 // Push remaining text
                 if last_pos < line.len() {
                     spans.push(Span::raw(&line[last_pos..]));
                 }
-                
+
                 Line::from(spans)
             }
         })
@@ -170,10 +164,10 @@ mod tests {
         let palette = get_palette(None);
         let lines = highlight_text("-- comment\nHello $$snippet world", &palette);
         assert_eq!(lines.len(), 2);
-        
+
         // Line 1: comment
         assert_eq!(lines[0].spans.len(), 1);
-        
+
         // Line 2: snippet
         assert_eq!(lines[1].spans.len(), 3); // "Hello ", "$$snippet", " world"
         assert_eq!(lines[1].spans[1].content, "$$snippet");

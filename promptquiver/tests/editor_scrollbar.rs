@@ -1,7 +1,7 @@
 mod common;
 use common::setup_app;
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 
 #[tokio::test]
 async fn test_editor_scrollbar_render() {
@@ -33,9 +33,9 @@ async fn test_editor_scrollbar_render() {
             );
         })
         .unwrap();
-    
+
     let buffer = terminal.backend().buffer();
-    
+
     let mut found_scrollbar = false;
     for y in 0..24 {
         let mut line_str = String::new();
@@ -48,8 +48,7 @@ async fn test_editor_scrollbar_render() {
         }
         println!("{line_str}");
     }
-    
+
     // We expect a scrollbar to be rendered.
     assert!(found_scrollbar, "Scrollbar should be visible in the editor");
 }
-

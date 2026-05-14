@@ -1,12 +1,12 @@
 use anyhow::Result;
+use clap::Parser;
+use contracts::{Clipboard, Git, PromptFilter, Storage};
+use infra::{RealClipboard, RealGit, SqliteStorage};
 use promptquiver::app::App;
 use promptquiver::tui::{self, Tui};
-use contracts::{Clipboard, Git, Storage, PromptFilter};
-use infra::{RealClipboard, RealGit, SqliteStorage};
 use ratatui::Terminal;
 use ratatui_toaster::{ToastEngineBuilder, ToastType};
 use std::{io, sync::Arc, time::Duration};
-use clap::Parser;
 
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
@@ -28,12 +28,8 @@ struct Args {
     process_staged: bool,
 }
 
-type AppInfra = (
-    Arc<dyn Storage>,
-    Arc<dyn Clipboard>,
-    Arc<dyn Git>,
-    Arc<dyn contracts::AppService>,
-);
+type AppInfra =
+    (Arc<dyn Storage>, Arc<dyn Clipboard>, Arc<dyn Git>, Arc<dyn contracts::AppService>);
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -52,7 +48,7 @@ async fn main() -> Result<()> {
 
     let mut app = App::new(storage.clone(), clipboard, git.clone(), service.clone());
     handle_error!(app, app.init_project().await);
-    
+
     if let Ok(commands) = service.get_claude_commands(&app.nav.current_project_path()).await {
         app.claude_commands = commands;
     }
@@ -67,7 +63,7 @@ async fn main() -> Result<()> {
     app.toaster = Some(
         ToastEngineBuilder::new(tui.terminal.size()?.into())
             .default_duration(Duration::from_secs(3))
-            .build()
+            .build(),
     );
 
     run_app_loop(&mut app, &mut tui, &mut branch_rx, &mut file_result_rx, &mut db_sync_rx).await?;
@@ -76,16 +72,12 @@ async fn main() -> Result<()> {
 }
 
 async fn output_staged(storage: Arc<dyn Storage>) -> Result<()> {
-    let filter = PromptFilter {
-        staged: Some(true),
-        ..Default::default()
-    };
+    let filter = PromptFilter { staged: Some(true), ..Default::default() };
     let prompts = storage.get_prompts(filter).await?;
     if let Some(prompt) = prompts.first() {
-        let snippets = storage.get_prompts(PromptFilter {
-            tab: Some(contracts::Tab::Snippets),
-            ..Default::default()
-        }).await?;
+        let snippets = storage
+            .get_prompts(PromptFilter { tab: Some(contracts::Tab::Snippets), ..Default::default() })
+            .await?;
         let processed = contracts::Processor::process(&prompt.text, &snippets);
         print!("{}", processed.trim());
     }
@@ -93,10 +85,7 @@ async fn output_staged(storage: Arc<dyn Storage>) -> Result<()> {
 }
 
 async fn archive_staged(storage: Arc<dyn Storage>) -> Result<()> {
-    let filter = PromptFilter {
-        staged: Some(true),
-        ..Default::default()
-    };
+    let filter = PromptFilter { staged: Some(true), ..Default::default() };
     let prompts = storage.get_prompts(filter).await?;
     if let Some(mut prompt) = prompts.into_iter().next() {
         prompt.staged = false;
@@ -117,17 +106,15 @@ fn setup_infra() -> AppInfra {
     let storage: Arc<dyn Storage> = Arc::new(SqliteStorage::new(db_path));
     let clipboard: Arc<dyn Clipboard> = Arc::new(RealClipboard::new());
     let git: Arc<dyn Git> = Arc::new(RealGit::new());
-    let service: Arc<dyn contracts::AppService> = Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
+    let service: Arc<dyn contracts::AppService> =
+        Arc::new(infra::RealAppService::new(storage.clone(), clipboard.clone()));
     (storage, clipboard, git, service)
 }
 
 fn setup_git_poller(git: Arc<dyn Git>) -> tokio::sync::mpsc::Receiver<Option<String>> {
     let (branch_tx, branch_rx) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
-        let path = std::env::current_dir()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
+        let path = std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned();
         loop {
             if let Ok(branch) = git.get_current_branch(&path).await {
                 let _ = branch_tx.send(branch).await;
@@ -138,9 +125,13 @@ fn setup_git_poller(git: Arc<dyn Git>) -> tokio::sync::mpsc::Receiver<Option<Str
     branch_rx
 }
 
-fn setup_file_searcher(app: &mut App<'_>, service: Arc<dyn contracts::AppService>) -> tokio::sync::mpsc::Receiver<(String, Vec<contracts::Prompt>)> {
+fn setup_file_searcher(
+    app: &mut App<'_>,
+    service: Arc<dyn contracts::AppService>,
+) -> tokio::sync::mpsc::Receiver<(String, Vec<contracts::Prompt>)> {
     let (file_search_tx, mut file_search_rx) = tokio::sync::mpsc::channel::<(String, String)>(10);
-    let (file_result_tx, file_result_rx) = tokio::sync::mpsc::channel::<(String, Vec<contracts::Prompt>)>(10);
+    let (file_result_tx, file_result_rx) =
+        tokio::sync::mpsc::channel::<(String, Vec<contracts::Prompt>)>(10);
     app.file_search_tx = Some(file_search_tx);
 
     tokio::spawn(async move {
@@ -236,4 +227,3 @@ async fn run_app_loop(
     }
     Ok(())
 }
-

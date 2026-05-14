@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Developer Profile
+
+This is a **solo project**. The developer is a professional software engineer with no prior Rust or Rust ecosystem experience. When making technical decisions:
+- Prefer recommending an approach with a brief rationale rather than asking open-ended questions
+- You may use judgement on Rust-specific details (lifetimes, trait choices, idiomatic patterns) without always asking
+- For higher-stakes decisions (architecture, dependencies, breaking changes), state your recommendation and why, then proceed unless the developer objects
+
 ## Development Approach
 
 Use **red-green refactoring** whenever possible: write a failing test first, make it pass with minimal code, then clean up.

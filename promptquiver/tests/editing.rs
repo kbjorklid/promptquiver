@@ -1,15 +1,15 @@
 mod common;
 use common::setup_app;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 use contracts::Tab;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 use ui::types::AppMessage;
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, Event};
 
 #[tokio::test]
 async fn test_add_edit_prompt() {
     let (mut app, _, _, _) = setup_app();
-    
+
     app.enter_editor("New Prompt".to_string(), None);
     app.save_editor().await.unwrap();
     assert_eq!(app.nav.prompts.len(), 1);
@@ -19,7 +19,7 @@ async fn test_add_edit_prompt() {
     let id = app.nav.prompts[0].id;
     app.enter_editor("Updated Prompt".to_string(), Some(id));
     app.save_editor().await.unwrap();
-    
+
     assert_eq!(app.nav.prompts.len(), 1);
     assert_eq!(app.nav.prompts[0].text, "Updated Prompt");
     assert_eq!(app.nav.selected_index, 0);
@@ -28,21 +28,21 @@ async fn test_add_edit_prompt() {
 #[tokio::test]
 async fn test_selection_focus_after_creation() {
     let (mut app, _, _, _) = setup_app();
-    
+
     // Create first prompt
     app.enter_editor("Prompt 1".to_string(), None);
     app.save_editor().await.unwrap();
-    
+
     // Create second prompt
     app.enter_editor("Prompt 2".to_string(), None);
     app.save_editor().await.unwrap();
-    
+
     // Move selection first
     app.nav.selected_index = 1; // Select Prompt 1 (which is at index 1 now, index 0 is Prompt 2)
-    
+
     app.enter_editor("Prompt 3".to_string(), None);
     app.save_editor().await.unwrap();
-    
+
     assert_eq!(app.nav.prompts.len(), 3);
     assert_eq!(app.nav.prompts[0].text, "Prompt 3");
     assert_eq!(app.nav.selected_index, 0, "New prompt should be selected");
@@ -54,7 +54,7 @@ async fn test_create_title_in_editor() {
 
     // 1. Test "Create Prompt"
     app.enter_editor(String::new(), None);
-    
+
     let backend = TestBackend::new(80, 10);
     let mut terminal = Terminal::new(backend).unwrap();
 
@@ -142,7 +142,7 @@ async fn test_editor_discard_confirmation_modal() {
 
     app.enter_editor("Original".to_string(), None);
     app.editor.textarea.insert_str("Modified");
-    
+
     let current_text = app.editor.textarea.lines().join("\n");
     if current_text != app.editor.original_text {
         app.mode = promptquiver::app::Mode::ConfirmDiscard;
@@ -172,7 +172,7 @@ async fn test_editor_discard_confirmation_modal() {
         .unwrap();
 
     let buffer = terminal.backend().buffer();
-    
+
     let mut found_modal_title = false;
     for y in 0..30 {
         for x in 0..80 {
@@ -194,51 +194,69 @@ async fn test_editor_discard_confirmation_modal() {
 #[tokio::test]
 async fn test_snippet_name_enter_moves_focus() {
     let (mut app, _, _, _) = setup_app();
-    
+
     // Switch to Snippets tab
     app.handle_message(AppMessage::SetTab(Tab::Snippets)).await.unwrap();
-    
+
     // Enter editor
     app.handle_message(AppMessage::EnterEditor(String::new(), None)).await.unwrap();
-    
+
     // Verify initial state
     assert!(app.editor.title_focused, "Title should be focused initially for snippets");
 
     // Simulate typing "mysnip"
     for c in "mysnip".chars() {
-        app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()))).await.unwrap();
+        app.handle_message(AppMessage::EditorInput(KeyEvent::new(
+            KeyCode::Char(c),
+            KeyModifiers::empty(),
+        )))
+        .await
+        .unwrap();
     }
     assert_eq!(app.editor.title_textarea.lines()[0], "mysnip");
 
     // Simulate pressing Enter
-    app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()))).await.unwrap();
-    
+    app.handle_message(AppMessage::EditorInput(KeyEvent::new(
+        KeyCode::Enter,
+        KeyModifiers::empty(),
+    )))
+    .await
+    .unwrap();
+
     // Verify focus moved
     assert!(!app.editor.title_focused, "Focus should move to content field");
-    assert_eq!(app.editor.title_textarea.lines().len(), 1, "Snippet name should remain single-line");
-    assert_eq!(app.editor.title_textarea.lines()[0], "mysnip", "Snippet name should not have been modified");
+    assert_eq!(
+        app.editor.title_textarea.lines().len(),
+        1,
+        "Snippet name should remain single-line"
+    );
+    assert_eq!(
+        app.editor.title_textarea.lines()[0],
+        "mysnip",
+        "Snippet name should not have been modified"
+    );
 
     // Test Tab key still works
-    app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()))).await.unwrap();
+    app.handle_message(AppMessage::EditorInput(KeyEvent::new(KeyCode::Tab, KeyModifiers::empty())))
+        .await
+        .unwrap();
     assert!(app.editor.title_focused, "Tab should move focus back to title");
 }
 
 #[tokio::test]
 async fn test_paste_in_editor() {
     let (mut app, _, _, _) = setup_app();
-    
+
     // Enter editor
     app.enter_editor(String::new(), None);
-    
+
     // Simulate a paste event
     let paste_content = "Pasted content".to_string();
     let event = Event::Paste(paste_content.clone());
-    
+
     // Handle the event
     promptquiver::handlers::handle_event(&mut app, event).await;
-    
+
     // Assert that the content was pasted
     assert_eq!(app.editor.textarea.lines()[0], paste_content);
 }
-
-

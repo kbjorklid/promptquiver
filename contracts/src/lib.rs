@@ -16,7 +16,6 @@ pub enum PromptType {
     Snippet,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prompt {
     pub id: Uuid,
@@ -270,7 +269,6 @@ pub trait Storage: Send + Sync {
     /// Returns a `Storage` error if data cannot be restored.
     async fn restore_all_data(&self, data: DatabaseExport) -> Result<()>;
 }
-
 
 #[async_trait]
 pub trait Clipboard: Send + Sync {

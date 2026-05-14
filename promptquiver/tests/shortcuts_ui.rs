@@ -1,7 +1,7 @@
 mod common;
 use common::setup_app;
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 
 #[tokio::test]
 async fn test_dynamic_shortcut_hints() {
@@ -12,21 +12,23 @@ async fn test_dynamic_shortcut_hints() {
 
     // Helper to render and get footer text
     let mut get_footer = |app: &mut promptquiver::app::App<'_>| {
-        terminal.draw(|f| {
-            ui::render(
-                f,
-                ui::RenderState {
-                    nav: &mut app.nav,
-                    editor: &mut app.editor,
-                    mode: app.mode,
-                    settings: &app.settings,
-                    current_branch: app.current_branch.as_deref(),
-                    show_help: app.show_help,
-                    help_scroll: app.help_scroll,
-                },
-                &mut None,
-            );
-        }).unwrap();
+        terminal
+            .draw(|f| {
+                ui::render(
+                    f,
+                    ui::RenderState {
+                        nav: &mut app.nav,
+                        editor: &mut app.editor,
+                        mode: app.mode,
+                        settings: &app.settings,
+                        current_branch: app.current_branch.as_deref(),
+                        show_help: app.show_help,
+                        help_scroll: app.help_scroll,
+                    },
+                    &mut None,
+                );
+            })
+            .unwrap();
 
         let buffer = terminal.backend().buffer();
         // With height 20:
@@ -34,7 +36,7 @@ async fn test_dynamic_shortcut_hints() {
         // Content: 3..16 (14 lines, Min 5 satisfied)
         // Footer: 17, 18 (2 lines)
         // Statusline: 19 (1 line)
-        
+
         let mut footer_text = String::new();
         for y in 17..19 {
             for x in 0..120 {
@@ -61,7 +63,10 @@ async fn test_dynamic_shortcut_hints() {
     app.mode = ui::Mode::Editor;
     let footer = get_footer(&mut app);
     assert!(footer.contains("Ctrl+s: Save"), "Editor mode should show 'Ctrl+s: Save'");
-    assert!(footer.contains("Ctrl+g: Save & Stage"), "Editor mode should show 'Ctrl+g: Save & Stage'");
+    assert!(
+        footer.contains("Ctrl+g: Save & Stage"),
+        "Editor mode should show 'Ctrl+g: Save & Stage'"
+    );
 
     // 4. Test Archive Tab (List Mode)
     app.mode = ui::Mode::List;

@@ -1,21 +1,20 @@
+use crate::types::RenderState;
+use crate::utils::{get_palette, get_zebra_color};
 use contracts::{Prompt, Tab};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
-use ratatui::style::{Style, Modifier};
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::Stylize;
-use crate::utils::{get_palette, get_zebra_color};
-use crate::types::RenderState;
+use ratatui::style::{Modifier, Style};
+use ratatui::widgets::{
+    Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
+use ratatui::Frame;
 
-pub fn render(
-    f: &mut Frame<'_>,
-    area: Rect,
-    state: &mut RenderState<'_, '_>,
-) {
+#[allow(clippy::too_many_lines)]
+pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
     let settings = state.settings;
     let palette = get_palette(settings.theme_name.as_deref());
     let zebra_bg = get_zebra_color(palette.bg);
-    
+
     let active_tab = state.nav.active_tab;
     let search_query = &state.nav.search_query;
     let prompts = &state.nav.prompts;
@@ -35,41 +34,54 @@ pub fn render(
     let list_items: Vec<ListItem<'_>> = prompts
         .iter()
         .enumerate()
-
         .map(|(i, p)| {
             let prefix = if i == selected_index {
                 if mode_str == "Move" {
-                    if settings.use_nerd_font { "󰹹 " } else { "↕ " }
+                    if settings.use_nerd_font {
+                        "󰹹 "
+                    } else {
+                        "↕ "
+                    }
                 } else {
                     "> "
                 }
             } else {
                 "  "
             };
-            let staged_icon = if p.staged && active_tab != Tab::Notes && active_tab != Tab::Snippets {
-                if settings.use_nerd_font { "󰓎 " } else { "🎯 " }
+            let staged_icon = if p.staged && active_tab != Tab::Notes && active_tab != Tab::Snippets
+            {
+                if settings.use_nerd_font {
+                    "󰓎 "
+                } else {
+                    "🎯 "
+                }
             } else {
                 ""
             };
             let copy_icon = if p.last_copied && !p.staged {
-                if settings.use_nerd_font { "󰆏 " } else { "📋 " }
+                if settings.use_nerd_font {
+                    "󰆏 "
+                } else {
+                    "📋 "
+                }
             } else {
                 ""
             };
-            
-            let (display_name, is_draft) = if active_tab == Tab::Prompts || active_tab == Tab::Canned {
-                contracts::Processor::get_display_title(&p.text)
-            } else {
-                let name = p.name.as_ref().map_or_else(
-                    || {
-                        let (title, _) = contracts::Processor::extract_title(&p.text);
-                        title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
-                    },
-                    std::clone::Clone::clone,
-                );
-                (name, false)
-            };
-            
+
+            let (display_name, is_draft) =
+                if active_tab == Tab::Prompts || active_tab == Tab::Canned {
+                    contracts::Processor::get_display_title(&p.text)
+                } else {
+                    let name = p.name.as_ref().map_or_else(
+                        || {
+                            let (title, _) = contracts::Processor::extract_title(&p.text);
+                            title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
+                        },
+                        std::clone::Clone::clone,
+                    );
+                    (name, false)
+                };
+
             let mut style = if i == selected_index {
                 Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
             } else if i % 2 == 0 {
@@ -89,9 +101,11 @@ pub fn render(
     let list = List::new(list_items)
         .block(Block::default().borders(Borders::ALL).title(title.clone()))
         .style(Style::default().bg(palette.bg).fg(palette.fg));
-    
+
     if prompts.is_empty() {
-        let block = Block::default().borders(Borders::ALL).title(title)
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
             .style(Style::default().bg(palette.bg).fg(palette.fg));
         let msg = "\n\n\n\n       ╭─────────────────────────╮\n       │   No items found here   │\n       │    Press 'a' to add     │\n       ╰─────────────────────────╯".to_string();
         let empty_msg = Paragraph::new(msg)
@@ -107,16 +121,12 @@ pub fn render(
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"))
             .style(Style::default().fg(palette.fg));
-        
-        let mut scrollbar_state = ScrollbarState::new(prompts.len())
-            .position(selected_index);
-            
+
+        let mut scrollbar_state = ScrollbarState::new(prompts.len()).position(selected_index);
+
         f.render_stateful_widget(
             scrollbar,
-            area.inner(ratatui::layout::Margin {
-                vertical: 1,
-                horizontal: 0,
-            }),
+            area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 0 }),
             &mut scrollbar_state,
         );
     }
@@ -128,7 +138,7 @@ pub fn render_preview(
     prompt: Option<&Prompt>,
     settings: &contracts::Settings,
 ) {
-    let palette = get_palette(settings.theme_name.as_deref()); 
+    let palette = get_palette(settings.theme_name.as_deref());
 
     let (color, title) = prompt.map_or_else(
         || (palette.muted, " Preview ".to_string()),
@@ -161,9 +171,8 @@ pub fn render_preview(
     if let Some(prompt) = prompt {
         let (_, display_content) = contracts::Processor::extract_title(&prompt.text);
         let lines = crate::utils::highlight_text(&display_content, &palette);
-        let paragraph = Paragraph::new(lines)
-            .block(block)
-            .wrap(ratatui::widgets::Wrap { trim: true });
+        let paragraph =
+            Paragraph::new(lines).block(block).wrap(ratatui::widgets::Wrap { trim: true });
         f.render_widget(paragraph, area);
     } else {
         let empty = Paragraph::new("No selection").block(block);

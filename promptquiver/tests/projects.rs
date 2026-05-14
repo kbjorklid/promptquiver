@@ -1,9 +1,9 @@
 mod common;
 use common::setup_app;
-use ui::{AppMessage, Mode};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ui::{AppMessage, Mode};
 
 #[tokio::test]
 async fn test_new_project_footer_update() {
@@ -24,17 +24,23 @@ async fn test_new_project_footer_update() {
     assert_eq!(app.mode, Mode::List);
 
     // 4. Render and check status line
-    terminal.draw(|f| {
-        ui::render(f, ui::RenderState {
-            nav: &mut app.nav,
-            editor: &mut app.editor,
-            mode: app.mode,
-            settings: &app.settings,
-            current_branch: app.current_branch.as_deref(),
-            show_help: app.show_help,
-            help_scroll: app.help_scroll,
-        }, &mut app.toaster);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                ui::RenderState {
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
+                    settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
+                    show_help: app.show_help,
+                    help_scroll: app.help_scroll,
+                },
+                &mut app.toaster,
+            );
+        })
+        .unwrap();
 
     let buffer = terminal.backend().buffer();
     let mut status_line = String::new();
@@ -49,7 +55,7 @@ async fn test_new_project_footer_update() {
 #[tokio::test]
 async fn test_delete_project_updates_list() {
     let (mut app, _storage, _clipboard, _git) = setup_app();
-    
+
     // 1. Add a project
     app.handle_message(AppMessage::AddProject("To Delete".into())).await.unwrap();
     let project_id = app.nav.projects_manager.active_project_id.unwrap();
@@ -68,14 +74,14 @@ async fn test_delete_project_updates_list() {
 #[tokio::test]
 async fn test_rename_project_flow() {
     let (mut app, _storage, _clipboard, _git) = setup_app();
-    
+
     // 1. Add a project
     app.handle_message(AppMessage::AddProject("Project Alpha".into())).await.unwrap();
     let project_id = app.nav.projects_manager.active_project_id.unwrap();
 
     // 2. Open picker
     app.handle_message(AppMessage::SelectProject).await.unwrap();
-    
+
     // 3. Select the project in the list
     // Index 0 is Default, Index 1 is Project Alpha
     app.nav.projects_manager.project_list_state.select(Some(1));
@@ -83,7 +89,7 @@ async fn test_rename_project_flow() {
     // 4. Press 'r' to rename
     let r_key = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE);
     app.handle_message(AppMessage::ProjectPickerInput(r_key)).await.unwrap();
-    
+
     assert_eq!(app.mode, Mode::RenameProject);
 
     // 5. Clear and type new name "Project Beta"
@@ -109,14 +115,14 @@ async fn test_rename_project_flow() {
 #[tokio::test]
 async fn test_delete_project_shortcut() {
     let (mut app, _storage, _clipboard, _git) = setup_app();
-    
+
     // 1. Add a project
     app.handle_message(AppMessage::AddProject("To Delete".into())).await.unwrap();
     let project_id = app.nav.projects_manager.active_project_id.unwrap();
 
     // 2. Open picker
     app.handle_message(AppMessage::SelectProject).await.unwrap();
-    
+
     // 3. Select the project
     app.nav.projects_manager.project_list_state.select(Some(1));
 
@@ -139,17 +145,23 @@ async fn test_project_picker_hints_rendered() {
     assert_eq!(app.mode, Mode::ProjectPicker);
 
     // 2. Render
-    terminal.draw(|f| {
-        ui::render(f, ui::RenderState {
-            nav: &mut app.nav,
-            editor: &mut app.editor,
-            mode: app.mode,
-            settings: &app.settings,
-            current_branch: app.current_branch.as_deref(),
-            show_help: app.show_help,
-            help_scroll: app.help_scroll,
-        }, &mut app.toaster);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            ui::render(
+                f,
+                ui::RenderState {
+                    nav: &mut app.nav,
+                    editor: &mut app.editor,
+                    mode: app.mode,
+                    settings: &app.settings,
+                    current_branch: app.current_branch.as_deref(),
+                    show_help: app.show_help,
+                    help_scroll: app.help_scroll,
+                },
+                &mut app.toaster,
+            );
+        })
+        .unwrap();
 
     let buffer = terminal.backend().buffer();
     let mut rendered_text = String::new();

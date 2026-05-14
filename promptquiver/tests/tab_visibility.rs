@@ -13,7 +13,7 @@ async fn test_tab_visibility_toggle() {
     app.load_prompts().await.unwrap();
 
     // 2. Toggle visibility for Canned tab (index 1 in Tab::all())
-    app.nav.selected_index = 1; 
+    app.nav.selected_index = 1;
     app.handle_message(AppMessage::ToggleSetting).await.unwrap();
 
     assert_eq!(app.settings.tab_visibility.get(&Tab::Canned), Some(&false));
@@ -22,7 +22,7 @@ async fn test_tab_visibility_toggle() {
     // It should skip Canned and go from Prompts to Notes
     app.set_tab(Tab::Prompts);
     app.next_tab();
-    
+
     // If bug is present, it will be Canned. If fixed, it should be Notes.
     assert_ne!(app.nav.active_tab, Tab::Canned, "Canned tab should be hidden and skipped");
     assert_eq!(app.nav.active_tab, Tab::Notes, "Should skip Canned and go to Notes");
@@ -34,7 +34,7 @@ async fn test_settings_tab_always_visible() {
 
     // Attempt to hide Settings tab (index 5 in Tab::all())
     app.set_tab(Tab::Settings);
-    app.nav.selected_index = 5; 
+    app.nav.selected_index = 5;
     app.handle_message(AppMessage::ToggleSetting).await.unwrap();
 
     // Even if toggled (if possible), it should still be in visible_tabs
@@ -46,6 +46,6 @@ async fn test_settings_tab_always_visible() {
             return; // Success
         }
     }
-    
+
     panic!("Settings tab should always be reachable");
 }

@@ -1,12 +1,12 @@
 use anyhow::Result;
-use ratatui::prelude::*;
-use std::{io, panic, time::Duration};
 use crossterm::{
     cursor,
     event::{self, Event},
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use ratatui::prelude::*;
+use std::{io, panic, time::Duration};
 
 #[derive(Debug)]
 pub struct Tui<B: Backend> {

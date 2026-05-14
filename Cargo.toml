@@ -7,6 +7,9 @@ members = [
     "ui",
 ]
 
+[workspace.package]
+license = "MIT"
+
 [workspace.dependencies]
 tokio = { version = "1.52", features = ["full"] }
 ratatui = "0.30"

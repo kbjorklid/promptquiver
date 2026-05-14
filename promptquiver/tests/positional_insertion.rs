@@ -1,7 +1,7 @@
 mod common;
 use common::setup_app;
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use ui::types::AppMessage;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, KeyEventKind, KeyEventState};
 
 #[tokio::test]
 async fn test_positional_insertion() {
@@ -36,12 +36,14 @@ async fn test_positional_insertion() {
 #[tokio::test]
 async fn test_positional_keys() {
     let (mut app, _, _, _) = setup_app();
-    
+
     // Add some items first
-    app.enter_editor("Item 1".to_string(), None); app.save_editor().await.unwrap();
-    app.enter_editor("Item 2".to_string(), None); app.save_editor().await.unwrap();
+    app.enter_editor("Item 1".to_string(), None);
+    app.save_editor().await.unwrap();
+    app.enter_editor("Item 2".to_string(), None);
+    app.save_editor().await.unwrap();
     // Initially [Item 2, Item 1] (newest at top)
-    
+
     let k = |code| KeyEvent {
         code,
         modifiers: KeyModifiers::NONE,

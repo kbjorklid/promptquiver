@@ -1,28 +1,24 @@
-use ratatui::widgets::Paragraph;
-use ratatui::Frame;
+use crate::types::RenderState;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 use std::path::Path;
-use crate::types::RenderState;
 
-pub fn render(
-    f: &mut Frame<'_>,
-    area: Rect,
-    state: &RenderState<'_, '_>,
-) {
+pub fn render(f: &mut Frame<'_>, area: Rect, state: &RenderState<'_, '_>) {
     let palette = crate::utils::get_palette(state.settings.theme_name.as_deref());
-    
+
     let current_path = &state.nav.current_path;
     let formatted_path = format_path(current_path);
     let branch_name = state.current_branch.unwrap_or("no branch");
-    
+
     let active_project_title = state.nav.projects_manager.active_project_id.and_then(|id| {
         state.nav.projects_manager.projects.iter().find(|p| p.id == id).map(|p| p.title.as_str())
     });
     let project_name = active_project_title.unwrap_or("Default");
     let prompts_count = state.nav.prompts.len();
-    
+
     let path_style = if state.nav.folder_filter {
         Style::default().fg(palette.bg).bg(palette.secondary)
     } else {
@@ -54,10 +50,8 @@ pub fn render(
 
 fn format_path(path_str: &str) -> String {
     let path = Path::new(path_str);
-    let normal_components: Vec<_> = path
-        .components()
-        .filter(|c| matches!(c, std::path::Component::Normal(_)))
-        .collect();
+    let normal_components: Vec<_> =
+        path.components().filter(|c| matches!(c, std::path::Component::Normal(_))).collect();
 
     if normal_components.len() <= 2 {
         return path_str.replace('\\', "/");

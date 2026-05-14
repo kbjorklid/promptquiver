@@ -37,7 +37,12 @@ pub trait AppService: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the item cannot be duplicated.
-    async fn duplicate_item(&self, project_path: &str, tab: Tab, item: Prompt) -> Result<Option<Prompt>>;
+    async fn duplicate_item(
+        &self,
+        project_path: &str,
+        tab: Tab,
+        item: Prompt,
+    ) -> Result<Option<Prompt>>;
 
     /// Copies an item's processed text to the clipboard.
     ///

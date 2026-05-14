@@ -1,6 +1,6 @@
 mod common;
 use common::setup_app;
-use contracts::{Tab, Storage};
+use contracts::{Storage, Tab};
 
 #[tokio::test]
 async fn test_tab_navigation() {
@@ -24,9 +24,9 @@ async fn test_tab_navigation() {
 
 #[tokio::test]
 async fn test_settings_arrow_navigation() {
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, KeyEventKind, KeyEventState};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
     use promptquiver::handlers::handle_key_event;
-    
+
     let (mut app, _, _, _) = setup_app();
     app.set_tab(Tab::Settings);
     assert_eq!(app.nav.active_tab, Tab::Settings);
@@ -43,7 +43,7 @@ async fn test_settings_arrow_navigation() {
 
     // Back to Settings
     app.set_tab(Tab::Settings);
-    
+
     // Left arrow should go to Archive
     let left_arrow = KeyEvent {
         code: KeyCode::Left,
@@ -59,9 +59,23 @@ async fn test_settings_arrow_navigation() {
 async fn test_list_navigation() {
     let (mut app, storage, _, _) = setup_app();
 
-    let p1 = contracts::Prompt::new("Prompt 1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
-    let p2 = contracts::Prompt::new("Prompt 2".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
-    
+    let p1 = contracts::Prompt::new(
+        "Prompt 1".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+    let p2 = contracts::Prompt::new(
+        "Prompt 2".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+
     storage.save_prompt(p1).await.unwrap();
     storage.save_prompt(p2).await.unwrap();
 
@@ -80,10 +94,24 @@ async fn test_list_navigation() {
 #[tokio::test]
 async fn test_tab_specific_content() {
     let (mut app, storage, _, _) = setup_app();
-    
-    let p1 = contracts::Prompt::new("P1".to_string(), contracts::PromptType::Prompt, Some(common::TEST_PATH.to_string()), None, None, None);
-    let n1 = contracts::Prompt::new("N1".to_string(), contracts::PromptType::Note, Some(common::TEST_PATH.to_string()), None, None, None);
-    
+
+    let p1 = contracts::Prompt::new(
+        "P1".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+    let n1 = contracts::Prompt::new(
+        "N1".to_string(),
+        contracts::PromptType::Note,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+
     storage.save_prompt(p1).await.unwrap();
     storage.save_prompt(n1).await.unwrap();
 

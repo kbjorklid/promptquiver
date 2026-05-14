@@ -1,20 +1,20 @@
-use std::path::{Path, PathBuf};
 use contracts::{Prompt, PromptType};
+use std::path::{Path, PathBuf};
 use yaml_serde::Value;
 
 pub fn discover_commands(project_path: &str) -> Vec<Prompt> {
     let mut commands = Vec::new();
-    
+
     // Global path: ~/.claude/commands/ and ~/.claude/plugins/cache/*/commands/
     if let Some(user_dirs) = directories::UserDirs::new() {
         let global_path = user_dirs.home_dir().join(".claude").join("commands");
         commands.extend(scan_directory(&global_path));
-        
+
         let cache_path = user_dirs.home_dir().join(".claude").join("plugins").join("cache");
         if cache_path.exists() {
             if let Ok(entries) = std::fs::read_dir(cache_path) {
                 for entry in entries.flatten() {
-                    if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+                    if entry.file_type().is_ok_and(|ft| ft.is_dir()) {
                         let plugin_commands_path = entry.path().join("commands");
                         commands.extend(scan_directory(&plugin_commands_path));
                     }
@@ -22,13 +22,13 @@ pub fn discover_commands(project_path: &str) -> Vec<Prompt> {
             }
         }
     }
-    
+
     // Project path
     if let Some(root) = find_project_root(Path::new(project_path)) {
         let project_commands = root.join(".claude").join("commands");
         commands.extend(scan_directory(&project_commands));
     }
-    
+
     // Deduplicate by name (project overrides global)
     let mut map = std::collections::HashMap::new();
     for cmd in commands {
@@ -36,16 +36,17 @@ pub fn discover_commands(project_path: &str) -> Vec<Prompt> {
             map.insert(name.clone(), cmd);
         }
     }
-    
+
     map.into_values().collect()
 }
 
 fn find_project_root(start_path: &Path) -> Option<PathBuf> {
     let mut current = start_path;
     loop {
-        if current.join(".git").exists() || 
-           current.join("CLAUDE.md").exists() || 
-           current.join("package.json").exists() {
+        if current.join(".git").exists()
+            || current.join("CLAUDE.md").exists()
+            || current.join("package.json").exists()
+        {
             return Some(current.to_path_buf());
         }
         match current.parent() {
@@ -61,7 +62,7 @@ fn scan_directory(dir: &Path) -> Vec<Prompt> {
     if !dir.exists() {
         return commands;
     }
-    
+
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -75,7 +76,7 @@ fn scan_directory(dir: &Path) -> Vec<Prompt> {
                         None,
                         None,
                         Some(name.to_string()),
-                        None
+                        None,
                     ));
                 }
             }

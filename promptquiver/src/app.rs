@@ -1,7 +1,7 @@
 use contracts::{Clipboard, Git, Storage, Tab};
-use ratatui_toaster::{ToastBuilder, ToastType, ToastEngine, ToastMessage, ToastPosition};
+use ratatui_toaster::{ToastBuilder, ToastEngine, ToastMessage, ToastPosition, ToastType};
 use std::sync::Arc;
-pub use ui::{Mode, AppMessage, UpdateContext, ListModule, EditorModule};
+pub use ui::{AppMessage, EditorModule, ListModule, Mode, UpdateContext};
 
 use std::fmt;
 
@@ -23,7 +23,6 @@ pub struct App<'a> {
     pub help_scroll: u16,
     pub claude_commands: Vec<contracts::Prompt>,
 }
-
 
 impl fmt::Debug for App<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -62,11 +61,24 @@ impl App<'_> {
 
             let next_msg = match self.mode {
                 Mode::Editor | Mode::ConfirmDiscard => {
-                    self.editor.update(msg.clone(), &mut ctx, self.nav.current_path.clone(), &self.file_search_tx).await?
+                    self.editor
+                        .update(
+                            msg.clone(),
+                            &mut ctx,
+                            self.nav.current_path.clone(),
+                            &self.file_search_tx,
+                        )
+                        .await?
                 }
-                Mode::ExportDialog | Mode::ImportDialog | Mode::List | Mode::Move | Mode::Search | Mode::ThemePicker | Mode::ProjectPicker | Mode::AddProject | Mode::RenameProject => {
-                    self.nav.update(msg.clone(), &mut ctx).await?
-                }
+                Mode::ExportDialog
+                | Mode::ImportDialog
+                | Mode::List
+                | Mode::Move
+                | Mode::Search
+                | Mode::ThemePicker
+                | Mode::ProjectPicker
+                | Mode::AddProject
+                | Mode::RenameProject => self.nav.update(msg.clone(), &mut ctx).await?,
             };
 
             if let Some(m) = next_msg {
@@ -87,30 +99,43 @@ impl App<'_> {
     fn apply_pre_transitions(&mut self, msg: &AppMessage) {
         match msg {
             AppMessage::ThemePickerInput(ref key)
-                if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter || key.code == crossterm::event::KeyCode::Char(' ') =>
+                if key.code == crossterm::event::KeyCode::Esc
+                    || key.code == crossterm::event::KeyCode::Enter
+                    || key.code == crossterm::event::KeyCode::Char(' ') =>
             {
                 self.mode = Mode::List;
             }
-            AppMessage::ProjectPickerInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
+            AppMessage::ProjectPickerInput(ref key)
+                if key.code == crossterm::event::KeyCode::Esc =>
+            {
                 self.mode = Mode::List;
             }
-            AppMessage::SetProject(_) | AppMessage::AddProject(_) | AppMessage::RenameProject(_, _) | AppMessage::DeleteProject(_) => {
+            AppMessage::SetProject(_)
+            | AppMessage::AddProject(_)
+            | AppMessage::RenameProject(_, _)
+            | AppMessage::DeleteProject(_)
+            | AppMessage::ExportData(_, _)
+            | AppMessage::ImportData(_) => {
                 self.mode = Mode::List;
             }
-            AppMessage::ExportData(_, _) | AppMessage::ImportData(_) => {
+            AppMessage::ExportDialogInput(ref key)
+                if key.code == crossterm::event::KeyCode::Esc =>
+            {
                 self.mode = Mode::List;
             }
-            AppMessage::ExportDialogInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
-                self.mode = Mode::List;
-            }
-            AppMessage::ImportDialogInput(ref key) if key.code == crossterm::event::KeyCode::Esc => {
+            AppMessage::ImportDialogInput(ref key)
+                if key.code == crossterm::event::KeyCode::Esc =>
+            {
                 self.mode = Mode::List;
             }
             _ => {}
         }
     }
 
-    async fn apply_global_action(&mut self, msg: AppMessage) -> contracts::Result<Option<AppMessage>> {
+    async fn apply_global_action(
+        &mut self,
+        msg: AppMessage,
+    ) -> contracts::Result<Option<AppMessage>> {
         match msg {
             AppMessage::Quit => self.quit(),
             AppMessage::Notify(m, kind) => self.notify(m, kind),
@@ -130,7 +155,10 @@ impl App<'_> {
                 self.mode = if self.mode == Mode::Move { Mode::List } else { Mode::Move };
             }
             AppMessage::Search(_) => self.mode = Mode::Search,
-            AppMessage::SearchInput(key) if key.code == crossterm::event::KeyCode::Esc || key.code == crossterm::event::KeyCode::Enter => {
+            AppMessage::SearchInput(key)
+                if key.code == crossterm::event::KeyCode::Esc
+                    || key.code == crossterm::event::KeyCode::Enter =>
+            {
                 self.mode = Mode::List;
             }
             AppMessage::SelectTheme => self.mode = Mode::ThemePicker,
@@ -244,7 +272,7 @@ impl App<'_> {
         self.settings = self.storage.get_settings().await.unwrap_or_default();
         let projects = self.storage.get_projects().await?;
         self.nav.projects_manager.projects.clone_from(&projects);
-        
+
         match self.settings.startup_behavior {
             contracts::StartupBehavior::Ask => {
                 if projects.is_empty() {
@@ -280,13 +308,27 @@ impl App<'_> {
     }
 
     // Wrappers for tests
-    pub fn next_tab(&mut self) { self.nav.next_tab(&self.settings); }
-    pub fn prev_tab(&mut self) { self.nav.prev_tab(&self.settings); }
-    pub const fn set_tab(&mut self, tab: Tab) { self.nav.set_tab(tab); }
-    pub fn move_down(&mut self) { self.nav.move_down(&self.settings); }
-    pub fn move_up(&mut self) { self.nav.move_up(&self.settings); }
-    pub const fn move_to_top(&mut self) { self.nav.move_to_top(); }
-    pub fn move_to_bottom(&mut self) { self.nav.move_to_bottom(&self.settings); }
+    pub fn next_tab(&mut self) {
+        self.nav.next_tab(&self.settings);
+    }
+    pub fn prev_tab(&mut self) {
+        self.nav.prev_tab(&self.settings);
+    }
+    pub const fn set_tab(&mut self, tab: Tab) {
+        self.nav.set_tab(tab);
+    }
+    pub fn move_down(&mut self) {
+        self.nav.move_down(&self.settings);
+    }
+    pub fn move_up(&mut self) {
+        self.nav.move_up(&self.settings);
+    }
+    pub const fn move_to_top(&mut self) {
+        self.nav.move_to_top();
+    }
+    pub fn move_to_bottom(&mut self) {
+        self.nav.move_to_bottom(&self.settings);
+    }
 
     /// Stages the currently selected item.
     ///
@@ -317,7 +359,9 @@ impl App<'_> {
     /// # Errors
     /// Returns an error if the item cannot be copied.
     pub async fn copy_selected(&mut self) -> contracts::Result<()> {
-        if self.nav.prompts.is_empty() { return Ok(()); }
+        if self.nav.prompts.is_empty() {
+            return Ok(());
+        }
         let item = self.nav.prompts[self.nav.selected_index].clone();
         self.service.copy_item(&self.nav.current_project_path(), self.nav.active_tab, item).await?;
         self.load_prompts().await?;
@@ -352,17 +396,22 @@ impl App<'_> {
     pub fn enter_editor(&mut self, text: String, id: Option<uuid::Uuid>) {
         self.nav.search_query.clear();
         self.mode = Mode::Editor;
-        
+
         let title = if self.nav.active_tab == Tab::Snippets {
             if let Some(id) = id {
-                self.nav.prompts.iter().find(|p| p.id == id).and_then(|p| p.name.clone()).unwrap_or_default()
+                self.nav
+                    .prompts
+                    .iter()
+                    .find(|p| p.id == id)
+                    .and_then(|p| p.name.clone())
+                    .unwrap_or_default()
             } else {
                 String::new()
             }
         } else {
             String::new()
         };
-        
+
         self.editor.enter(text, id, Some(title), self.nav.active_tab, None);
     }
 
@@ -422,7 +471,8 @@ impl App<'_> {
                 return Ok(());
             }
 
-            if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len {
+            if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len
+            {
                 // Update existing
                 let idx = self.nav.selected_index - tabs_len;
                 self.settings.slash_commands[idx] = trimmed.to_string();
@@ -456,28 +506,31 @@ impl App<'_> {
 
         let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
         let project_id = self.nav.projects_manager.active_project_id;
-        
-        let res = self.service.save_item(contracts::SaveItemArgs {
-            project_path: path,
-            tab: self.nav.active_tab,
-            text,
-            title,
-            id: self.editor.editing_id,
-            insert_index: self.editor.insert_index,
-            branch,
-            project_id,
-        }).await;
+
+        let res = self
+            .service
+            .save_item(contracts::SaveItemArgs {
+                project_path: path,
+                tab: self.nav.active_tab,
+                text,
+                title,
+                id: self.editor.editing_id,
+                insert_index: self.editor.insert_index,
+                branch,
+                project_id,
+            })
+            .await;
 
         match res {
             Ok(saved_id) => {
                 self.exit_editor();
                 self.load_prompts().await?;
-                
+
                 // Select the saved item
                 if let Some(index) = self.nav.prompts.iter().position(|p| p.id == saved_id) {
                     self.nav.selected_index = index;
                 }
-                
+
                 self.notify("Prompt saved!", ToastType::Success);
             }
             Err(contracts::Error::Conflict(m)) => {

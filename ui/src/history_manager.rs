@@ -1,4 +1,4 @@
-use contracts::{Tab, Prompt, Storage, Result};
+use contracts::{Prompt, Result, Storage, Tab};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -19,13 +19,10 @@ impl HistoryManager {
     }
 
     pub fn push(&mut self, tab: Tab, prompts: Vec<Prompt>) {
-        let entry = HistoryEntry {
-            tab,
-            prompts,
-        };
+        let entry = HistoryEntry { tab, prompts };
         self.undo_stack.push(entry);
         self.redo_stack.clear();
-        
+
         // Limit stack size
         if self.undo_stack.len() > 100 {
             self.undo_stack.remove(0);
@@ -36,12 +33,14 @@ impl HistoryManager {
     ///
     /// # Errors
     /// Returns an error if the storage cannot be accessed when saving the restored state.
-    pub async fn undo(&mut self, current_tab: Tab, current_prompts: Vec<Prompt>, storage: &Arc<dyn Storage>) -> Result<Option<HistoryEntry>> {
+    pub async fn undo(
+        &mut self,
+        current_tab: Tab,
+        current_prompts: Vec<Prompt>,
+        storage: &Arc<dyn Storage>,
+    ) -> Result<Option<HistoryEntry>> {
         if let Some(entry) = self.undo_stack.pop() {
-            let current = HistoryEntry {
-                tab: current_tab,
-                prompts: current_prompts,
-            };
+            let current = HistoryEntry { tab: current_tab, prompts: current_prompts };
             self.redo_stack.push(current);
 
             self.save_list(&entry.prompts, storage).await?;
@@ -54,12 +53,14 @@ impl HistoryManager {
     ///
     /// # Errors
     /// Returns an error if the storage cannot be accessed when saving the restored state.
-    pub async fn redo(&mut self, current_tab: Tab, current_prompts: Vec<Prompt>, storage: &Arc<dyn Storage>) -> Result<Option<HistoryEntry>> {
+    pub async fn redo(
+        &mut self,
+        current_tab: Tab,
+        current_prompts: Vec<Prompt>,
+        storage: &Arc<dyn Storage>,
+    ) -> Result<Option<HistoryEntry>> {
         if let Some(entry) = self.redo_stack.pop() {
-            let current = HistoryEntry {
-                tab: current_tab,
-                prompts: current_prompts,
-            };
+            let current = HistoryEntry { tab: current_tab, prompts: current_prompts };
             self.undo_stack.push(current);
 
             self.save_list(&entry.prompts, storage).await?;

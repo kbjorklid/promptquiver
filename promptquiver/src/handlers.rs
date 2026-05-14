@@ -1,6 +1,6 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, Event};
-use crate::app::{App, Mode, AppMessage};
+use crate::app::{App, AppMessage, Mode};
 use contracts::Tab;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui_toaster::ToastType;
 use ui::shortcuts::{get_action, ShortcutAction};
 
@@ -8,20 +8,30 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
     let mut i = 0;
     while i < events.len() {
         let event = &events[i];
-        
+
         // Performance optimization: Batch sequential character inputs (simulated paste)
         if let Event::Key(KeyEvent { code: KeyCode::Char(c), modifiers, kind, .. }) = event {
-            let is_press = *kind == crossterm::event::KeyEventKind::Press || *kind == crossterm::event::KeyEventKind::Repeat;
-            let is_simple_char = !modifiers.contains(KeyModifiers::CONTROL) && !modifiers.contains(KeyModifiers::ALT);
-            
+            let is_press = *kind == crossterm::event::KeyEventKind::Press
+                || *kind == crossterm::event::KeyEventKind::Repeat;
+            let is_simple_char = !modifiers.contains(KeyModifiers::CONTROL)
+                && !modifiers.contains(KeyModifiers::ALT);
+
             if is_press && is_simple_char && app.mode == Mode::Editor && !app.editor.title_focused {
                 let mut content = String::from(*c);
                 let mut j = i + 1;
                 while j < events.len() {
-                    if let Event::Key(KeyEvent { code: KeyCode::Char(nc), modifiers: nm, kind: nk, .. }) = &events[j] {
-                        let is_next_press = *nk == crossterm::event::KeyEventKind::Press || *nk == crossterm::event::KeyEventKind::Repeat;
-                        let is_next_simple = !nm.contains(KeyModifiers::CONTROL) && !nm.contains(KeyModifiers::ALT);
-                        
+                    if let Event::Key(KeyEvent {
+                        code: KeyCode::Char(nc),
+                        modifiers: nm,
+                        kind: nk,
+                        ..
+                    }) = &events[j]
+                    {
+                        let is_next_press = *nk == crossterm::event::KeyEventKind::Press
+                            || *nk == crossterm::event::KeyEventKind::Repeat;
+                        let is_next_simple =
+                            !nm.contains(KeyModifiers::CONTROL) && !nm.contains(KeyModifiers::ALT);
+
                         if is_next_press && is_next_simple {
                             content.push(*nc);
                             j += 1;
@@ -34,7 +44,7 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
                     }
                     break;
                 }
-                
+
                 if content.len() > 1 {
                     // We found a burst of characters, process as a single Paste
                     if let Err(e) = app.handle_message(AppMessage::Paste(content)).await {
@@ -49,8 +59,16 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
         // Normal event processing
         let messages = match event {
             Event::Key(key) => {
-                if key.kind == crossterm::event::KeyEventKind::Press || key.kind == crossterm::event::KeyEventKind::Repeat {
-                    if let Some(action) = get_action(*key, app.mode, app.nav.active_tab, app.editor.autocomplete.open, app.show_help) {
+                if key.kind == crossterm::event::KeyEventKind::Press
+                    || key.kind == crossterm::event::KeyEventKind::Repeat
+                {
+                    if let Some(action) = get_action(
+                        *key,
+                        app.mode,
+                        app.nav.active_tab,
+                        app.editor.autocomplete.open,
+                        app.show_help,
+                    ) {
                         map_action_to_messages(app, action)
                     } else {
                         // Fallback for keys not handled by ShortcutAction (e.g. typing in editor)
@@ -114,7 +132,8 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
             if app.nav.active_tab == Tab::Settings {
                 messages.push(AppMessage::EditSetting);
             } else {
-                messages.push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index + 1));
+                messages
+                    .push(AppMessage::EnterEditorBefore(String::new(), app.nav.selected_index + 1));
             }
         }
         ShortcutAction::AddBefore if app.nav.active_tab != Tab::Settings => {
@@ -132,13 +151,13 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                 let slash_len = app.settings.slash_commands.len();
                 let maintenance_idx = tabs_len + slash_len + 1;
                 let advanced_idx = maintenance_idx + 2;
-                
-                if app.nav.selected_index < tabs_len 
-                    || app.nav.selected_index == maintenance_idx 
+
+                if app.nav.selected_index < tabs_len
+                    || app.nav.selected_index == maintenance_idx
                     || app.nav.selected_index == maintenance_idx + 1
-                    || app.nav.selected_index == advanced_idx 
-                    || app.nav.selected_index == advanced_idx + 1 
-                    || app.nav.selected_index == advanced_idx + 3 
+                    || app.nav.selected_index == advanced_idx
+                    || app.nav.selected_index == advanced_idx + 1
+                    || app.nav.selected_index == advanced_idx + 3
                 {
                     messages.push(AppMessage::ToggleSetting);
                 } else if app.nav.selected_index == advanced_idx + 2 {
@@ -174,7 +193,9 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
         ShortcutAction::CancelDiscard => messages.push(AppMessage::CancelDiscard),
         ShortcutAction::MoveSuggestionUp => messages.push(AppMessage::MoveSuggestionUp),
         ShortcutAction::MoveSuggestionDown => messages.push(AppMessage::MoveSuggestionDown),
-        ShortcutAction::SelectSuggestion { add_space } => messages.push(AppMessage::SelectSuggestion(add_space)),
+        ShortcutAction::SelectSuggestion { add_space } => {
+            messages.push(AppMessage::SelectSuggestion(add_space));
+        }
         ShortcutAction::MoveItemDown => messages.push(AppMessage::MoveItemDown),
         ShortcutAction::MoveItemUp => messages.push(AppMessage::MoveItemUp),
         ShortcutAction::ToggleHelp => messages.push(AppMessage::ToggleHelp),
@@ -188,13 +209,19 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
 fn handle_add_project_events(app: &mut App<'_>, key: KeyEvent) -> Vec<AppMessage> {
     let mut messages = Vec::new();
     match key.code {
-        KeyCode::Esc => { messages.push(AppMessage::SelectProject); }
+        KeyCode::Esc => {
+            messages.push(AppMessage::SelectProject);
+        }
         KeyCode::Enter => {
             let name = app.nav.projects_manager.new_project_name.clone();
             messages.push(AppMessage::AddProject(name));
         }
-        KeyCode::Backspace => { app.nav.projects_manager.new_project_name.pop(); }
-        KeyCode::Char(c) => { app.nav.projects_manager.new_project_name.push(c); }
+        KeyCode::Backspace => {
+            app.nav.projects_manager.new_project_name.pop();
+        }
+        KeyCode::Char(c) => {
+            app.nav.projects_manager.new_project_name.push(c);
+        }
         _ => {}
     }
     messages

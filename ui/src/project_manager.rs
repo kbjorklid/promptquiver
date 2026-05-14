@@ -1,7 +1,7 @@
-use contracts::{Project, Storage, Result, Settings};
+use chrono;
+use contracts::{Project, Result, Settings, Storage};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono;
 
 #[derive(Debug, Default)]
 pub struct ProjectManager {
@@ -31,12 +31,14 @@ impl ProjectManager {
     ///
     /// # Errors
     /// Returns an error if the project cannot be saved.
-    pub async fn add_project(&mut self, name: &str, storage: &Arc<dyn Storage>, settings: &mut Settings) -> Result<Project> {
-        let project = Project {
-            id: Uuid::new_v4(),
-            title: name.to_string(),
-            created_at: chrono::Utc::now(),
-        };
+    pub async fn add_project(
+        &mut self,
+        name: &str,
+        storage: &Arc<dyn Storage>,
+        settings: &mut Settings,
+    ) -> Result<Project> {
+        let project =
+            Project { id: Uuid::new_v4(), title: name.to_string(), created_at: chrono::Utc::now() };
         storage.save_project(project.clone()).await?;
         self.active_project_id = Some(project.id);
         settings.last_active_project_id = Some(project.id);
@@ -49,7 +51,12 @@ impl ProjectManager {
     ///
     /// # Errors
     /// Returns an error if the project cannot be saved.
-    pub async fn rename_project(&mut self, id: Uuid, new_name: &str, storage: &Arc<dyn Storage>) -> Result<()> {
+    pub async fn rename_project(
+        &mut self,
+        id: Uuid,
+        new_name: &str,
+        storage: &Arc<dyn Storage>,
+    ) -> Result<()> {
         if let Some(project) = self.projects.iter_mut().find(|p| p.id == id) {
             project.title = new_name.to_string();
             storage.save_project(project.clone()).await?;
@@ -62,7 +69,12 @@ impl ProjectManager {
     ///
     /// # Errors
     /// Returns an error if the project cannot be deleted.
-    pub async fn delete_project(&mut self, id: Uuid, storage: &Arc<dyn Storage>, settings: &mut Settings) -> Result<()> {
+    pub async fn delete_project(
+        &mut self,
+        id: Uuid,
+        storage: &Arc<dyn Storage>,
+        settings: &mut Settings,
+    ) -> Result<()> {
         storage.delete_project(id).await?;
         if self.active_project_id == Some(id) {
             self.active_project_id = None;

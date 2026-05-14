@@ -37,11 +37,11 @@ impl Processor {
     pub fn is_draft(title: &str) -> bool {
         let t = title.trim();
         let lower = t.to_lowercase();
-        
-        lower.starts_with("draft ") || 
-        lower.starts_with("[draft]") || 
-        lower.ends_with("[draft]") ||
-        lower == "draft"
+
+        lower.starts_with("draft ")
+            || lower.starts_with("[draft]")
+            || lower.ends_with("[draft]")
+            || lower == "draft"
     }
 
     /// Returns the display title and whether it's a draft.
@@ -80,23 +80,20 @@ impl Processor {
 
     /// Strips all lines starting with '--' (no leading whitespace)
     pub fn strip_comments(text: &str) -> String {
-        text.lines()
-            .filter(|line| !line.starts_with("--"))
-            .collect::<Vec<&str>>()
-            .join("\n")
+        text.lines().filter(|line| !line.starts_with("--")).collect::<Vec<&str>>().join("\n")
     }
 
     /// Expands snippets in the format $$name
     ///
     /// # Panics
     ///
-    /// This function will panic if the internal snippet regex fails to compile, 
+    /// This function will panic if the internal snippet regex fails to compile,
     /// which should never happen as the pattern is static and valid.
     pub fn expand_snippets(text: &str, snippets: &[Prompt]) -> String {
         let mut result = text.to_string();
         let re = Regex::new(r"\$\$([a-zA-Z0-9_-]+)").unwrap();
-        
-        // We do this multiple times in case of nested snippets? 
+
+        // We do this multiple times in case of nested snippets?
         // The spec doesn't specify recursion, but we'll do one pass.
         let mut replaced = true;
         while replaced {
@@ -108,9 +105,9 @@ impl Processor {
             for cap in re.captures_iter(&current) {
                 let m = cap.get(0).unwrap();
                 let name = cap.get(1).unwrap().as_str();
-                
+
                 new_result.push_str(&current[last_end..m.start()]);
-                
+
                 if let Some(snippet) = snippets.iter().find(|s| s.name.as_deref() == Some(name)) {
                     new_result.push_str(&snippet.text);
                     replaced = true;
@@ -121,11 +118,13 @@ impl Processor {
             }
             new_result.push_str(&current[last_end..]);
             result = new_result;
-            
+
             // To prevent infinite loops in case of circular references
-            if !replaced { break; }
+            if !replaced {
+                break;
+            }
         }
-        
+
         result
     }
 
@@ -168,7 +167,7 @@ mod tests {
         assert!(Processor::is_draft("DRAFT Fix welcome email"));
         assert!(Processor::is_draft("[draft] Fix welcome email"));
         assert!(Processor::is_draft("draft"));
-        
+
         assert!(!Processor::is_draft("Drafting a document"));
         assert!(!Processor::is_draft("My Draft version"));
         assert!(!Processor::is_draft("Fix welcome email"));
@@ -185,12 +184,17 @@ mod tests {
 
     #[test]
     fn test_expand_snippets() {
-        let snippets = vec![
-            Prompt::new("Snippet Content".to_string(), crate::PromptType::Snippet, None, None, Some("mysnip".to_string()), None),
-        ];
+        let snippets = vec![Prompt::new(
+            "Snippet Content".to_string(),
+            crate::PromptType::Snippet,
+            None,
+            None,
+            Some("mysnip".to_string()),
+            None,
+        )];
         let text = "Use $$mysnip here";
         assert_eq!(Processor::expand_snippets(text, &snippets), "Use Snippet Content here");
-        
+
         let text_missing = "Use $$unknown here";
         assert_eq!(Processor::expand_snippets(text_missing, &snippets), "Use $$unknown here");
     }

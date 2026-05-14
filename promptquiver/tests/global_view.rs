@@ -1,6 +1,6 @@
 use contracts::{Prompt, PromptType, Storage};
-use promptquiver::app::{App, AppMessage};
 use infra::{InMemoryStorage, MockClipboard, MockGit, RealAppService};
+use promptquiver::app::{App, AppMessage};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -17,10 +17,24 @@ async fn test_global_view_toggle() {
 
     // 1. Setup prompts in different folders
     // Create P2 first so P1 is newer and at index 0
-    let prompt_b = Prompt::new("Prompt B".to_string(), PromptType::Prompt, Some(project_b.to_string()), None, None, None);
+    let prompt_b = Prompt::new(
+        "Prompt B".to_string(),
+        PromptType::Prompt,
+        Some(project_b.to_string()),
+        None,
+        None,
+        None,
+    );
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let prompt_a = Prompt::new("Prompt A".to_string(), PromptType::Prompt, Some(project_a.to_string()), None, None, None);
-    
+    let prompt_a = Prompt::new(
+        "Prompt A".to_string(),
+        PromptType::Prompt,
+        Some(project_a.to_string()),
+        None,
+        None,
+        None,
+    );
+
     storage.save_prompt(prompt_b).await.unwrap();
     storage.save_prompt(prompt_a).await.unwrap();
 
@@ -38,7 +52,7 @@ async fn test_global_view_toggle() {
 
     // 5. Verify both prompts are visible
     assert_eq!(app.nav.prompts.len(), 2, "Both prompts should be visible in Global View");
-    
+
     let texts: Vec<String> = app.nav.prompts.iter().map(|p| p.text.clone()).collect();
     assert!(texts.contains(&"Prompt A".to_string()));
     assert!(texts.contains(&"Prompt B".to_string()));

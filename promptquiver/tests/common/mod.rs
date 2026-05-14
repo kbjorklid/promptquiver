@@ -1,5 +1,5 @@
-use promptquiver::app::App;
 use infra::{InMemoryStorage, MockClipboard, MockGit};
+use promptquiver::app::App;
 use std::sync::Arc;
 
 pub const TEST_PATH: &str = "test_project";

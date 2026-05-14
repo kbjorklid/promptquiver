@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use contracts::{ProjectInfo, Prompt, Project, Result, Settings, Storage, PromptFilter, Tab, PromptType};
+use contracts::{
+    Project, ProjectInfo, Prompt, PromptFilter, PromptType, Result, Settings, Storage, Tab,
+};
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -40,7 +42,7 @@ impl Storage for InMemoryStorage {
         if let Some(folder) = filter.folder {
             filtered.retain(|p| p.folder.as_deref() == Some(&folder));
         }
-        
+
         if filter.project_filter {
             filtered.retain(|p| p.project_id == filter.project_id);
         }
@@ -56,10 +58,14 @@ impl Storage for InMemoryStorage {
         if let Some(tab) = filter.tab {
             match tab {
                 Tab::Prompts => {
-                    filtered.retain(|p| p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_some());
+                    filtered.retain(|p| {
+                        p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_some()
+                    });
                 }
                 Tab::Canned => {
-                    filtered.retain(|p| p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_none());
+                    filtered.retain(|p| {
+                        p.r#type == PromptType::Prompt && !p.is_archived && p.folder.is_none()
+                    });
                 }
                 Tab::Notes => {
                     filtered.retain(|p| p.r#type == PromptType::Note && !p.is_archived);
@@ -75,13 +81,11 @@ impl Storage for InMemoryStorage {
                 }
             }
         }
-        
+
         // Sort by order_index ASC, created_at DESC (mimic DB behavior)
-        filtered.sort_by(|a, b| {
-            match a.order_index.cmp(&b.order_index) {
-                std::cmp::Ordering::Equal => b.created_at.cmp(&a.created_at),
-                other => other,
-            }
+        filtered.sort_by(|a, b| match a.order_index.cmp(&b.order_index) {
+            std::cmp::Ordering::Equal => b.created_at.cmp(&a.created_at),
+            other => other,
         });
 
         Ok(filtered)
@@ -137,7 +141,7 @@ impl Storage for InMemoryStorage {
         let mut projects = self.projects.write().await;
         projects.retain(|p| p.id != id);
         drop(projects);
-        
+
         let mut prompts = self.prompts.write().await;
         for p in prompts.iter_mut() {
             if p.project_id == Some(id) {
