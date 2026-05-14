@@ -22,6 +22,6 @@ serde.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
-fuzzy-matcher.workspace = true
+nucleo-matcher.workspace = true
 regex.workspace = true
 chrono.workspace = true

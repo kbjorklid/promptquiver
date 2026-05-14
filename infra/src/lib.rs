@@ -272,6 +272,104 @@ mod tests {
         assert!(results_subdir.iter().any(|p| p.name.as_deref() == Some("subdir/")));
     }
 
+    fn make_service() -> RealAppService {
+        let storage = Arc::new(InMemoryStorage::default());
+        let clipboard = Arc::new(MockClipboard::default());
+        RealAppService::new(storage, clipboard)
+    }
+
+    #[tokio::test]
+    async fn test_search_fuzzy_match() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("main.txt"), "").unwrap();
+        std::fs::write(root.join("unrelated.rs"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "mntxt").await.unwrap();
+        assert!(results.iter().any(|p| p.name.as_deref() == Some("main.txt")), "fuzzy query 'mntxt' should match 'main.txt'");
+        assert!(!results.iter().any(|p| p.name.as_deref() == Some("unrelated.rs")), "'unrelated.rs' should not match 'mntxt'");
+    }
+
+    #[tokio::test]
+    async fn test_search_case_insensitive() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("README.md"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "readme").await.unwrap();
+        assert!(results.iter().any(|p| p.name.as_deref() == Some("README.md")), "search should be case-insensitive");
+    }
+
+    #[tokio::test]
+    async fn test_search_directory_ranks_first() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("src")).unwrap();
+        std::fs::write(root.join("src/lib.rs"), "").unwrap();
+        std::fs::write(root.join("srcfile.rs"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "src").await.unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].name.as_deref(), Some("src/"), "directory 'src/' should rank first for exact query 'src'");
+    }
+
+    #[tokio::test]
+    async fn test_search_excludes_hidden_and_known_dirs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        for dir in &["target", ".git", "node_modules", ".hidden"] {
+            std::fs::create_dir(root.join(dir)).unwrap();
+            std::fs::write(root.join(dir).join("secret.rs"), "").unwrap();
+        }
+        std::fs::write(root.join("visible.rs"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "secret").await.unwrap();
+        assert!(results.is_empty(), "files inside excluded dirs should not appear");
+
+        let results2 = service.search_files(root.to_str().unwrap(), "visible").await.unwrap();
+        assert!(results2.iter().any(|p| p.name.as_deref() == Some("visible.rs")));
+    }
+
+    #[tokio::test]
+    async fn test_search_no_match_returns_empty() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("alpha.rs"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "zzzzzzzzz").await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_search_result_capped_at_20() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        for i in 0..30 {
+            std::fs::write(root.join(format!("file{i}.txt")), "").unwrap();
+        }
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "file").await.unwrap();
+        assert!(results.len() <= 20, "results should be capped at 20");
+    }
+
+    #[tokio::test]
+    async fn test_search_nested_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir_all(root.join("a/b/c")).unwrap();
+        std::fs::write(root.join("a/b/c/deep.rs"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "deep").await.unwrap();
+        assert!(results.iter().any(|p| p.name.as_deref().map_or(false, |n| n.contains("deep.rs"))));
+    }
+
     #[tokio::test]
     async fn test_real_clipboard_construction() {
         let clipboard = RealClipboard;

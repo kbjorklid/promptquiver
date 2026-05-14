@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(toml|yaml\\)$|\\\\.github|\\\\.gemini\")",
+      "Bash(cargo test *)",
+      "Bash(cargo build *)",
+      "Bash(git add *)"
+    ]
+  }
+}

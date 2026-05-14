@@ -16,7 +16,6 @@ ratatui-themes.workspace = true
 tui-popup.workspace = true
 directories.workspace = true
 
-fuzzy-matcher.workspace = true
 tokio.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true

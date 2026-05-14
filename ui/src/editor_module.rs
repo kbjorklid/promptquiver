@@ -1,7 +1,7 @@
 use ratatui_textarea::TextArea;
 use contracts::{Prompt, Tab, PromptType, PromptFilter};
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
+use nucleo_matcher::{Config, Matcher, Utf32Str};
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use uuid::Uuid;
 use std::sync::Arc;
 
@@ -48,8 +48,10 @@ impl AutocompleteState {
         claude_commands: &[Prompt],
     ) -> contracts::Result<()> {
         if let Some((trigger, query)) = query_opt {
-            let matcher = SkimMatcherV2::default();
-            
+            let mut matcher = Matcher::new(Config::DEFAULT);
+            let pattern = Pattern::parse(&query, CaseMatching::Ignore, Normalization::Smart);
+            let mut buf = Vec::new();
+
             match trigger.as_str() {
                 "$" | "$$" => {
                     let snippets = if snippet_cache.is_empty() {
@@ -60,15 +62,14 @@ impl AutocompleteState {
                         snippet_cache.clone()
                     };
 
-                    let query_lower = query.to_lowercase();
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = snippets
-                        .into_iter()
-                        .filter_map(|s| {
-                            let text = s.name.as_deref().unwrap_or(&s.text);
-                            matcher.fuzzy_match(&text.to_lowercase(), &query_lower).map(|score| (score, s))
-                        })
-                        .collect();
-                    
+                    let mut scored_suggestions: Vec<(u32, Prompt)> = Vec::new();
+                    for s in snippets {
+                        let text = s.name.as_deref().unwrap_or(&s.text);
+                        if let Some(score) = pattern.score(Utf32Str::new(text, &mut buf), &mut matcher) {
+                            scored_suggestions.push((score, s));
+                        }
+                    }
+
                     scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
                     self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }
@@ -81,8 +82,6 @@ impl AutocompleteState {
                     return Ok(());
                 }
                 "/" => {
-                    let query_lower = query.to_lowercase();
-                    
                     let mut combined_commands: Vec<Prompt> = settings.slash_commands.iter().map(|cmd| {
                         Prompt::new(cmd.clone(), PromptType::Prompt, None, None, Some(cmd.clone()), None)
                     }).collect();
@@ -91,14 +90,14 @@ impl AutocompleteState {
                         combined_commands.extend(claude_commands.iter().cloned());
                     }
 
-                    let mut scored_suggestions: Vec<(i64, Prompt)> = combined_commands
-                        .into_iter()
-                        .filter_map(|cmd| {
-                            let name = cmd.name.as_deref().unwrap_or(&cmd.text);
-                            matcher.fuzzy_match(&name.to_lowercase(), &query_lower).map(|score| (score, cmd))
-                        })
-                        .collect();
-                        
+                    let mut scored_suggestions: Vec<(u32, Prompt)> = Vec::new();
+                    for cmd in combined_commands {
+                        let name = cmd.name.as_deref().unwrap_or(&cmd.text);
+                        if let Some(score) = pattern.score(Utf32Str::new(name, &mut buf), &mut matcher) {
+                            scored_suggestions.push((score, cmd));
+                        }
+                    }
+
                     scored_suggestions.sort_by_key(|b| std::cmp::Reverse(b.0));
                     self.suggestions = scored_suggestions.into_iter().map(|(_, s)| s).collect();
                 }

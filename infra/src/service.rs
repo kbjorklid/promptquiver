@@ -4,8 +4,8 @@ use contracts::Tab::{Archive, Notes, Prompts, Settings, Snippets};
 use std::sync::Arc;
 use uuid;
 use chrono;
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
+use nucleo_matcher::{Config, Matcher, Utf32Str};
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 
 pub struct RealAppService {
     storage: Arc<dyn Storage>,
@@ -39,41 +39,41 @@ impl RealAppService {
     }
 }
 
-fn walk_recursive(base_dir: &std::path::Path, current_dir: &std::path::Path, query_normalized: &str, matcher: &SkimMatcherV2, results: &mut Vec<(i64, Prompt)>) {
+fn walk_recursive(
+    base_dir: &std::path::Path,
+    current_dir: &std::path::Path,
+    pattern: &Pattern,
+    matcher: &mut Matcher,
+    buf: &mut Vec<char>,
+    results: &mut Vec<(u32, Prompt)>,
+) {
     if results.len() >= 1000 { return; }
     if let Ok(entries) = std::fs::read_dir(current_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             let relative_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
             let path_normalized = relative_path.replace('\\', "/");
-            let path_lower = path_normalized.to_lowercase();
 
             if path.is_dir() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                     if name == "target" || name == ".git" || name == "node_modules" || name.starts_with('.') { continue; }
                 }
-                
-                // Suggest the directory itself
-                let dir_path_normalized = if path_normalized.ends_with('/') || path_normalized.is_empty() { 
-                    path_normalized.clone() 
-                } else { 
-                    format!("{path_normalized}/") 
+
+                let dir_path_normalized = if path_normalized.ends_with('/') || path_normalized.is_empty() {
+                    path_normalized.clone()
+                } else {
+                    format!("{path_normalized}/")
                 };
-                let dir_path_lower = dir_path_normalized.to_lowercase();
-                
+
                 if !dir_path_normalized.is_empty() {
-                    if let Some(score) = matcher.fuzzy_match(&dir_path_lower, query_normalized) {
-                        let mut final_score = score + 50; // Directory bonus
-                        if dir_path_lower.contains(query_normalized) { final_score += 100; }
-                        results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(dir_path_normalized), None)));
+                    if let Some(score) = pattern.score(Utf32Str::new(&dir_path_normalized, buf), matcher) {
+                        results.push((score + 50, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(dir_path_normalized), None)));
                     }
                 }
 
-                walk_recursive(base_dir, &path, query_normalized, matcher, results);
-            } else if let Some(score) = matcher.fuzzy_match(&path_lower, query_normalized) {
-                let mut final_score = score;
-                if path_lower.contains(query_normalized) { final_score += 100; }
-                results.push((final_score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(path_normalized), None)));
+                walk_recursive(base_dir, &path, pattern, matcher, buf, results);
+            } else if let Some(score) = pattern.score(Utf32Str::new(&path_normalized, buf), matcher) {
+                results.push((score, Prompt::new(path.to_string_lossy().to_string(), contracts::PromptType::Note, None, None, Some(path_normalized), None)));
             }
         }
     }
@@ -286,14 +286,14 @@ impl AppService for RealAppService {
 
     async fn search_files(&self, base_dir: &str, query: &str) -> Result<Vec<Prompt>> {
         let base_path = std::path::PathBuf::from(base_dir);
-        let matcher = SkimMatcherV2::default();
-        let query_normalized = query.replace('\\', "/").to_lowercase();
-        
-        let mut scored_results = Vec::new();
+        let mut matcher = Matcher::new(Config::DEFAULT);
+        let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
+        let mut buf = Vec::new();
 
-        walk_recursive(&base_path, &base_path, &query_normalized, &matcher, &mut scored_results);
+        let mut scored_results = Vec::new();
+        walk_recursive(&base_path, &base_path, &pattern, &mut matcher, &mut buf, &mut scored_results);
         scored_results.sort_by_key(|b| std::cmp::Reverse(b.0));
-        
+
         Ok(scored_results.into_iter().take(20).map(|(_, p)| p).collect())
     }
 
