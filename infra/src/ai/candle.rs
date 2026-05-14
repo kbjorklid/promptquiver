@@ -1,3 +1,4 @@
+#![allow(unsafe_code)]
 use anyhow::Result;
 use async_trait::async_trait;
 use candle_core::{DType, Device, Tensor};
@@ -9,8 +10,6 @@ use tokenizers::Tokenizer;
 
 use crate::ai::AiEngine;
 
-// Greedy decoding for deterministic, high-quality titles
-const TEMPERATURE: f64 = 0.0;
 const DTYPE_CPU: DType = DType::F32;
 const DTYPE_GPU: DType = DType::BF16;
 
@@ -37,6 +36,12 @@ impl GemmaModel {
 
 pub struct CandleEngine {
     inner: std::sync::Mutex<CandleEngineInner>,
+}
+
+impl std::fmt::Debug for CandleEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CandleEngine").finish_non_exhaustive()
+    }
 }
 
 struct CandleEngineInner {
@@ -115,7 +120,7 @@ fn load_safetensor_paths(repo: &hf_hub::api::sync::ApiRepo) -> Result<Vec<PathBu
         let map = index["weight_map"]
             .as_object()
             .ok_or_else(|| anyhow::anyhow!("invalid model.safetensors.index.json"))?;
-        let mut shard_names: std::collections::BTreeSet<String> =
+        let shard_names: std::collections::BTreeSet<String> =
             map.values().filter_map(|v| v.as_str()).map(str::to_string).collect();
         let paths = shard_names
             .into_iter()

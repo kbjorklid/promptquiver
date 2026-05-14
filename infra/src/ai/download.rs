@@ -76,7 +76,7 @@ impl ModelDownloader {
                 let map = index["weight_map"]
                     .as_object()
                     .ok_or_else(|| anyhow::anyhow!("invalid model.safetensors.index.json"))?;
-                let mut names: std::collections::BTreeSet<String> = map
+                let names: std::collections::BTreeSet<String> = map
                     .values()
                     .filter_map(|v| v.as_str())
                     .map(str::to_string)
