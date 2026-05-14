@@ -660,6 +660,43 @@ impl ListModule {
         }
     }
 
+    async fn toggle_ai_setting(
+        &self,
+        ctx: &mut crate::types::UpdateContext<'_>,
+        ai_idx: usize,
+    ) -> Result<Option<crate::types::AppMessage>> {
+        use crate::types::AppMessage;
+        match self.selected_index {
+            idx if idx == ai_idx => {
+                ctx.settings.ai_enabled = !ctx.settings.ai_enabled;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(Some(AppMessage::Notify(
+                    format!(
+                        "AI features: {}",
+                        if ctx.settings.ai_enabled { "ON" } else { "OFF" }
+                    ),
+                    ratatui_toaster::ToastType::Info,
+                )))
+            }
+            idx if idx == ai_idx + 1 => {
+                ctx.settings.ai_model_tier = match ctx.settings.ai_model_tier {
+                    contracts::ModelTier::Fast => contracts::ModelTier::Balanced,
+                    contracts::ModelTier::Balanced => contracts::ModelTier::Quality,
+                    contracts::ModelTier::Quality => contracts::ModelTier::Fast,
+                };
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(None)
+            }
+            idx if idx == ai_idx + 2 => {
+                ctx.settings.ai_auto_title = !ctx.settings.ai_auto_title;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(None)
+            }
+            idx if idx == ai_idx + 3 => Ok(Some(AppMessage::RequestModelDownload)),
+            _ => Ok(None),
+        }
+    }
+
     async fn toggle_setting(
         &self,
         ctx: &mut crate::types::UpdateContext<'_>,
@@ -744,35 +781,7 @@ impl ListModule {
                     + usize::from(
                         ctx.settings.startup_behavior == contracts::StartupBehavior::Specific,
                     );
-                match self.selected_index {
-                    idx if idx == ai_idx => {
-                        ctx.settings.ai_enabled = !ctx.settings.ai_enabled;
-                        ctx.storage.save_settings(ctx.settings.clone()).await?;
-                        Ok(Some(AppMessage::Notify(
-                            format!(
-                                "AI features: {}",
-                                if ctx.settings.ai_enabled { "ON" } else { "OFF" }
-                            ),
-                            ratatui_toaster::ToastType::Info,
-                        )))
-                    }
-                    idx if idx == ai_idx + 1 => {
-                        ctx.settings.ai_model_tier = match ctx.settings.ai_model_tier {
-                            contracts::ModelTier::Fast => contracts::ModelTier::Balanced,
-                            contracts::ModelTier::Balanced => contracts::ModelTier::Quality,
-                            contracts::ModelTier::Quality => contracts::ModelTier::Fast,
-                        };
-                        ctx.storage.save_settings(ctx.settings.clone()).await?;
-                        Ok(None)
-                    }
-                    idx if idx == ai_idx + 2 => {
-                        ctx.settings.ai_auto_title = !ctx.settings.ai_auto_title;
-                        ctx.storage.save_settings(ctx.settings.clone()).await?;
-                        Ok(None)
-                    }
-                    idx if idx == ai_idx + 3 => Ok(Some(AppMessage::RequestModelDownload)),
-                    _ => Ok(None),
-                }
+                self.toggle_ai_setting(ctx, ai_idx).await
             }
         }
     }

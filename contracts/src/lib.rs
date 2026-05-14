@@ -92,10 +92,11 @@ pub enum StartupBehavior {
     Specific,
 }
 
-fn default_ai_auto_title() -> bool {
+const fn default_ai_auto_title() -> bool {
     true
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,

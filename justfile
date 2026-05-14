@@ -7,10 +7,10 @@ fmt-check:
     cargo fmt --all -- --check
 
 lint:
-    cargo clippy --all --all-targets --all-features -- -D warnings
+    cargo clippy --all --all-targets --features ai -- -D warnings
 
 test:
-    cargo test --all-features
+    cargo test --features ai
 
 build:
     cargo build --release

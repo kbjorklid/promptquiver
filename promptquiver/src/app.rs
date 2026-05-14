@@ -142,6 +142,43 @@ impl App<'_> {
         }
     }
 
+    fn start_model_download(&mut self) {
+        self.ai_download_progress = Some(0.0);
+        #[cfg(feature = "ai")]
+        if let Some(tx) = self.ai_progress_tx.clone() {
+            let settings = self.settings.clone();
+            let dir = data_dir();
+            tokio::spawn(async move {
+                let downloader = infra::ModelDownloader::new(dir);
+                let mid = infra::ai::model_id(settings.ai_model_tier);
+                let token = settings.hf_token.as_deref().map(str::to_string);
+                let (prog_tx, mut prog_rx) =
+                    tokio::sync::mpsc::channel::<infra::ai::download::DownloadProgress>(20);
+                let dl_fut = downloader.download(mid, token.as_deref(), prog_tx);
+                tokio::pin!(dl_fut);
+                loop {
+                    tokio::select! {
+                        result = &mut dl_fut => {
+                            match result {
+                                Ok(()) => { let _ = tx.send(AppMessage::AiDownloadProgress(1.0)).await; }
+                                Err(e) => { let _ = tx.send(AppMessage::Notify(format!("Download failed: {e}"), ratatui_toaster::ToastType::Error)).await; }
+                            }
+                            break;
+                        }
+                        Some(p) = prog_rx.recv() => {
+                            let _ = tx.send(AppMessage::AiDownloadProgress(p.fraction())).await;
+                        }
+                    }
+                }
+            });
+        }
+        #[cfg(not(feature = "ai"))]
+        self.notify(
+            "Rebuild with --features ai to enable model download",
+            ToastType::Error,
+        );
+    }
+
     async fn apply_global_action(
         &mut self,
         msg: AppMessage,
@@ -221,42 +258,7 @@ impl App<'_> {
                     self.ai_download_progress = Some(pct);
                 }
             }
-            AppMessage::RequestModelDownload => {
-                self.ai_download_progress = Some(0.0);
-                #[cfg(feature = "ai")]
-                if let Some(tx) = self.ai_progress_tx.clone() {
-                    let settings = self.settings.clone();
-                    let dir = data_dir();
-                    tokio::spawn(async move {
-                        let downloader = infra::ModelDownloader::new(dir);
-                        let mid = infra::ai::model_id(settings.ai_model_tier);
-                        let token = settings.hf_token.as_deref().map(str::to_string);
-                        let (prog_tx, mut prog_rx) =
-                            tokio::sync::mpsc::channel::<infra::ai::download::DownloadProgress>(20);
-                        let dl_fut = downloader.download(mid, token.as_deref(), prog_tx);
-                        tokio::pin!(dl_fut);
-                        loop {
-                            tokio::select! {
-                                result = &mut dl_fut => {
-                                    match result {
-                                        Ok(()) => { let _ = tx.send(AppMessage::AiDownloadProgress(1.0)).await; }
-                                        Err(e) => { let _ = tx.send(AppMessage::Notify(format!("Download failed: {e}"), ratatui_toaster::ToastType::Error)).await; }
-                                    }
-                                    break;
-                                }
-                                Some(p) = prog_rx.recv() => {
-                                    let _ = tx.send(AppMessage::AiDownloadProgress(p.fraction())).await;
-                                }
-                            }
-                        }
-                    });
-                }
-                #[cfg(not(feature = "ai"))]
-                self.notify(
-                    "Rebuild with --features ai to enable model download",
-                    ToastType::Error,
-                );
-            }
+            AppMessage::RequestModelDownload => self.start_model_download(),
             _ => {}
         }
         Ok(None)

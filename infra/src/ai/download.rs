@@ -7,6 +7,7 @@ pub struct DownloadProgress {
 }
 
 impl DownloadProgress {
+    #[allow(clippy::cast_precision_loss)]
     pub fn fraction(&self) -> f32 {
         if self.files_total == 0 {
             return 1.0;
@@ -21,7 +22,7 @@ pub struct ModelDownloader {
 }
 
 impl ModelDownloader {
-    pub fn new(data_dir: PathBuf) -> Self {
+    pub const fn new(data_dir: PathBuf) -> Self {
         Self { data_dir }
     }
 
@@ -44,12 +45,14 @@ impl ModelDownloader {
         std::fs::read_dir(&snapshots)
             .ok()
             .and_then(|entries| {
-                entries.filter_map(|e| e.ok()).find(|e| e.path().join("tokenizer.json").exists())
+                entries.filter_map(Result::ok).find(|e| e.path().join("tokenizer.json").exists())
             })
             .is_some()
     }
 
     #[cfg(feature = "ai")]
+    /// # Errors
+    /// Returns an error if the model cannot be fetched from huggingface hub.
     pub async fn download(
         &self,
         model_id: &str,
@@ -83,7 +86,7 @@ impl ModelDownloader {
 
         let static_files = ["tokenizer.json", "config.json", "tokenizer_config.json"];
         let all_files: Vec<String> =
-            static_files.iter().map(|s| s.to_string()).chain(shard_names).collect();
+            static_files.iter().map(ToString::to_string).chain(shard_names).collect();
 
         let total = u32::try_from(all_files.len()).unwrap_or(u32::MAX);
         for (i, name) in all_files.iter().enumerate() {

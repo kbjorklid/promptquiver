@@ -282,6 +282,7 @@ async fn test_autocomplete_positioning_below_cursor() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn test_autocomplete_positioning_above_cursor() {
     let (mut app, _, _, _) = setup_app();
     app.settings.slash_commands = vec![

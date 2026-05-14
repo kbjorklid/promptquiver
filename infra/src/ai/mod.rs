@@ -11,7 +11,7 @@ pub trait AiEngine: Send + Sync {
     async fn generate(&self, prompt: &str, max_tokens: usize) -> anyhow::Result<String>;
 }
 
-pub fn model_id(tier: ModelTier) -> &'static str {
+pub const fn model_id(tier: ModelTier) -> &'static str {
     match tier {
         ModelTier::Fast => "google/gemma-4-E2B-it",
         ModelTier::Balanced => "google/gemma-4-E4B-it",

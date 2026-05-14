@@ -54,6 +54,9 @@ struct CandleEngineInner {
 impl CandleEngine {
     /// Loads the model from hf-hub cache. Must be called after download completes.
     /// Runs synchronously — call from within `tokio::task::block_in_place`.
+    ///
+    /// # Errors
+    /// Returns an error if the model files are missing or cannot be parsed.
     pub fn load(data_dir: &Path, model_id: &str, hf_token: Option<&str>) -> Result<Self> {
         let device = Self::select_device();
         let dtype = if device.is_cuda() { DTYPE_GPU } else { DTYPE_CPU };
@@ -79,9 +82,9 @@ impl CandleEngine {
 
         let config_path = repo.get("config.json")?;
         let model = if model_id.contains("gemma-4") {
-            load_gemma4(config_path, vb)?
+            load_gemma4(&config_path, vb)?
         } else {
-            load_gemma3(config_path, vb)?
+            load_gemma3(&config_path, vb)?
         };
 
         Ok(Self {
@@ -94,6 +97,7 @@ impl CandleEngine {
         })
     }
 
+    #[allow(clippy::missing_const_for_fn)]
     fn select_device() -> Device {
         #[cfg(feature = "ai-cuda")]
         {
@@ -129,11 +133,11 @@ fn load_safetensor_paths(repo: &hf_hub::api::sync::ApiRepo) -> Result<Vec<PathBu
     Ok(vec![repo.get("model.safetensors")?])
 }
 
-fn load_gemma4(config_path: PathBuf, vb: VarBuilder<'_>) -> Result<GemmaModel> {
+fn load_gemma4(config_path: &std::path::Path, vb: VarBuilder<'_>) -> Result<GemmaModel> {
     use candle_transformers::models::gemma4::config::Gemma4TextConfig;
     use candle_transformers::models::gemma4::text::TextModel;
 
-    let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(&config_path)?)?;
+    let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(config_path)?)?;
     let mut config: Gemma4TextConfig = if let Some(text_cfg) = raw.get("text_config") {
         serde_json::from_value(text_cfg.clone())?
     } else {
@@ -144,11 +148,11 @@ fn load_gemma4(config_path: PathBuf, vb: VarBuilder<'_>) -> Result<GemmaModel> {
     Ok(GemmaModel::Gemma4(model))
 }
 
-fn load_gemma3(config_path: PathBuf, vb: VarBuilder<'_>) -> Result<GemmaModel> {
+fn load_gemma3(config_path: &std::path::Path, vb: VarBuilder<'_>) -> Result<GemmaModel> {
     use candle_transformers::models::gemma3::Config;
     use candle_transformers::models::gemma3::Model;
 
-    let config: Config = serde_json::from_slice(&std::fs::read(&config_path)?)?;
+    let config: Config = serde_json::from_slice(&std::fs::read(config_path)?)?;
     let model = Model::new(false, &config, vb)?;
     Ok(GemmaModel::Gemma3(model))
 }
@@ -158,6 +162,7 @@ impl AiEngine for CandleEngine {
     async fn generate(&self, prompt: &str, max_tokens: usize) -> anyhow::Result<String> {
         let formatted = format_chat_prompt(prompt);
 
+        #[allow(clippy::significant_drop_tightening)]
         tokio::task::block_in_place(|| {
             let mut inner = self.inner.lock().expect("candle mutex poisoned");
             inner.model.clear_kv_cache();
