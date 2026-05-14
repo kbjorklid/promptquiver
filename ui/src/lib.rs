@@ -41,7 +41,7 @@ pub fn render(
     let (header_chunk, main_chunk, search_chunk, footer_chunk, statusline_chunk) =
         split_layout(f, is_searching);
 
-    header::render(f, header_chunk, state.nav.active_tab, state.settings);
+    header::render(f, header_chunk, state.nav.active_tab, state.mode, state.settings);
 
     if let Some(s_chunk) = search_chunk {
         render_search_bar(f, s_chunk, &state.nav.search_query, palette.accent);

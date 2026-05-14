@@ -17,7 +17,8 @@
       "PowerShell(cmd /c \"dir /a C:\\\\Users\\\\kalle\\\\.claude\\\\plugins\")",
       "PowerShell(cmd /c \"dir /a C:\\\\Users\\\\kalle\\\\.claude\\\\skills\")",
       "PowerShell(cmd /c \"dir /a /s C:\\\\Users\\\\kalle\\\\.claude\\\\plugins\\\\cache\\\\agent-toolkit\\\\writing-clearly-and-concisely\\\\b00cf8491de1\")",
-      "WebSearch"
+      "WebSearch",
+      "Skill(commit)"
     ]
   }
 }

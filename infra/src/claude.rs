@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use yaml_serde::Value;
 
 pub fn discover_commands(project_path: &str) -> Vec<Prompt> {
-    let claude_dir = directories::UserDirs::new()
-        .map(|u| u.home_dir().to_path_buf().join(".claude"));
+    let claude_dir =
+        directories::UserDirs::new().map(|u| u.home_dir().to_path_buf().join(".claude"));
 
     let plugin_dirs: Vec<PathBuf> = claude_dir
         .as_ref()
@@ -55,10 +55,7 @@ fn collect_commands(
     }
 
     for plugin_dir in plugin_dirs {
-        let plugin_name = plugin_dir
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str());
+        let plugin_name = plugin_dir.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str());
         commands.extend(scan_directory(&plugin_dir.join("commands"), plugin_name));
         commands.extend(scan_directory(&plugin_dir.join("skills"), plugin_name));
     }
@@ -158,11 +155,7 @@ mod tests {
         let version_dir = tmp.path().join("my-plugin").join("v1");
         let skill_dir = version_dir.join("skills").join("writing-clearly-and-concisely");
         fs::create_dir_all(&skill_dir).unwrap();
-        fs::write(
-            skill_dir.join("SKILL.md"),
-            "---\ndescription: Write clearly\n---\n",
-        )
-        .unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "---\ndescription: Write clearly\n---\n").unwrap();
 
         let results = collect_commands(None, &[version_dir], None);
 
@@ -256,11 +249,8 @@ mod tests {
         let version_dir = cache.join("my-group").join("ddd-domain-design").join("abc123");
         let commands_dir = version_dir.join("commands");
         fs::create_dir_all(&commands_dir).unwrap();
-        fs::write(
-            commands_dir.join("ddd-design.md"),
-            "---\ndescription: Design DDD\n---\n",
-        )
-        .unwrap();
+        fs::write(commands_dir.join("ddd-design.md"), "---\ndescription: Design DDD\n---\n")
+            .unwrap();
 
         let plugin_dirs = enumerate_plugin_dirs(cache);
         let results = collect_commands(None, &plugin_dirs, None);

@@ -1,3 +1,4 @@
+use crate::types::Mode;
 use crate::utils::get_palette;
 use contracts::Tab;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -6,6 +7,10 @@ use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Paragraph, Tabs};
 use ratatui::Frame;
 
+fn tabs_locked(mode: Mode) -> bool {
+    matches!(mode, Mode::Editor | Mode::ConfirmDiscard | Mode::ThemePicker | Mode::Move)
+}
+
 pub fn render_branding(f: &mut Frame<'_>, area: Rect, palette: &ratatui_themes::ThemePalette) {
     let branding = Paragraph::new(" PROMPT QUIVER ")
         .style(Style::default().fg(palette.accent).bg(palette.bg).add_modifier(Modifier::BOLD))
@@ -13,7 +18,13 @@ pub fn render_branding(f: &mut Frame<'_>, area: Rect, palette: &ratatui_themes::
     f.render_widget(branding, area);
 }
 
-pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contracts::Settings) {
+pub fn render(
+    f: &mut Frame<'_>,
+    area: Rect,
+    active_tab: Tab,
+    mode: Mode,
+    settings: &contracts::Settings,
+) {
     let palette = get_palette(settings.theme_name.as_deref());
 
     // Ensure the whole header area has the theme background
@@ -28,13 +39,14 @@ pub fn render(f: &mut Frame<'_>, area: Rect, active_tab: Tab, settings: &contrac
         .split(area);
 
     render_branding(f, chunks[0], &palette);
-    render_tabs(f, chunks[1], active_tab, settings, &palette);
+    render_tabs(f, chunks[1], active_tab, mode, settings, &palette);
 }
 
 pub fn render_tabs(
     f: &mut Frame<'_>,
     area: Rect,
     active_tab: Tab,
+    mode: Mode,
     settings: &contracts::Settings,
     palette: &ratatui_themes::ThemePalette,
 ) {
@@ -65,13 +77,16 @@ pub fn render_tabs(
         })
         .collect::<Vec<_>>();
 
+    let locked = tabs_locked(mode);
     let tabs = Tabs::new(tab_titles)
         .divider("|")
         .select(visible_tabs.iter().position(|&t| t == active_tab).unwrap_or(0))
-        .highlight_style(
-            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD),
-        )
-        .style(Style::default().fg(palette.fg).bg(palette.bg));
+        .highlight_style(if locked {
+            Style::default().fg(palette.muted).bg(palette.bg)
+        } else {
+            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
+        })
+        .style(Style::default().fg(if locked { palette.muted } else { palette.fg }).bg(palette.bg));
 
     f.render_widget(tabs, area);
 }

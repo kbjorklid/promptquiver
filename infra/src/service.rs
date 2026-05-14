@@ -48,8 +48,7 @@ fn score_and_collect(
     buf: &mut Vec<char>,
     results: &mut Vec<(u32, Prompt)>,
 ) {
-    let relative_path =
-        path.strip_prefix(base_dir).unwrap_or(path).to_string_lossy().to_string();
+    let relative_path = path.strip_prefix(base_dir).unwrap_or(path).to_string_lossy().to_string();
     let path_normalized = relative_path.replace('\\', "/");
 
     if path_normalized.is_empty() {
@@ -62,9 +61,7 @@ fn score_and_collect(
         } else {
             format!("{path_normalized}/")
         };
-        if let Some(score) =
-            pattern.score(Utf32Str::new(&dir_path_normalized, buf), matcher)
-        {
+        if let Some(score) = pattern.score(Utf32Str::new(&dir_path_normalized, buf), matcher) {
             results.push((
                 score + 50,
                 Prompt::new(
@@ -77,9 +74,7 @@ fn score_and_collect(
                 ),
             ));
         }
-    } else if let Some(score) =
-        pattern.score(Utf32Str::new(&path_normalized, buf), matcher)
-    {
+    } else if let Some(score) = pattern.score(Utf32Str::new(&path_normalized, buf), matcher) {
         results.push((
             score,
             Prompt::new(
