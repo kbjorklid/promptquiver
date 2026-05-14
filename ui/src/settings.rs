@@ -345,91 +345,62 @@ fn render_maintenance(
     }
 }
 
-fn render_advanced(
-    f: &mut Frame<'_>,
-    area: Rect,
-    advanced_area: Rect,
+fn advanced_item(
+    label: &str,
+    selected: bool,
+    palette: &ratatui_themes::ThemePalette,
+) -> ListItem<'static> {
+    let text = format!("{} {}", if selected { ">" } else { " " }, label);
+    ListItem::new(text).style(if selected {
+        Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(palette.fg)
+    })
+}
+
+fn build_advanced_items(
     state: &RenderState<'_, '_>,
-    tabs_len: usize,
-    slash_len: usize,
-) {
-    let palette = get_palette(state.settings.theme_name.as_deref());
-    let selected_index = state.nav.selected_index;
-    let maintenance_len = 2;
-    let advanced_idx = tabs_len + slash_len + 1 + maintenance_len;
-    let is_advanced_focused = selected_index >= advanced_idx;
-
-    let advanced_block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Advanced (Space to toggle) ")
-        .border_style(if is_advanced_focused {
-            Style::default().fg(palette.accent)
-        } else {
-            Style::default().fg(palette.fg)
-        });
-
-    let settings = state.settings;
-    let claude_status = if settings.enable_claude_commands { "[ON]" } else { "[OFF]" };
-    let builtin_status = if settings.enable_claude_builtin_commands { "[ON]" } else { "[OFF]" };
-    let nerd_status = if settings.use_nerd_font { "[ON]" } else { "[OFF]" };
-    let current_theme = settings.theme_name.as_deref().unwrap_or("Default");
-    let behavior_status = format!("{:?}", settings.startup_behavior);
+    selected_index: usize,
+    advanced_idx: usize,
+    palette: &ratatui_themes::ThemePalette,
+) -> Vec<ListItem<'static>> {
+    let s = state.settings;
+    let on_off = |v: bool| if v { "[ON]" } else { "[OFF]" };
+    let theme = s.theme_name.as_deref().unwrap_or("Default");
+    let behavior = format!("{:?}", s.startup_behavior);
 
     let mut items = vec![
-        ListItem::new(format!(
-            "{} Enable Claude Command and Skill Discovery: {}",
-            if selected_index == advanced_idx { ">" } else { " " },
-            claude_status
-        ))
-        .style(if selected_index == advanced_idx {
-            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.fg)
-        }),
-        ListItem::new(format!(
-            "{} Enable Claude Built-in Commands: {}",
-            if selected_index == advanced_idx + 1 { ">" } else { " " },
-            builtin_status
-        ))
-        .style(if selected_index == advanced_idx + 1 {
-            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.fg)
-        }),
-        ListItem::new(format!(
-            "{} Use Nerd Font Icons: {}",
-            if selected_index == advanced_idx + 2 { ">" } else { " " },
-            nerd_status
-        ))
-        .style(if selected_index == advanced_idx + 2 {
-            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.fg)
-        }),
-        ListItem::new(format!(
-            "{} Theme: {}",
-            if selected_index == advanced_idx + 3 { ">" } else { " " },
-            current_theme
-        ))
-        .style(if selected_index == advanced_idx + 3 {
-            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.fg)
-        }),
-        ListItem::new(format!(
-            "{} Project selection at startup: {}",
-            if selected_index == advanced_idx + 4 { ">" } else { " " },
-            behavior_status
-        ))
-        .style(if selected_index == advanced_idx + 4 {
-            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.fg)
-        }),
+        advanced_item(
+            &format!(
+                "Enable Claude Command and Skill Discovery: {}",
+                on_off(s.enable_claude_commands)
+            ),
+            selected_index == advanced_idx,
+            palette,
+        ),
+        advanced_item(
+            &format!(
+                "Enable Claude Built-in Commands: {}",
+                on_off(s.enable_claude_builtin_commands)
+            ),
+            selected_index == advanced_idx + 1,
+            palette,
+        ),
+        advanced_item(
+            &format!("Use Nerd Font Icons: {}", on_off(s.use_nerd_font)),
+            selected_index == advanced_idx + 2,
+            palette,
+        ),
+        advanced_item(&format!("Theme: {theme}"), selected_index == advanced_idx + 3, palette),
+        advanced_item(
+            &format!("Project selection at startup: {behavior}"),
+            selected_index == advanced_idx + 4,
+            palette,
+        ),
     ];
 
-    if settings.startup_behavior == contracts::StartupBehavior::Specific {
-        let project_name = settings.specific_project_id.map_or_else(
+    if s.startup_behavior == contracts::StartupBehavior::Specific {
+        let project_name = s.specific_project_id.map_or_else(
             || "Default".into(),
             |id| {
                 state
@@ -441,20 +412,39 @@ fn render_advanced(
                     .map_or_else(|| "Default".into(), |p| p.title.clone())
             },
         );
-        items.push(
-            ListItem::new(format!(
-                "{} Startup Project: {}",
-                if selected_index == advanced_idx + 5 { ">" } else { " " },
-                project_name
-            ))
-            .style(if selected_index == advanced_idx + 5 {
-                Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(palette.fg)
-            }),
-        );
+        items.push(advanced_item(
+            &format!("Startup Project: {project_name}"),
+            selected_index == advanced_idx + 5,
+            palette,
+        ));
     }
 
+    items
+}
+
+fn render_advanced(
+    f: &mut Frame<'_>,
+    area: Rect,
+    advanced_area: Rect,
+    state: &RenderState<'_, '_>,
+    tabs_len: usize,
+    slash_len: usize,
+) {
+    let palette = get_palette(state.settings.theme_name.as_deref());
+    let selected_index = state.nav.selected_index;
+    let advanced_idx = tabs_len + slash_len + 1 + 2;
+    let is_advanced_focused = selected_index >= advanced_idx;
+
+    let advanced_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Advanced (Space to toggle) ")
+        .border_style(if is_advanced_focused {
+            Style::default().fg(palette.accent)
+        } else {
+            Style::default().fg(palette.fg)
+        });
+
+    let items = build_advanced_items(state, selected_index, advanced_idx, &palette);
     let advanced_list =
         List::new(items).block(advanced_block).style(Style::default().bg(palette.bg));
 

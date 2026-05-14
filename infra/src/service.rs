@@ -343,7 +343,7 @@ impl AppService for RealAppService {
             }
             let Ok(entry) = entry else { continue };
             let path = entry.path();
-            let is_dir = entry.file_type().map_or(false, |ft| ft.is_dir());
+            let is_dir = entry.file_type().is_some_and(|ft| ft.is_dir());
             score_and_collect(
                 &base_path,
                 path,

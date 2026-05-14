@@ -100,10 +100,7 @@ fn scan_directory(dir: &Path, prefix: Option<&str>) -> Vec<Prompt> {
             let path = entry.path();
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    let name = match prefix {
-                        Some(p) => format!("{p}:{stem}"),
-                        None => stem.to_string(),
-                    };
+                    let name = prefix.map_or_else(|| stem.to_string(), |p| format!("{p}:{stem}"));
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
                     let description = extract_description(&content);
                     commands.push(Prompt::new(
@@ -120,10 +117,8 @@ fn scan_directory(dir: &Path, prefix: Option<&str>) -> Vec<Prompt> {
                 let skill_md = path.join("SKILL.md");
                 if skill_md.exists() {
                     if let Some(dir_name) = path.file_name().and_then(|s| s.to_str()) {
-                        let name = match prefix {
-                            Some(p) => format!("{p}:{dir_name}"),
-                            None => dir_name.to_string(),
-                        };
+                        let name = prefix
+                            .map_or_else(|| dir_name.to_string(), |p| format!("{p}:{dir_name}"));
                         let content = std::fs::read_to_string(&skill_md).unwrap_or_default();
                         let description = extract_description(&content);
                         commands.push(Prompt::new(
@@ -140,6 +135,21 @@ fn scan_directory(dir: &Path, prefix: Option<&str>) -> Vec<Prompt> {
         }
     }
     commands
+}
+
+fn extract_description(content: &str) -> String {
+    if content.starts_with("---\n") || content.starts_with("---\r\n") {
+        let parts: Vec<&str> = content.split("---").collect();
+        if parts.len() >= 3 {
+            let frontmatter = parts[1];
+            if let Ok(val) = yaml_serde::from_str::<Value>(frontmatter) {
+                if let Some(desc) = val.get("description").and_then(|v| v.as_str()) {
+                    return desc.to_string();
+                }
+            }
+        }
+    }
+    String::new()
 }
 
 #[cfg(test)]
@@ -261,20 +271,4 @@ mod tests {
             results.iter().map(|p| p.name.as_deref()).collect::<Vec<_>>()
         );
     }
-}
-
-fn extract_description(content: &str) -> String {
-    // Extract frontmatter between --- and ---
-    if content.starts_with("---\n") || content.starts_with("---\r\n") {
-        let parts: Vec<&str> = content.split("---").collect();
-        if parts.len() >= 3 {
-            let frontmatter = parts[1];
-            if let Ok(val) = yaml_serde::from_str::<Value>(frontmatter) {
-                if let Some(desc) = val.get("description").and_then(|v| v.as_str()) {
-                    return desc.to_string();
-                }
-            }
-        }
-    }
-    String::new()
 }

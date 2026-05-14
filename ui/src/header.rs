@@ -7,7 +7,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Paragraph, Tabs};
 use ratatui::Frame;
 
-fn tabs_locked(mode: Mode) -> bool {
+const fn tabs_locked(mode: Mode) -> bool {
     matches!(mode, Mode::Editor | Mode::ConfirmDiscard | Mode::ThemePicker | Mode::Move)
 }
 
