@@ -193,7 +193,7 @@ pub fn render_autocomplete(f: &mut Frame<'_>, editor_area: Rect, state: &mut Ren
         let title = match suggestions[0].r#type {
             contracts::PromptType::Snippet => " Snippets ",
             contracts::PromptType::Note => " Files ",
-            contracts::PromptType::Prompt => " Commands ",
+            contracts::PromptType::Prompt => " Commands & Skills ",
         };
 
         let list = List::new(items).style(Style::default().bg(palette.bg)).block(

@@ -10,7 +10,14 @@
       "PowerShell(Set-Content *)",
       "Bash(cargo clippy *)",
       "Bash(cargo install *)",
-      "Bash(just install-hooks *)"
+      "Bash(just install-hooks *)",
+      "Read(//c/Users/kalle/.claude/commands/**)",
+      "Read(//c/Users/kalle/.claude/skills/**)",
+      "Read(//c/Users/kalle/.claude/plugins/cache/**)",
+      "PowerShell(cmd /c \"dir /a C:\\\\Users\\\\kalle\\\\.claude\\\\plugins\")",
+      "PowerShell(cmd /c \"dir /a C:\\\\Users\\\\kalle\\\\.claude\\\\skills\")",
+      "PowerShell(cmd /c \"dir /a /s C:\\\\Users\\\\kalle\\\\.claude\\\\plugins\\\\cache\\\\agent-toolkit\\\\writing-clearly-and-concisely\\\\b00cf8491de1\")",
+      "WebSearch"
     ]
   }
 }

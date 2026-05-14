@@ -39,76 +39,58 @@ impl RealAppService {
     }
 }
 
-fn walk_recursive(
+fn score_and_collect(
     base_dir: &std::path::Path,
-    current_dir: &std::path::Path,
+    path: &std::path::Path,
+    is_dir: bool,
     pattern: &Pattern,
     matcher: &mut Matcher,
     buf: &mut Vec<char>,
     results: &mut Vec<(u32, Prompt)>,
 ) {
-    if results.len() >= 1000 {
+    let relative_path =
+        path.strip_prefix(base_dir).unwrap_or(path).to_string_lossy().to_string();
+    let path_normalized = relative_path.replace('\\', "/");
+
+    if path_normalized.is_empty() {
         return;
     }
-    if let Ok(entries) = std::fs::read_dir(current_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let relative_path =
-                path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().to_string();
-            let path_normalized = relative_path.replace('\\', "/");
 
-            if path.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name == "target"
-                        || name == ".git"
-                        || name == "node_modules"
-                        || name.starts_with('.')
-                    {
-                        continue;
-                    }
-                }
-
-                let dir_path_normalized =
-                    if path_normalized.ends_with('/') || path_normalized.is_empty() {
-                        path_normalized.clone()
-                    } else {
-                        format!("{path_normalized}/")
-                    };
-
-                if !dir_path_normalized.is_empty() {
-                    if let Some(score) =
-                        pattern.score(Utf32Str::new(&dir_path_normalized, buf), matcher)
-                    {
-                        results.push((
-                            score + 50,
-                            Prompt::new(
-                                path.to_string_lossy().to_string(),
-                                contracts::PromptType::Note,
-                                None,
-                                None,
-                                Some(dir_path_normalized),
-                                None,
-                            ),
-                        ));
-                    }
-                }
-
-                walk_recursive(base_dir, &path, pattern, matcher, buf, results);
-            } else if let Some(score) = pattern.score(Utf32Str::new(&path_normalized, buf), matcher)
-            {
-                results.push((
-                    score,
-                    Prompt::new(
-                        path.to_string_lossy().to_string(),
-                        contracts::PromptType::Note,
-                        None,
-                        None,
-                        Some(path_normalized),
-                        None,
-                    ),
-                ));
-            }
+    if is_dir {
+        let dir_path_normalized = if path_normalized.ends_with('/') {
+            path_normalized
+        } else {
+            format!("{path_normalized}/")
+        };
+        if let Some(score) =
+            pattern.score(Utf32Str::new(&dir_path_normalized, buf), matcher)
+        {
+            results.push((
+                score + 50,
+                Prompt::new(
+                    path.to_string_lossy().to_string(),
+                    contracts::PromptType::Note,
+                    None,
+                    None,
+                    Some(dir_path_normalized),
+                    None,
+                ),
+            ));
         }
+    } else if let Some(score) =
+        pattern.score(Utf32Str::new(&path_normalized, buf), matcher)
+    {
+        results.push((
+            score,
+            Prompt::new(
+                path.to_string_lossy().to_string(),
+                contracts::PromptType::Note,
+                None,
+                None,
+                Some(path_normalized),
+                None,
+            ),
+        ));
     }
 }
 
@@ -350,18 +332,35 @@ impl AppService for RealAppService {
         let mut matcher = Matcher::new(Config::DEFAULT);
         let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
         let mut buf = Vec::new();
+        let mut scored_results: Vec<(u32, Prompt)> = Vec::new();
 
-        let mut scored_results = Vec::new();
-        walk_recursive(
-            &base_path,
-            &base_path,
-            &pattern,
-            &mut matcher,
-            &mut buf,
-            &mut scored_results,
-        );
+        let walker = ignore::WalkBuilder::new(&base_path)
+            .require_git(false)
+            .filter_entry(|e| {
+                let name = e.file_name().to_str().unwrap_or("");
+                name != "target" && name != "node_modules"
+            })
+            .build();
+
+        for entry in walker {
+            if scored_results.len() >= 1000 {
+                break;
+            }
+            let Ok(entry) = entry else { continue };
+            let path = entry.path();
+            let is_dir = entry.file_type().map_or(false, |ft| ft.is_dir());
+            score_and_collect(
+                &base_path,
+                path,
+                is_dir,
+                &pattern,
+                &mut matcher,
+                &mut buf,
+                &mut scored_results,
+            );
+        }
+
         scored_results.sort_by_key(|b| std::cmp::Reverse(b.0));
-
         Ok(scored_results.into_iter().take(20).map(|(_, p)| p).collect())
     }
 

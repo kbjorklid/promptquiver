@@ -137,17 +137,13 @@ async fn test_autocomplete_slash_command_title() {
 
     let mut found_commands_title = false;
     for y in 0..30 {
+        let mut row = String::new();
         for x in 0..80 {
-            let mut line = String::new();
-            for i in 0..12 {
-                if x + i < 80 {
-                    line.push_str(buffer[(x + i, y)].symbol());
-                }
-            }
-            if line.contains(" Commands ") {
-                found_commands_title = true;
-                break;
-            }
+            row.push_str(buffer[(x, y)].symbol());
+        }
+        if row.contains(" Commands & Skills ") {
+            found_commands_title = true;
+            break;
         }
     }
     assert!(found_commands_title);
@@ -245,17 +241,12 @@ async fn test_autocomplete_positioning_below_cursor() {
     // Popup Title: y=4
 
     let mut found_popup_at_expected_y = false;
+    let mut row = String::new();
     for x in 0..80 {
-        let mut title = String::new();
-        for i in 0..12 {
-            if x + i < 80 {
-                title.push_str(buffer[(x + i, 4)].symbol());
-            }
-        }
-        if title.contains(" Commands ") {
-            found_popup_at_expected_y = true;
-            break;
-        }
+        row.push_str(buffer[(x, 4)].symbol());
+    }
+    if row.contains(" Commands & Skills ") {
+        found_popup_at_expected_y = true;
     }
 
     assert!(found_popup_at_expected_y, "Popup should be rendered at y=4 (below line 2)");
@@ -360,7 +351,7 @@ async fn test_autocomplete_positioning_above_cursor() {
         for x in 0..80 {
             row_content.push_str(buffer[(x, y)].symbol());
         }
-        if row_content.contains("Commands")
+        if row_content.contains("Commands & Skills")
             || row_content.contains("Files")
             || row_content.contains("Snippets")
         {

@@ -22,6 +22,7 @@ sha2.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 nucleo-matcher.workspace = true
+ignore = "0.4"
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 notify = "8.2.0"
 yaml_serde = "0.10.4"

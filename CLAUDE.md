@@ -13,6 +13,27 @@ This is a **solo project**. The developer is a professional software engineer wi
 
 Use **red-green refactoring** whenever possible: write a failing test first, make it pass with minimal code, then clean up.
 
+### Mandatory sequence — do not skip steps
+
+1. **Write the test first.** Run it. Confirm it fails — a compile error from a missing function counts as red, not a mistake.
+2. **Write the minimal implementation** to make the test pass. Run again. Confirm green.
+3. **Clean up** if needed (rename, extract, simplify).
+
+### Picking the right test
+
+- **New feature** → test the new behaviour end-to-end (or as close as practical).
+- **Bug fix** → write a test that reproduces the bug; it must fail before the fix and pass after.
+
+### When code is hard to test directly
+
+If the function under test depends on global state (e.g. `UserDirs::new()`, real filesystem paths), extract a testable inner function that accepts those values as parameters. Write the test against the new signature *before* writing the inner function body — the missing function is the red state. Then implement the inner function, confirm green, and wire it back into the public entry point.
+
+Example from this codebase: `discover_commands()` was split into `collect_commands(claude_dir, plugin_dirs, project_root)` so the logic could be tested with temp directories.
+
+### What does NOT count as red
+
+Updating an existing test to match new expected behaviour is not a substitute for a new failing test. The red step must exercise behaviour that does not yet exist.
+
 ## Project Overview
 
 **Prompt Quiver** is a TUI (Terminal User Interface) application written in Rust that serves as a staging area for AI prompts. It allows developers and AI users to organize, draft, search, and quickly copy prompts to their clipboard with automatic processing (snippet expansion and comment stripping).

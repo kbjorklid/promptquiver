@@ -408,6 +408,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_search_excludes_gitignored_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join(".gitignore"), "secret.log\n").unwrap();
+        std::fs::write(root.join("secret.log"), "").unwrap();
+        std::fs::write(root.join("visible.rs"), "").unwrap();
+
+        let service = make_service();
+        let results = service.search_files(root.to_str().unwrap(), "secret").await.unwrap();
+        assert!(results.is_empty(), "gitignored files should not appear in autocomplete");
+    }
+
+    #[tokio::test]
     async fn test_search_no_match_returns_empty() {
         let temp_dir = tempfile::tempdir().unwrap();
         let root = temp_dir.path();
