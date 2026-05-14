@@ -2,11 +2,12 @@ use anyhow::Result;
 use clap::Parser;
 use contracts::{Clipboard, Git, PromptFilter, Storage};
 use infra::{RealClipboard, RealGit, SqliteStorage};
-use promptquiver::app::App;
+use promptquiver::app::{App, AppMessage};
 use promptquiver::tui::{self, Tui};
 use ratatui::Terminal;
 use ratatui_toaster::{ToastEngineBuilder, ToastType};
-use std::{io, sync::Arc, time::Duration};
+use std::{io, path::PathBuf, sync::Arc, time::Duration};
+use uuid::Uuid;
 
 macro_rules! handle_error {
     ($app:expr, $res:expr) => {
@@ -57,6 +58,13 @@ async fn main() -> Result<()> {
     let mut file_result_rx = setup_file_searcher(&mut app, service.clone());
     let mut db_sync_rx = setup_db_poller(storage.clone());
 
+    let data_dir = directories::ProjectDirs::from("", "", "promptquiver")
+        .map_or_else(|| PathBuf::from("."), |d| d.data_dir().to_path_buf());
+    let (ai_title_tx, mut ai_title_result_rx, ai_progress_tx, mut ai_progress_rx) =
+        setup_ai_engine(&app.settings, &data_dir);
+    app.ai_title_tx = ai_title_tx;
+    app.ai_progress_tx = Some(ai_progress_tx);
+
     let mut tui = Tui::new(Terminal::new(ratatui::backend::CrosstermBackend::new(io::stdout()))?);
     tui.enter()?;
 
@@ -66,7 +74,16 @@ async fn main() -> Result<()> {
             .build(),
     );
 
-    run_app_loop(&mut app, &mut tui, &mut branch_rx, &mut file_result_rx, &mut db_sync_rx).await?;
+    run_app_loop(
+        &mut app,
+        &mut tui,
+        &mut branch_rx,
+        &mut file_result_rx,
+        &mut db_sync_rx,
+        &mut ai_title_result_rx,
+        &mut ai_progress_rx,
+    )
+    .await?;
     tui.exit()?;
     Ok(())
 }
@@ -167,6 +184,8 @@ async fn run_app_loop(
     branch_rx: &mut tokio::sync::mpsc::Receiver<Option<String>>,
     file_result_rx: &mut tokio::sync::mpsc::Receiver<(String, Vec<contracts::Prompt>)>,
     db_sync_rx: &mut tokio::sync::mpsc::Receiver<()>,
+    ai_title_result_rx: &mut Option<tokio::sync::mpsc::Receiver<(Uuid, String)>>,
+    ai_progress_rx: &mut tokio::sync::mpsc::Receiver<AppMessage>,
 ) -> Result<()> {
     while !app.should_quit {
         if let Ok(branch) = branch_rx.try_recv() {
@@ -192,6 +211,19 @@ async fn run_app_loop(
             }
         }
 
+        if let Some(rx) = ai_title_result_rx {
+            while let Ok((id, title)) = rx.try_recv() {
+                handle_error!(
+                    app,
+                    app.handle_message(ui::AppMessage::TitleGenerated(id, title)).await
+                );
+            }
+        }
+
+        while let Ok(msg) = ai_progress_rx.try_recv() {
+            handle_error!(app, app.handle_message(msg).await);
+        }
+
         tui.terminal.draw(|f| {
             let state = ui::RenderState {
                 nav: &mut app.nav,
@@ -201,6 +233,8 @@ async fn run_app_loop(
                 current_branch: app.current_branch.as_deref(),
                 show_help: app.show_help,
                 help_scroll: app.help_scroll,
+                ai_pending_titles: Some(&app.ai_pending_titles),
+                ai_download_progress: app.ai_download_progress,
             };
             ui::render(f, state, &mut app.toaster);
         })?;
@@ -226,4 +260,52 @@ async fn run_app_loop(
         app.tick();
     }
     Ok(())
+}
+
+type AiChannels = (
+    Option<tokio::sync::mpsc::Sender<(Uuid, String)>>,
+    Option<tokio::sync::mpsc::Receiver<(Uuid, String)>>,
+    tokio::sync::mpsc::Sender<AppMessage>,
+    tokio::sync::mpsc::Receiver<AppMessage>,
+);
+
+fn setup_ai_engine(settings: &contracts::Settings, data_dir: &PathBuf) -> AiChannels {
+    let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<AppMessage>(20);
+
+    #[cfg(feature = "ai")]
+    {
+        let model_id = infra::ai::model_id(settings.ai_model_tier);
+        let downloader = infra::ModelDownloader::new(data_dir.clone());
+        if settings.ai_enabled && downloader.is_downloaded(model_id) {
+            let (title_req_tx, mut title_req_rx) =
+                tokio::sync::mpsc::channel::<(Uuid, String)>(10);
+            let (title_res_tx, title_res_rx) = tokio::sync::mpsc::channel::<(Uuid, String)>(10);
+            let data_dir = data_dir.clone();
+            let hf_token = settings.hf_token.clone();
+            let model_id = model_id.to_string();
+            tokio::spawn(async move {
+                let engine = tokio::task::block_in_place(|| {
+                    infra::CandleEngine::load(&data_dir, &model_id, hf_token.as_deref())
+                });
+                let engine = match engine {
+                    Ok(e) => e,
+                    Err(err) => {
+                        eprintln!("AI engine load failed: {err}");
+                        return;
+                    }
+                };
+                while let Some((id, text)) = title_req_rx.recv().await {
+                    if let Some(title) =
+                        infra::ai::titler::generate_title(&text, &engine).await
+                    {
+                        let _ = title_res_tx.send((id, title)).await;
+                    }
+                }
+            });
+            return (Some(title_req_tx), Some(title_res_rx), progress_tx, progress_rx);
+        }
+    }
+    let _ = settings; // suppress unused warning in non-ai build
+    let _ = data_dir;
+    (None, None, progress_tx, progress_rx)
 }

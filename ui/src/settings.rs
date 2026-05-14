@@ -4,10 +4,12 @@ use contracts::Tab;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{
-    Block, Borders, Clear, List, ListItem, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Block, Borders, Clear, Gauge, List, ListItem, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
 use ratatui::Frame;
 use ratatui_themes::ThemePalette;
+
+const AI_SECTION_ITEMS: usize = 6;
 
 pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
     let settings = state.settings;
@@ -28,7 +30,9 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
 
     let maintenance_height = 4;
 
-    let total_height = tab_height + slash_height + maintenance_height + advanced_height;
+    let ai_height = u16::try_from(AI_SECTION_ITEMS + 2).unwrap_or(u16::MAX);
+
+    let total_height = tab_height + slash_height + maintenance_height + advanced_height + ai_height;
 
     update_scroll_offset(
         area,
@@ -37,6 +41,7 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
         tab_height,
         slash_height,
         maintenance_height,
+        advanced_height,
         tabs_len,
         slash_len,
     );
@@ -88,6 +93,21 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
     };
     render_advanced(f, area, advanced_area, state, tabs_len, slash_len);
 
+    // AI
+    let ai_area = Rect {
+        x: area.x,
+        y: area
+            .y
+            .saturating_add(tab_height)
+            .saturating_add(slash_height)
+            .saturating_add(maintenance_height)
+            .saturating_add(advanced_height)
+            .saturating_sub(scroll_offset),
+        width: area.width,
+        height: ai_height,
+    };
+    render_ai(f, area, ai_area, state, tabs_len, slash_len);
+
     render_scrollbar(f, area, total_height, scroll_offset, &palette);
 
     if state.mode == Mode::ThemePicker {
@@ -103,30 +123,46 @@ fn update_scroll_offset(
     tab_height: u16,
     slash_height: u16,
     maintenance_height: u16,
+    advanced_height: u16,
     tabs_len: usize,
     slash_len: usize,
 ) {
     let selected_index = state.nav.selected_index;
+    let maintenance_start = tabs_len + slash_len + 1;
+    let advanced_start = maintenance_start + 2;
+    let ai_start = advanced_start + 5
+        + usize::from(
+            state.settings.startup_behavior == contracts::StartupBehavior::Specific,
+        );
+
     let selected_y = if selected_index < tabs_len {
         u16::try_from(selected_index).unwrap_or(u16::MAX).saturating_add(1)
     } else if selected_index <= tabs_len + slash_len {
         tab_height
             .saturating_add(u16::try_from(selected_index - tabs_len).unwrap_or(u16::MAX))
             .saturating_add(1)
-    } else if selected_index <= tabs_len + slash_len + 2 {
+    } else if selected_index < maintenance_start + 2 {
         tab_height
             .saturating_add(slash_height)
             .saturating_add(
-                u16::try_from(selected_index - (tabs_len + slash_len + 1)).unwrap_or(u16::MAX),
+                u16::try_from(selected_index - maintenance_start).unwrap_or(u16::MAX),
+            )
+            .saturating_add(1)
+    } else if selected_index < ai_start {
+        tab_height
+            .saturating_add(slash_height)
+            .saturating_add(maintenance_height)
+            .saturating_add(
+                u16::try_from(selected_index - advanced_start).unwrap_or(u16::MAX),
             )
             .saturating_add(1)
     } else {
         tab_height
             .saturating_add(slash_height)
             .saturating_add(maintenance_height)
+            .saturating_add(advanced_height)
             .saturating_add(
-                u16::try_from(selected_index.saturating_sub(tabs_len + slash_len + 3))
-                    .unwrap_or(u16::MAX),
+                u16::try_from(selected_index - ai_start).unwrap_or(u16::MAX),
             )
             .saturating_add(1)
     };
@@ -474,6 +510,93 @@ fn render_scrollbar(
             area.inner(ratatui::layout::Margin { vertical: 0, horizontal: 0 }),
             &mut scrollbar_state,
         );
+    }
+}
+
+fn render_ai(
+    f: &mut Frame<'_>,
+    area: Rect,
+    ai_area: Rect,
+    state: &RenderState<'_, '_>,
+    tabs_len: usize,
+    slash_len: usize,
+) {
+    let palette = get_palette(state.settings.theme_name.as_deref());
+    let selected_index = state.nav.selected_index;
+    let s = state.settings;
+
+    let maintenance_start = tabs_len + slash_len + 1;
+    let advanced_start = maintenance_start + 2;
+    let ai_idx = advanced_start + 5
+        + usize::from(s.startup_behavior == contracts::StartupBehavior::Specific);
+    let is_ai_focused = selected_index >= ai_idx;
+
+    let on_off = |v: bool| if v { "[ON]" } else { "[OFF]" };
+    let tier_label = match s.ai_model_tier {
+        contracts::ModelTier::Fast => "Fast (gemma-4-E2B-it)",
+        contracts::ModelTier::Balanced => "Balanced (gemma-4-E4B-it)",
+        contracts::ModelTier::Quality => "Quality (gemma-3-12b-it)",
+    };
+    let token_display = if s.hf_token.as_ref().is_some_and(|t| !t.is_empty()) {
+        "••••••••"
+    } else {
+        "(not set)"
+    };
+    let path_display = s.ai_model_path.as_deref().unwrap_or("(not set)");
+
+    let labels = [
+        format!("Enable AI features: {}", on_off(s.ai_enabled)),
+        format!("Model tier: {tier_label}"),
+        format!("Auto-title on save: {}", on_off(s.ai_auto_title)),
+        "Download model (Enter)".to_string(),
+        format!("HuggingFace token: {token_display}"),
+        format!("Custom model path: {path_display}"),
+    ];
+
+    let items: Vec<ListItem<'_>> = labels
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let idx = ai_idx + i;
+            let is_sel = selected_index == idx;
+            let style = if is_sel {
+                Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(palette.fg)
+            };
+            ListItem::new(format!("{} {label}", if is_sel { ">" } else { " " })).style(style)
+        })
+        .collect();
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" AI (Space to toggle, Enter to act) ")
+        .border_style(if is_ai_focused {
+            Style::default().fg(palette.accent)
+        } else {
+            Style::default().fg(palette.fg)
+        });
+
+    let list = List::new(items).block(block).style(Style::default().bg(palette.bg));
+
+    if ai_area.y < area.y + area.height && ai_area.y + ai_area.height > area.y {
+        f.render_widget(list, area.intersection(ai_area));
+    }
+
+    // Download progress bar
+    if let Some(pct) = state.ai_download_progress {
+        let bar_area = Rect {
+            x: ai_area.x + 2,
+            y: ai_area.y + 4,
+            width: ai_area.width.saturating_sub(4),
+            height: 1,
+        };
+        if bar_area.y >= area.y && bar_area.y < area.y + area.height {
+            let gauge = Gauge::default()
+                .gauge_style(Style::default().fg(palette.accent).bg(palette.bg))
+                .ratio(f64::from(pct).clamp(0.0, 1.0));
+            f.render_widget(gauge, area.intersection(bar_area));
+        }
     }
 }
 

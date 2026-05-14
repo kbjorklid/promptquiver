@@ -69,6 +69,14 @@ pub struct Project {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum ModelTier {
+    #[default]
+    Fast,
+    Balanced,
+    Quality,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum PreviewMode {
     #[default]
     Bottom,
@@ -84,6 +92,10 @@ pub enum StartupBehavior {
     Specific,
 }
 
+fn default_ai_auto_title() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,
@@ -97,6 +109,16 @@ pub struct Settings {
     pub startup_behavior: StartupBehavior,
     pub last_active_project_id: Option<Uuid>,
     pub specific_project_id: Option<Uuid>,
+    #[serde(default)]
+    pub ai_enabled: bool,
+    #[serde(default)]
+    pub ai_model_tier: ModelTier,
+    #[serde(default)]
+    pub ai_model_path: Option<String>,
+    #[serde(default = "default_ai_auto_title")]
+    pub ai_auto_title: bool,
+    #[serde(default)]
+    pub hf_token: Option<String>,
 }
 
 impl Settings {

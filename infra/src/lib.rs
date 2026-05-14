@@ -1,9 +1,14 @@
+pub mod ai;
 pub mod claude;
 pub mod clipboard;
 pub mod git;
 pub mod service;
 pub mod storage;
 
+pub use ai::download::ModelDownloader;
+pub use ai::{AiEngine, MockAiEngine, NoopEngine};
+#[cfg(feature = "ai")]
+pub use ai::candle::CandleEngine;
 pub use clipboard::{MockClipboard, RealClipboard};
 pub use git::{MockGit, RealGit};
 pub use service::RealAppService;

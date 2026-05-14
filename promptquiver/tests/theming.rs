@@ -181,5 +181,7 @@ fn app_to_render_state<'a>(app: &'a mut App<'static>) -> ui::RenderState<'a, 'st
         current_branch: app.current_branch.as_deref(),
         show_help: app.show_help,
         help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
     }
 }

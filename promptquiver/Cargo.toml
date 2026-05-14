@@ -30,5 +30,10 @@ regex.workspace = true
 notify = "8.2.0"
 clap.workspace = true
 
+[features]
+ai = ["infra/ai"]
+ai-cuda = ["ai", "infra/ai-cuda"]
+ai-metal = ["ai", "infra/ai-metal"]
+
 [dev-dependencies]
 tempfile.workspace = true

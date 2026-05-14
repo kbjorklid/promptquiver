@@ -26,6 +26,17 @@ ignore = "0.4"
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 notify = "8.2.0"
 yaml_serde = "0.10.4"
+# gemma4 is only in candle git; switch to a crate release once one ships with it
+candle-core = { git = "https://github.com/huggingface/candle", optional = true }
+candle-transformers = { git = "https://github.com/huggingface/candle", optional = true }
+candle-nn = { git = "https://github.com/huggingface/candle", optional = true }
+hf-hub = { version = "0.4", features = ["tokio"], optional = true }
+tokenizers = { version = "0.21", optional = true }
+
+[features]
+ai = ["candle-core", "candle-transformers", "candle-nn", "hf-hub", "tokenizers"]
+ai-cuda = ["ai", "candle-core/cuda"]
+ai-metal = ["ai", "candle-core/metal"]
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["full", "macros"] }

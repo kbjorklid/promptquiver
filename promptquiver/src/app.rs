@@ -3,6 +3,12 @@ use ratatui_toaster::{ToastBuilder, ToastEngine, ToastMessage, ToastPosition, To
 use std::sync::Arc;
 pub use ui::{AppMessage, EditorModule, ListModule, Mode, UpdateContext};
 
+#[cfg(feature = "ai")]
+fn data_dir() -> std::path::PathBuf {
+    directories::ProjectDirs::from("", "", "promptquiver")
+        .map_or_else(|| std::path::PathBuf::from("."), |d| d.data_dir().to_path_buf())
+}
+
 use std::fmt;
 
 pub struct App<'a> {
@@ -22,6 +28,10 @@ pub struct App<'a> {
     pub show_help: bool,
     pub help_scroll: u16,
     pub claude_commands: Vec<contracts::Prompt>,
+    pub ai_title_tx: Option<tokio::sync::mpsc::Sender<(uuid::Uuid, String)>>,
+    pub ai_pending_titles: std::collections::HashSet<uuid::Uuid>,
+    pub ai_download_progress: Option<f32>,
+    pub ai_progress_tx: Option<tokio::sync::mpsc::Sender<AppMessage>>,
 }
 
 impl fmt::Debug for App<'_> {
@@ -193,6 +203,62 @@ impl App<'_> {
             AppMessage::ScrollHelpDown => {
                 self.help_scroll = self.help_scroll.saturating_add(1);
             }
+            AppMessage::TitleGenerated(id, title) => {
+                self.ai_pending_titles.remove(&id);
+                let all = self
+                    .storage
+                    .get_prompts(contracts::PromptFilter::default())
+                    .await?;
+                if let Some(mut prompt) = all.into_iter().find(|p| p.id == id) {
+                    prompt.name = Some(title);
+                    self.storage.save_prompt(prompt).await?;
+                    self.load_prompts().await?;
+                    self.notify("Title generated", ToastType::Info);
+                }
+            }
+            AppMessage::AiDownloadProgress(pct) => {
+                if pct >= 1.0 {
+                    self.ai_download_progress = None;
+                    self.notify("Model ready — AI features enabled", ToastType::Success);
+                } else {
+                    self.ai_download_progress = Some(pct);
+                }
+            }
+            AppMessage::RequestModelDownload => {
+                self.ai_download_progress = Some(0.0);
+                #[cfg(feature = "ai")]
+                if let Some(tx) = self.ai_progress_tx.clone() {
+                    let settings = self.settings.clone();
+                    let dir = data_dir();
+                    tokio::spawn(async move {
+                        let downloader = infra::ModelDownloader::new(dir);
+                        let mid = infra::ai::model_id(settings.ai_model_tier);
+                        let token = settings.hf_token.as_deref().map(str::to_string);
+                        let (prog_tx, mut prog_rx) =
+                            tokio::sync::mpsc::channel::<infra::ai::download::DownloadProgress>(
+                                20,
+                            );
+                        let dl_fut = downloader.download(mid, token.as_deref(), prog_tx);
+                        tokio::pin!(dl_fut);
+                        loop {
+                            tokio::select! {
+                                result = &mut dl_fut => {
+                                    match result {
+                                        Ok(()) => { let _ = tx.send(AppMessage::AiDownloadProgress(1.0)).await; }
+                                        Err(e) => { let _ = tx.send(AppMessage::Notify(format!("Download failed: {e}"), ratatui_toaster::ToastType::Error)).await; }
+                                    }
+                                    break;
+                                }
+                                Some(p) = prog_rx.recv() => {
+                                    let _ = tx.send(AppMessage::AiDownloadProgress(p.fraction())).await;
+                                }
+                            }
+                        }
+                    });
+                }
+                #[cfg(not(feature = "ai"))]
+                self.notify("AI feature not compiled in this build", ToastType::Error);
+            }
             _ => {}
         }
         Ok(None)
@@ -222,6 +288,10 @@ impl App<'_> {
             show_help: false,
             help_scroll: 0,
             claude_commands: Vec::new(),
+            ai_title_tx: None,
+            ai_pending_titles: std::collections::HashSet::new(),
+            ai_download_progress: None,
+            ai_progress_tx: None,
         }
     }
 
@@ -506,6 +576,8 @@ impl App<'_> {
 
         let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
         let project_id = self.nav.projects_manager.active_project_id;
+        let text_for_ai = text.clone();
+        let title_is_empty = title.is_none();
 
         let res = self
             .service
@@ -529,6 +601,19 @@ impl App<'_> {
                 // Select the saved item
                 if let Some(index) = self.nav.prompts.iter().position(|p| p.id == saved_id) {
                     self.nav.selected_index = index;
+                }
+
+                // Queue AI title generation for untitled prompts
+                if self.settings.ai_enabled
+                    && self.settings.ai_auto_title
+                    && title_is_empty
+                    && self.nav.active_tab != Tab::Snippets
+                {
+                    if let Some(tx) = &self.ai_title_tx {
+                        if tx.try_send((saved_id, text_for_ai)).is_ok() {
+                            self.ai_pending_titles.insert(saved_id);
+                        }
+                    }
                 }
 
                 self.notify("Prompt saved!", ToastType::Success);

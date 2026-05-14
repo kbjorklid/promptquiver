@@ -196,10 +196,11 @@ impl ListModule {
         let slash_len = settings.slash_commands.len();
         let mut count = tabs_len + slash_len + 1; // tabs + slash commands + "Add New"
         count += 2; // Maintenance: Export, Import
-        count += 4; // Advanced: Claude, Nerd, Theme, Startup Behavior
+        count += 5; // Advanced: Claude Discovery, Claude Builtin, Nerd Font, Theme, Startup Behavior
         if settings.startup_behavior == contracts::StartupBehavior::Specific {
             count += 1; // Startup Project
         }
+        count += 6; // AI: Enable, Model Tier, Auto-title, Download, HF Token, Model Path
         count
     }
 
@@ -733,7 +734,42 @@ impl ListModule {
             }
             idx if idx == advanced_start + 4 => Ok(Some(AppMessage::ToggleStartupBehavior)),
             idx if idx == advanced_start + 5 => Ok(Some(AppMessage::SelectStartupProject)),
-            _ => Ok(None),
+            _ => {
+                let ai_idx = advanced_start
+                    + 5
+                    + usize::from(
+                        ctx.settings.startup_behavior == contracts::StartupBehavior::Specific,
+                    );
+                match self.selected_index {
+                    idx if idx == ai_idx => {
+                        ctx.settings.ai_enabled = !ctx.settings.ai_enabled;
+                        ctx.storage.save_settings(ctx.settings.clone()).await?;
+                        Ok(Some(AppMessage::Notify(
+                            format!(
+                                "AI features: {}",
+                                if ctx.settings.ai_enabled { "ON" } else { "OFF" }
+                            ),
+                            ratatui_toaster::ToastType::Info,
+                        )))
+                    }
+                    idx if idx == ai_idx + 1 => {
+                        ctx.settings.ai_model_tier = match ctx.settings.ai_model_tier {
+                            contracts::ModelTier::Fast => contracts::ModelTier::Balanced,
+                            contracts::ModelTier::Balanced => contracts::ModelTier::Quality,
+                            contracts::ModelTier::Quality => contracts::ModelTier::Fast,
+                        };
+                        ctx.storage.save_settings(ctx.settings.clone()).await?;
+                        Ok(None)
+                    }
+                    idx if idx == ai_idx + 2 => {
+                        ctx.settings.ai_auto_title = !ctx.settings.ai_auto_title;
+                        ctx.storage.save_settings(ctx.settings.clone()).await?;
+                        Ok(None)
+                    }
+                    idx if idx == ai_idx + 3 => Ok(Some(AppMessage::RequestModelDownload)),
+                    _ => Ok(None),
+                }
+            }
         }
     }
 

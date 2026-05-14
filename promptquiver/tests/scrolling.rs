@@ -45,6 +45,8 @@ async fn test_list_scrolling() {
                     current_branch: app.current_branch.as_deref(),
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
                 },
                 &mut None,
             );
@@ -98,6 +100,8 @@ async fn test_settings_scrolling() {
                 current_branch: app.current_branch.as_deref(),
                 show_help: app.show_help,
                 help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
             };
             ui::render(f, state, &mut app.toaster);
         })
@@ -121,6 +125,8 @@ async fn test_settings_scrolling() {
                 current_branch: app.current_branch.as_deref(),
                 show_help: app.show_help,
                 help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
             };
             ui::render(f, state, &mut app.toaster);
         })
@@ -145,6 +151,8 @@ async fn test_settings_scrolling() {
                 current_branch: app.current_branch.as_deref(),
                 show_help: app.show_help,
                 help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
             };
             ui::render(f, state, &mut app.toaster);
         })

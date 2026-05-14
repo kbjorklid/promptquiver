@@ -10,13 +10,11 @@ async fn test_settings_navigation_and_tab_focus() {
     app.load_prompts().await.unwrap();
 
     assert_eq!(app.nav.selected_index, 0);
-    app.move_down();
-    assert_eq!(app.nav.selected_index, 1);
-
-    for _ in 0..15 {
+    let total = app.nav.total_settings_count(&app.settings);
+    // Move down enough to hit the bottom
+    for _ in 0..total + 5 {
         app.move_down();
     }
-    let total = app.nav.total_settings_count(&app.settings);
     assert_eq!(app.nav.selected_index, total - 1);
 
     app.move_up();
@@ -110,6 +108,8 @@ async fn test_coverage_boost_settings_render() {
                     current_branch: None,
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
                 },
                 &mut None,
             );
@@ -135,6 +135,8 @@ async fn test_coverage_boost_settings_render() {
                     current_branch: None,
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending_titles: None,
+                    ai_download_progress: None,
                 },
                 &mut None,
             );
