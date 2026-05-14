@@ -20,7 +20,7 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
 
     let tab_height = 8;
     let slash_height = u16::try_from(slash_len + 3).unwrap_or(u16::MAX);
-    let mut advanced_count: usize = 6;
+    let mut advanced_count: usize = 7;
     if settings.startup_behavior == contracts::StartupBehavior::Specific {
         advanced_count += 1;
     }
@@ -370,13 +370,14 @@ fn render_advanced(
 
     let settings = state.settings;
     let claude_status = if settings.enable_claude_commands { "[ON]" } else { "[OFF]" };
+    let builtin_status = if settings.enable_claude_builtin_commands { "[ON]" } else { "[OFF]" };
     let nerd_status = if settings.use_nerd_font { "[ON]" } else { "[OFF]" };
     let current_theme = settings.theme_name.as_deref().unwrap_or("Default");
     let behavior_status = format!("{:?}", settings.startup_behavior);
 
     let mut items = vec![
         ListItem::new(format!(
-            "{} Enable Claude Commands: {}",
+            "{} Enable Claude Command and Skill Discovery: {}",
             if selected_index == advanced_idx { ">" } else { " " },
             claude_status
         ))
@@ -386,9 +387,9 @@ fn render_advanced(
             Style::default().fg(palette.fg)
         }),
         ListItem::new(format!(
-            "{} Use Nerd Font Icons: {}",
+            "{} Enable Claude Built-in Commands: {}",
             if selected_index == advanced_idx + 1 { ">" } else { " " },
-            nerd_status
+            builtin_status
         ))
         .style(if selected_index == advanced_idx + 1 {
             Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
@@ -396,9 +397,9 @@ fn render_advanced(
             Style::default().fg(palette.fg)
         }),
         ListItem::new(format!(
-            "{} Theme: {}",
+            "{} Use Nerd Font Icons: {}",
             if selected_index == advanced_idx + 2 { ">" } else { " " },
-            current_theme
+            nerd_status
         ))
         .style(if selected_index == advanced_idx + 2 {
             Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
@@ -406,11 +407,21 @@ fn render_advanced(
             Style::default().fg(palette.fg)
         }),
         ListItem::new(format!(
-            "{} Project selection at startup: {}",
+            "{} Theme: {}",
             if selected_index == advanced_idx + 3 { ">" } else { " " },
-            behavior_status
+            current_theme
         ))
         .style(if selected_index == advanced_idx + 3 {
+            Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.fg)
+        }),
+        ListItem::new(format!(
+            "{} Project selection at startup: {}",
+            if selected_index == advanced_idx + 4 { ">" } else { " " },
+            behavior_status
+        ))
+        .style(if selected_index == advanced_idx + 4 {
             Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.fg)
@@ -433,10 +444,10 @@ fn render_advanced(
         items.push(
             ListItem::new(format!(
                 "{} Startup Project: {}",
-                if selected_index == advanced_idx + 4 { ">" } else { " " },
+                if selected_index == advanced_idx + 5 { ">" } else { " " },
                 project_name
             ))
-            .style(if selected_index == advanced_idx + 4 {
+            .style(if selected_index == advanced_idx + 5 {
                 Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(palette.fg)

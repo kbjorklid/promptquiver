@@ -5,6 +5,84 @@ use ratatui_textarea::TextArea;
 use std::sync::Arc;
 use uuid::Uuid;
 
+const CLAUDE_BUILTIN_COMMANDS: &[&str] = &[
+    "add-dir",
+    "agents",
+    "autofix-pr",
+    "background",
+    "branch",
+    "btw",
+    "chrome",
+    "clear",
+    "color",
+    "compact",
+    "config",
+    "context",
+    "copy",
+    "desktop",
+    "diff",
+    "doctor",
+    "effort",
+    "exit",
+    "export",
+    "extra-usage",
+    "fast",
+    "feedback",
+    "focus",
+    "goal",
+    "heapdump",
+    "help",
+    "hooks",
+    "ide",
+    "init",
+    "insights",
+    "install-github-app",
+    "install-slack-app",
+    "keybindings",
+    "login",
+    "logout",
+    "mcp",
+    "memory",
+    "mobile",
+    "model",
+    "passes",
+    "permissions",
+    "plan",
+    "plugin",
+    "powerup",
+    "privacy-settings",
+    "radio",
+    "recap",
+    "release-notes",
+    "reload-plugins",
+    "remote-control",
+    "remote-env",
+    "rename",
+    "resume",
+    "review",
+    "rewind",
+    "sandbox",
+    "scroll-speed",
+    "skills",
+    "stats",
+    "status",
+    "statusline",
+    "stickers",
+    "stop",
+    "tasks",
+    "team-onboarding",
+    "teleport",
+    "terminal-setup",
+    "theme",
+    "tui",
+    "ultraplan",
+    "ultrareview",
+    "upgrade",
+    "usage",
+    "voice",
+    "web-setup",
+];
+
 #[derive(Debug, Default)]
 pub struct AutocompleteState {
     pub open: bool,
@@ -107,6 +185,19 @@ impl AutocompleteState {
 
                     if settings.enable_claude_commands {
                         combined_commands.extend(claude_commands.iter().cloned());
+                    }
+
+                    if settings.enable_claude_builtin_commands {
+                        combined_commands.extend(CLAUDE_BUILTIN_COMMANDS.iter().map(|cmd| {
+                            Prompt::new(
+                                (*cmd).to_string(),
+                                PromptType::Prompt,
+                                None,
+                                None,
+                                Some((*cmd).to_string()),
+                                None,
+                            )
+                        }));
                     }
 
                     let mut scored_suggestions: Vec<(u32, Prompt)> = Vec::new();

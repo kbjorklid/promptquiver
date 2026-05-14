@@ -702,13 +702,25 @@ impl ListModule {
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
                 Ok(Some(AppMessage::Notify(
                     format!(
-                        "Claude commands: {}",
+                        "Claude Command and Skill Discovery: {}",
                         if ctx.settings.enable_claude_commands { "ON" } else { "OFF" }
                     ),
                     ratatui_toaster::ToastType::Info,
                 )))
             }
             idx if idx == advanced_start + 1 => {
+                ctx.settings.enable_claude_builtin_commands =
+                    !ctx.settings.enable_claude_builtin_commands;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(Some(AppMessage::Notify(
+                    format!(
+                        "Claude Built-in Commands: {}",
+                        if ctx.settings.enable_claude_builtin_commands { "ON" } else { "OFF" }
+                    ),
+                    ratatui_toaster::ToastType::Info,
+                )))
+            }
+            idx if idx == advanced_start + 2 => {
                 ctx.settings.use_nerd_font = !ctx.settings.use_nerd_font;
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
                 Ok(Some(AppMessage::Notify(
@@ -719,8 +731,8 @@ impl ListModule {
                     ratatui_toaster::ToastType::Info,
                 )))
             }
-            idx if idx == advanced_start + 3 => Ok(Some(AppMessage::ToggleStartupBehavior)),
-            idx if idx == advanced_start + 4 => Ok(Some(AppMessage::SelectStartupProject)),
+            idx if idx == advanced_start + 4 => Ok(Some(AppMessage::ToggleStartupBehavior)),
+            idx if idx == advanced_start + 5 => Ok(Some(AppMessage::SelectStartupProject)),
             _ => Ok(None),
         }
     }

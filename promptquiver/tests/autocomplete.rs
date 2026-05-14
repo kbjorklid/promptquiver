@@ -150,6 +150,31 @@ async fn test_autocomplete_slash_command_title() {
 }
 
 #[tokio::test]
+async fn test_autocomplete_builtin_commands() {
+    let (mut app, _, _, _) = setup_app();
+    app.settings.enable_claude_builtin_commands = true;
+
+    app.enter_editor(String::new(), None);
+    app.editor.textarea.move_cursor(ratatui_textarea::CursorMove::End);
+
+    for c in "/cle".chars() {
+        app.editor.textarea.input(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char(c),
+            crossterm::event::KeyModifiers::empty(),
+        ));
+    }
+    app.update_autocomplete().await.unwrap();
+
+    assert!(app.editor.autocomplete.open, "autocomplete should be open after /cle");
+    assert!(
+        app.editor.autocomplete.suggestions.iter().any(|s| {
+            s.name.as_deref().unwrap_or("").contains("clear") || s.text.contains("clear")
+        }),
+        "expected /clear in autocomplete suggestions"
+    );
+}
+
+#[tokio::test]
 async fn test_autocomplete_closes_on_trigger_removal() {
     let (mut app, _, _, _) = setup_app();
 

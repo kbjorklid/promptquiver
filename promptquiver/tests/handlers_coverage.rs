@@ -381,6 +381,29 @@ async fn test_toggle_setting_key() {
 }
 
 #[tokio::test]
+async fn test_toggle_enable_builtin_commands() {
+    let (mut app, _, _, _) = setup_app();
+    app.set_tab(Tab::Settings);
+
+    let tabs_len = Tab::settings_display_len();
+    let maintenance_len = 2;
+    // enable_claude_builtin_commands is advanced_start + 1 (one after enable_claude_commands)
+    app.nav.selected_index = tabs_len + app.settings.slash_commands.len() + 1 + maintenance_len + 1;
+
+    let original = app.settings.enable_claude_builtin_commands;
+
+    let space_key = KeyEvent {
+        code: KeyCode::Char(' '),
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        state: KeyEventState::NONE,
+    };
+
+    handle_key_event(&mut app, space_key).await;
+    assert_ne!(app.settings.enable_claude_builtin_commands, original);
+}
+
+#[tokio::test]
 async fn test_archive_slash_command() {
     let (mut app, _, _, _) = setup_app();
     app.settings.slash_commands = vec!["/test".to_string()];
