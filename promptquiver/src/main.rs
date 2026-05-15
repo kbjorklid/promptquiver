@@ -237,10 +237,7 @@ async fn run_app_loop(
 
         #[cfg(feature = "ai")]
         while let Ok((id, title)) = ai_result_rx.try_recv() {
-            handle_error!(
-                app,
-                app.handle_message(ui::AppMessage::TitleGenerated(id, title)).await
-            );
+            handle_error!(app, app.handle_message(ui::AppMessage::TitleGenerated(id, title)).await);
         }
 
         while let Ok((query, results)) = file_result_rx.try_recv() {

@@ -482,14 +482,12 @@ impl App<'_> {
         if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::settings_display_len();
             let slash_len = self.settings.slash_commands.len();
-            let ai_start =
-                ui::settings::ai_section_start(&self.settings, tabs_len, slash_len);
+            let ai_start = ui::settings::ai_section_start(&self.settings, tabs_len, slash_len);
 
             if self.nav.selected_index == ai_start + 1 {
                 // Save AI model path
                 let trimmed = text.trim().to_string();
-                self.settings.ai_model_path =
-                    if trimmed.is_empty() { None } else { Some(trimmed) };
+                self.settings.ai_model_path = if trimmed.is_empty() { None } else { Some(trimmed) };
                 self.storage.save_settings(self.settings.clone()).await?;
                 self.exit_editor();
                 self.notify("AI model path saved!", ToastType::Success);

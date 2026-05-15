@@ -1,13 +1,7 @@
 /// Extracts a clean title from the first line of model output.
 /// Returns None if empty, >60 chars, or whitespace only.
 pub fn extract_title(raw: &str) -> Option<String> {
-    let title = raw
-        .lines()
-        .next()?
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_string();
+    let title = raw.lines().next()?.trim().trim_matches('"').trim_matches('\'').to_string();
     if title.is_empty() || title.len() > 60 {
         return None;
     }
@@ -52,17 +46,13 @@ pub mod engine {
         /// Returns `None` if the output is empty, malformed, or longer than 60 chars.
         pub async fn generate_title(&self, id: Uuid, text: &str) -> Result<Option<(Uuid, String)>> {
             let user_message = title_prompt(text);
-            let messages =
-                TextMessages::new().add_message(TextMessageRole::User, &user_message);
+            let messages = TextMessages::new().add_message(TextMessageRole::User, &user_message);
 
             let request = RequestBuilder::new(messages).set_sampler_max_len(30);
 
             let response = self.model.send_chat_request(request).await?;
-            let raw = response
-                .choices
-                .first()
-                .and_then(|c| c.message.content.as_deref())
-                .unwrap_or("");
+            let raw =
+                response.choices.first().and_then(|c| c.message.content.as_deref()).unwrap_or("");
 
             Ok(extract_title(raw).map(|title| (id, title)))
         }

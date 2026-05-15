@@ -13,10 +13,15 @@ use ratatui_themes::ThemePalette;
 pub const ADVANCED_BASE_ITEMS: usize = 5;
 
 /// Computes the starting `selected_index` for the AI settings section.
-pub fn ai_section_start(settings: &contracts::Settings, tabs_len: usize, slash_len: usize) -> usize {
+pub fn ai_section_start(
+    settings: &contracts::Settings,
+    tabs_len: usize,
+    slash_len: usize,
+) -> usize {
     let maintenance_start = tabs_len + slash_len + 1;
     let advanced_start = maintenance_start + 2;
-    let conditional = usize::from(settings.startup_behavior == contracts::StartupBehavior::Specific);
+    let conditional =
+        usize::from(settings.startup_behavior == contracts::StartupBehavior::Specific);
     advanced_start + ADVANCED_BASE_ITEMS + conditional
 }
 
@@ -42,8 +47,7 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
     let ai_item_count = 2 + usize::from(settings.ai_enabled);
     let ai_height = u16::try_from(ai_item_count + 2).unwrap_or(u16::MAX);
 
-    let total_height =
-        tab_height + slash_height + maintenance_height + advanced_height + ai_height;
+    let total_height = tab_height + slash_height + maintenance_height + advanced_height + ai_height;
 
     update_scroll_offset(
         area,

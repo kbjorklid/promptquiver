@@ -696,8 +696,7 @@ impl ListModule {
 
         let advanced_start = maintenance_start + 2;
 
-        let ai_start =
-            crate::settings::ai_section_start(ctx.settings, tabs.len(), slash_len);
+        let ai_start = crate::settings::ai_section_start(ctx.settings, tabs.len(), slash_len);
 
         match self.selected_index {
             idx if idx == advanced_start => {
@@ -740,10 +739,7 @@ impl ListModule {
                 ctx.settings.ai_enabled = !ctx.settings.ai_enabled;
                 ctx.storage.save_settings(ctx.settings.clone()).await?;
                 Ok(Some(AppMessage::Notify(
-                    format!(
-                        "AI Features: {}",
-                        if ctx.settings.ai_enabled { "ON" } else { "OFF" }
-                    ),
+                    format!("AI Features: {}", if ctx.settings.ai_enabled { "ON" } else { "OFF" }),
                     ratatui_toaster::ToastType::Info,
                 )))
             }

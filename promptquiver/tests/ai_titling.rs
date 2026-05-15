@@ -199,11 +199,12 @@ async fn test_title_generated_clears_in_flight_marker() {
 
     assert!(app.ai_generating_title_for.contains(&id), "should be marked in-flight after save");
 
-    app.handle_message(AppMessage::TitleGenerated(id, "Final Title".to_string()))
-        .await
-        .unwrap();
+    app.handle_message(AppMessage::TitleGenerated(id, "Final Title".to_string())).await.unwrap();
 
-    assert!(!app.ai_generating_title_for.contains(&id), "in-flight marker should be cleared after title applied");
+    assert!(
+        !app.ai_generating_title_for.contains(&id),
+        "in-flight marker should be cleared after title applied"
+    );
 }
 
 /// `TitleGenerated` is a no-op when the prompt already has a name.
@@ -221,9 +222,7 @@ async fn test_title_generated_no_op_if_already_named() {
     assert!(before.name.is_some(), "should have name from title line");
 
     // AI sends a title — should be ignored
-    app.handle_message(AppMessage::TitleGenerated(id, "AI Title".to_string()))
-        .await
-        .unwrap();
+    app.handle_message(AppMessage::TitleGenerated(id, "AI Title".to_string())).await.unwrap();
 
     let after = storage.get_prompt(id).await.unwrap().unwrap();
     assert_eq!(after.name, before.name, "name should not change");
