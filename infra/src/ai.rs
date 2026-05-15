@@ -27,12 +27,16 @@ pub mod engine {
     use mistralrs::{IsqType, RequestBuilder, TextMessageRole, TextMessages, TextModelBuilder};
     use uuid::Uuid;
 
+    #[allow(missing_debug_implementations)]
     pub struct AiTitleEngine {
         model: mistralrs::Model,
     }
 
     impl AiTitleEngine {
-        /// Loads the model from a HuggingFace Hub model ID or local directory path.
+        /// Loads the model from a `HuggingFace` Hub model ID or local directory path.
+        ///
+        /// # Errors
+        /// Returns an error if the model cannot be loaded from the given path or hub ID.
         pub async fn load(model_id: &str) -> Result<Self> {
             let model = TextModelBuilder::new(model_id)
                 .with_isq(IsqType::Q4K)
@@ -44,6 +48,9 @@ pub mod engine {
 
         /// Generates a title for the given prompt text.
         /// Returns `None` if the output is empty, malformed, or longer than 60 chars.
+        ///
+        /// # Errors
+        /// Returns an error if the model inference call fails.
         pub async fn generate_title(&self, id: Uuid, text: &str) -> Result<Option<(Uuid, String)>> {
             let user_message = title_prompt(text);
             let messages = TextMessages::new().add_message(TextMessageRole::User, &user_message);
