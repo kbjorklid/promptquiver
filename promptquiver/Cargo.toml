@@ -7,6 +7,11 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+ai = ["infra/ai"]
+ai-cuda = ["ai", "infra/ai-cuda"]
+ai-metal = ["ai", "infra/ai-metal"]
+
 [dependencies]
 contracts = { path = "../contracts" }
 infra = { path = "../infra" }

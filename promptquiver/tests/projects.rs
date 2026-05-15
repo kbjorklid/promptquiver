@@ -36,6 +36,7 @@ async fn test_new_project_footer_update() {
                     current_branch: app.current_branch.as_deref(),
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut app.toaster,
             );
@@ -157,6 +158,7 @@ async fn test_project_picker_hints_rendered() {
                     current_branch: app.current_branch.as_deref(),
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut app.toaster,
             );

@@ -57,6 +57,20 @@ async fn main() -> Result<()> {
     let mut file_result_rx = setup_file_searcher(&mut app, service.clone());
     let mut db_sync_rx = setup_db_poller(storage.clone());
 
+    #[cfg(feature = "ai")]
+    let mut ai_result_rx = {
+        let settings = storage.get_settings().await.unwrap_or_default();
+        if settings.ai_enabled {
+            if let Some(model_id) = settings.ai_model_path {
+                setup_ai_task(&mut app, model_id)
+            } else {
+                tokio::sync::mpsc::channel(1).1
+            }
+        } else {
+            tokio::sync::mpsc::channel(1).1
+        }
+    };
+
     let mut tui = Tui::new(Terminal::new(ratatui::backend::CrosstermBackend::new(io::stdout()))?);
     tui.enter()?;
 
@@ -66,7 +80,16 @@ async fn main() -> Result<()> {
             .build(),
     );
 
-    run_app_loop(&mut app, &mut tui, &mut branch_rx, &mut file_result_rx, &mut db_sync_rx).await?;
+    run_app_loop(
+        &mut app,
+        &mut tui,
+        &mut branch_rx,
+        &mut file_result_rx,
+        &mut db_sync_rx,
+        #[cfg(feature = "ai")]
+        &mut ai_result_rx,
+    )
+    .await?;
     tui.exit()?;
     Ok(())
 }
@@ -161,12 +184,47 @@ fn setup_db_poller(storage: Arc<dyn Storage>) -> tokio::sync::mpsc::Receiver<()>
     db_sync_rx
 }
 
+/// Sets up the AI title generation background task.
+/// Only compiled when the `ai` feature is enabled.
+#[cfg(feature = "ai")]
+fn setup_ai_task(
+    app: &mut App<'_>,
+    model_id: String,
+) -> tokio::sync::mpsc::Receiver<(uuid::Uuid, String)> {
+    let (req_tx, mut req_rx) = tokio::sync::mpsc::channel::<(uuid::Uuid, String)>(16);
+    let (result_tx, result_rx) = tokio::sync::mpsc::channel::<(uuid::Uuid, String)>(16);
+    app.ai_title_tx = Some(req_tx);
+
+    tokio::spawn(async move {
+        let engine = match infra::ai::engine::AiTitleEngine::load(&model_id).await {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("AI: failed to load model: {e}");
+                return;
+            }
+        };
+
+        while let Some((id, text)) = req_rx.recv().await {
+            match engine.generate_title(id, &text).await {
+                Ok(Some((id, title))) => {
+                    let _ = result_tx.send((id, title)).await;
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!("AI: title generation failed: {e}"),
+            }
+        }
+    });
+
+    result_rx
+}
+
 async fn run_app_loop(
     app: &mut App<'_>,
     tui: &mut Tui<ratatui::backend::CrosstermBackend<io::Stdout>>,
     branch_rx: &mut tokio::sync::mpsc::Receiver<Option<String>>,
     file_result_rx: &mut tokio::sync::mpsc::Receiver<(String, Vec<contracts::Prompt>)>,
     db_sync_rx: &mut tokio::sync::mpsc::Receiver<()>,
+    #[cfg(feature = "ai")] ai_result_rx: &mut tokio::sync::mpsc::Receiver<(uuid::Uuid, String)>,
 ) -> Result<()> {
     while !app.should_quit {
         if let Ok(branch) = branch_rx.try_recv() {
@@ -175,6 +233,14 @@ async fn run_app_loop(
 
         if db_sync_rx.try_recv().is_ok() {
             handle_error!(app, app.handle_message(ui::AppMessage::ReloadPrompts).await);
+        }
+
+        #[cfg(feature = "ai")]
+        while let Ok((id, title)) = ai_result_rx.try_recv() {
+            handle_error!(
+                app,
+                app.handle_message(ui::AppMessage::TitleGenerated(id, title)).await
+            );
         }
 
         while let Ok((query, results)) = file_result_rx.try_recv() {
@@ -201,6 +267,7 @@ async fn run_app_loop(
                 current_branch: app.current_branch.as_deref(),
                 show_help: app.show_help,
                 help_scroll: app.help_scroll,
+                ai_pending: Some(&app.ai_generating_title_for),
             };
             ui::render(f, state, &mut app.toaster);
         })?;

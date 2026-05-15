@@ -26,6 +26,12 @@ ignore = "0.4"
 rusqlite = { version = "0.33.0", features = ["bundled"] }
 notify = "8.2.0"
 yaml_serde = "0.10.4"
+mistralrs = { version = "0.8.1", optional = true }
+
+[features]
+ai = ["dep:mistralrs"]
+ai-cuda = ["ai", "mistralrs/cuda"]
+ai-metal = ["ai", "mistralrs/metal"]
 
 [dev-dependencies]
 tokio = { version = "1.52", features = ["full", "macros"] }

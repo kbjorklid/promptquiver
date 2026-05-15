@@ -195,6 +195,46 @@ impl Storage for SqliteStorage {
         }).await.map_err(|e| contracts::Error::Storage(e.to_string()))?
     }
 
+    async fn get_prompt(&self, id: Uuid) -> Result<Option<Prompt>> {
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let mut stmt = conn
+                .prepare("SELECT id, text, type, folder, project_id, branch, name, staged, last_copied, is_archived, created_at, updated_at, order_index FROM prompts WHERE id = ?1")
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            let result = stmt
+                .query_row([id.to_string()], |row| {
+                    Ok(Prompt {
+                        id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                        text: row.get(1)?,
+                        r#type: match row.get::<_, String>(2)?.as_str() {
+                            "Note" => PromptType::Note,
+                            "Snippet" => PromptType::Snippet,
+                            _ => PromptType::Prompt,
+                        },
+                        folder: row.get(3)?,
+                        project_id: row
+                            .get::<_, Option<String>>(4)?
+                            .map(|s| Uuid::parse_str(&s).unwrap()),
+                        branch: row.get(5)?,
+                        name: row.get(6)?,
+                        staged: row.get(7)?,
+                        last_copied: row.get(8)?,
+                        is_archived: row.get(9)?,
+                        created_at: row.get::<_, String>(10)?.parse::<DateTime<Utc>>().unwrap(),
+                        updated_at: row.get::<_, String>(11)?.parse::<DateTime<Utc>>().unwrap(),
+                        order_index: row.get(12)?,
+                    })
+                })
+                .optional()
+                .map_err(|e| contracts::Error::Storage(e.to_string()))?;
+            Ok(result)
+        })
+        .await
+        .map_err(|e| contracts::Error::Storage(e.to_string()))?
+    }
+
     async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
         let db_path = self.db_path.clone();
         let changed = tokio::task::spawn_blocking(move || {

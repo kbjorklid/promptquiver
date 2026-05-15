@@ -696,6 +696,9 @@ impl ListModule {
 
         let advanced_start = maintenance_start + 2;
 
+        let ai_start =
+            crate::settings::ai_section_start(ctx.settings, tabs.len(), slash_len);
+
         match self.selected_index {
             idx if idx == advanced_start => {
                 ctx.settings.enable_claude_commands = !ctx.settings.enable_claude_commands;
@@ -733,6 +736,28 @@ impl ListModule {
             }
             idx if idx == advanced_start + 4 => Ok(Some(AppMessage::ToggleStartupBehavior)),
             idx if idx == advanced_start + 5 => Ok(Some(AppMessage::SelectStartupProject)),
+            idx if idx == ai_start => {
+                ctx.settings.ai_enabled = !ctx.settings.ai_enabled;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(Some(AppMessage::Notify(
+                    format!(
+                        "AI Features: {}",
+                        if ctx.settings.ai_enabled { "ON" } else { "OFF" }
+                    ),
+                    ratatui_toaster::ToastType::Info,
+                )))
+            }
+            idx if ctx.settings.ai_enabled && idx == ai_start + 2 => {
+                ctx.settings.ai_auto_title = !ctx.settings.ai_auto_title;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(Some(AppMessage::Notify(
+                    format!(
+                        "Auto-title on save: {}",
+                        if ctx.settings.ai_auto_title { "ON" } else { "OFF" }
+                    ),
+                    ratatui_toaster::ToastType::Info,
+                )))
+            }
             _ => Ok(None),
         }
     }

@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod claude;
 pub mod clipboard;
 pub mod git;
@@ -100,6 +101,13 @@ mod tests {
         storage.save_settings(settings.clone()).await.unwrap();
         let loaded_settings = storage.get_settings().await.unwrap();
         assert!(loaded_settings.enable_claude_commands);
+
+        // Test get_prompt by id
+        let fetched = storage.get_prompt(prompt.id).await.unwrap();
+        assert!(fetched.is_some());
+        assert_eq!(fetched.unwrap().id, prompt.id);
+        let missing = storage.get_prompt(Uuid::new_v4()).await.unwrap();
+        assert!(missing.is_none());
 
         assert_eq!(storage.get_data_version().await.unwrap(), 0);
     }
@@ -253,6 +261,13 @@ mod tests {
         // Test data version
         let version = storage.get_data_version().await.unwrap();
         assert!(version > 0);
+
+        // Test get_prompt by id
+        let fetched = storage.get_prompt(prompt.id).await.unwrap();
+        assert!(fetched.is_some());
+        assert_eq!(fetched.unwrap().id, prompt.id);
+        let missing = storage.get_prompt(Uuid::new_v4()).await.unwrap();
+        assert!(missing.is_none());
 
         // Test delete
         storage.delete_prompt(prompt.id).await.unwrap();

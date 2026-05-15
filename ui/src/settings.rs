@@ -9,6 +9,17 @@ use ratatui::widgets::{
 use ratatui::Frame;
 use ratatui_themes::ThemePalette;
 
+/// Number of always-present items in the Advanced section (before conditional startup project).
+pub const ADVANCED_BASE_ITEMS: usize = 5;
+
+/// Computes the starting `selected_index` for the AI settings section.
+pub fn ai_section_start(settings: &contracts::Settings, tabs_len: usize, slash_len: usize) -> usize {
+    let maintenance_start = tabs_len + slash_len + 1;
+    let advanced_start = maintenance_start + 2;
+    let conditional = usize::from(settings.startup_behavior == contracts::StartupBehavior::Specific);
+    advanced_start + ADVANCED_BASE_ITEMS + conditional
+}
+
 pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
     let settings = state.settings;
     let palette = get_palette(settings.theme_name.as_deref());
@@ -28,7 +39,11 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
 
     let maintenance_height = 4;
 
-    let total_height = tab_height + slash_height + maintenance_height + advanced_height;
+    let ai_item_count = 2 + usize::from(settings.ai_enabled);
+    let ai_height = u16::try_from(ai_item_count + 2).unwrap_or(u16::MAX);
+
+    let total_height =
+        tab_height + slash_height + maintenance_height + advanced_height + ai_height;
 
     update_scroll_offset(
         area,
@@ -87,6 +102,21 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
         height: advanced_height,
     };
     render_advanced(f, area, advanced_area, state, tabs_len, slash_len);
+
+    // AI
+    let ai_area = Rect {
+        x: area.x,
+        y: area
+            .y
+            .saturating_add(tab_height)
+            .saturating_add(slash_height)
+            .saturating_add(maintenance_height)
+            .saturating_add(advanced_height)
+            .saturating_sub(scroll_offset),
+        width: area.width,
+        height: ai_height,
+    };
+    render_ai(f, area, ai_area, state, tabs_len, slash_len);
 
     render_scrollbar(f, area, total_height, scroll_offset, &palette);
 
@@ -474,6 +504,70 @@ fn render_scrollbar(
             area.inner(ratatui::layout::Margin { vertical: 0, horizontal: 0 }),
             &mut scrollbar_state,
         );
+    }
+}
+
+fn build_ai_items(
+    state: &RenderState<'_, '_>,
+    selected_index: usize,
+    ai_idx: usize,
+    palette: &ThemePalette,
+) -> Vec<ListItem<'static>> {
+    let s = state.settings;
+    let on_off = |v: bool| if v { "[ON]" } else { "[OFF]" };
+    let model = s.ai_model_path.as_deref().unwrap_or("not set");
+
+    let mut items = vec![
+        advanced_item(
+            &format!("Enable AI Features: {}", on_off(s.ai_enabled)),
+            selected_index == ai_idx,
+            palette,
+        ),
+        advanced_item(
+            &format!("Model (HF Hub ID or path): {model}"),
+            selected_index == ai_idx + 1,
+            palette,
+        ),
+    ];
+
+    if s.ai_enabled {
+        items.push(advanced_item(
+            &format!("Auto-title on save: {}", on_off(s.ai_auto_title)),
+            selected_index == ai_idx + 2,
+            palette,
+        ));
+    }
+
+    items
+}
+
+fn render_ai(
+    f: &mut Frame<'_>,
+    area: Rect,
+    ai_area: Rect,
+    state: &RenderState<'_, '_>,
+    tabs_len: usize,
+    slash_len: usize,
+) {
+    let palette = get_palette(state.settings.theme_name.as_deref());
+    let selected_index = state.nav.selected_index;
+    let ai_idx = ai_section_start(state.settings, tabs_len, slash_len);
+    let is_ai_focused = selected_index >= ai_idx;
+
+    let ai_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" AI (Space to toggle, Enter to edit) ")
+        .border_style(if is_ai_focused {
+            Style::default().fg(palette.accent)
+        } else {
+            Style::default().fg(palette.fg)
+        });
+
+    let items = build_ai_items(state, selected_index, ai_idx, &palette);
+    let ai_list = List::new(items).block(ai_block).style(Style::default().bg(palette.bg));
+
+    if ai_area.y < area.y + area.height && ai_area.y + ai_area.height > area.y {
+        f.render_widget(ai_list, area.intersection(ai_area));
     }
 }
 

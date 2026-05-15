@@ -84,6 +84,11 @@ pub enum StartupBehavior {
     Specific,
 }
 
+const fn default_ai_auto_title() -> bool {
+    true
+}
+
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,
@@ -97,6 +102,12 @@ pub struct Settings {
     pub startup_behavior: StartupBehavior,
     pub last_active_project_id: Option<Uuid>,
     pub specific_project_id: Option<Uuid>,
+    #[serde(default)]
+    pub ai_enabled: bool,
+    #[serde(default)]
+    pub ai_model_path: Option<String>,
+    #[serde(default = "default_ai_auto_title")]
+    pub ai_auto_title: bool,
 }
 
 impl Settings {
@@ -192,6 +203,12 @@ pub trait Storage: Send + Sync {
     /// # Errors
     /// Returns a `Storage` error if the data cannot be retrieved.
     async fn get_prompts(&self, filter: PromptFilter) -> Result<Vec<Prompt>>;
+
+    /// Gets a single prompt by ID, or `None` if not found.
+    ///
+    /// # Errors
+    /// Returns a `Storage` error if the lookup fails.
+    async fn get_prompt(&self, id: Uuid) -> Result<Option<Prompt>>;
 
     /// Saves a single prompt.
     ///
@@ -294,4 +311,33 @@ pub trait Git: Send + Sync {
     /// # Errors
     /// Returns a `Git` error if the branch name cannot be retrieved.
     async fn get_current_branch(&self, path: &str) -> Result<Option<String>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_ai_fields_round_trip() {
+        let s = Settings {
+            ai_enabled: true,
+            ai_model_path: Some("google/gemma-4-E2B-it".to_string()),
+            ai_auto_title: false,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert!(back.ai_enabled);
+        assert_eq!(back.ai_model_path.as_deref(), Some("google/gemma-4-E2B-it"));
+        assert!(!back.ai_auto_title);
+    }
+
+    #[test]
+    fn settings_old_json_gets_ai_defaults() {
+        let json = r#"{"tab_visibility":{},"slash_commands":[],"enable_claude_commands":false,"enable_claude_builtin_commands":false,"use_nerd_font":false,"theme_name":null,"preview_mode":"Bottom","startup_behavior":"Ask","last_active_project_id":null,"specific_project_id":null}"#;
+        let s: Settings = serde_json::from_str(json).unwrap();
+        assert!(!s.ai_enabled);
+        assert!(s.ai_model_path.is_none());
+        assert!(s.ai_auto_title);
+    }
 }

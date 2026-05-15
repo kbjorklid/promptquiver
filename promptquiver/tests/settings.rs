@@ -110,6 +110,7 @@ async fn test_coverage_boost_settings_render() {
                     current_branch: None,
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut None,
             );
@@ -135,6 +136,7 @@ async fn test_coverage_boost_settings_render() {
                     current_branch: None,
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut None,
             );

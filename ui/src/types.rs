@@ -86,6 +86,7 @@ pub enum AppMessage {
     ImportData(String),
     ExportDialogInput(crossterm::event::KeyEvent),
     ImportDialogInput(crossterm::event::KeyEvent),
+    TitleGenerated(uuid::Uuid, String),
 }
 
 #[derive(Debug)]
@@ -97,6 +98,7 @@ pub struct RenderState<'a, 'b> {
     pub current_branch: Option<&'a str>,
     pub show_help: bool,
     pub help_scroll: u16,
+    pub ai_pending: Option<&'a std::collections::HashSet<uuid::Uuid>>,
 }
 
 pub struct UpdateContext<'a> {

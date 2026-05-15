@@ -68,19 +68,21 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
                 ""
             };
 
-            let (display_name, is_draft) =
-                if active_tab == Tab::Prompts || active_tab == Tab::Canned {
-                    contracts::Processor::get_display_title(&p.text)
-                } else {
-                    let name = p.name.as_ref().map_or_else(
-                        || {
-                            let (title, _) = contracts::Processor::extract_title(&p.text);
-                            title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
-                        },
-                        std::clone::Clone::clone,
-                    );
-                    (name, false)
-                };
+            let ai_pending = state.ai_pending.is_some_and(|s| s.contains(&p.id));
+            let (display_name, is_draft) = if ai_pending {
+                ("…".to_string(), false)
+            } else if active_tab == Tab::Prompts || active_tab == Tab::Canned {
+                contracts::Processor::get_display_title(&p.text)
+            } else {
+                let name = p.name.as_ref().map_or_else(
+                    || {
+                        let (title, _) = contracts::Processor::extract_title(&p.text);
+                        title.unwrap_or_else(|| p.text.lines().next().unwrap_or("").to_string())
+                    },
+                    std::clone::Clone::clone,
+                );
+                (name, false)
+            };
 
             let mut style = if i == selected_index {
                 Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)

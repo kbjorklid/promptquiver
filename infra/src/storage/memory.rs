@@ -91,6 +91,11 @@ impl Storage for InMemoryStorage {
         Ok(filtered)
     }
 
+    async fn get_prompt(&self, id: Uuid) -> Result<Option<Prompt>> {
+        let prompts = self.prompts.read().await;
+        Ok(prompts.iter().find(|p| p.id == id).cloned())
+    }
+
     async fn save_prompt(&self, prompt: Prompt) -> Result<()> {
         let mut prompts = self.prompts.write().await;
         if let Some(p) = prompts.iter_mut().find(|p| p.id == prompt.id) {

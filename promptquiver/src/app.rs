@@ -19,6 +19,8 @@ pub struct App<'a> {
     pub settings: contracts::Settings,
     pub last_notification_time: Option<std::time::Instant>,
     pub file_search_tx: Option<tokio::sync::mpsc::Sender<(String, String)>>,
+    pub ai_title_tx: Option<tokio::sync::mpsc::Sender<(uuid::Uuid, String)>>,
+    pub ai_generating_title_for: std::collections::HashSet<uuid::Uuid>,
     pub show_help: bool,
     pub help_scroll: u16,
     pub claude_commands: Vec<contracts::Prompt>,
@@ -193,6 +195,17 @@ impl App<'_> {
             AppMessage::ScrollHelpDown => {
                 self.help_scroll = self.help_scroll.saturating_add(1);
             }
+            AppMessage::TitleGenerated(id, title) => {
+                self.ai_generating_title_for.remove(&id);
+                if let Ok(Some(mut prompt)) = self.storage.get_prompt(id).await {
+                    if prompt.name.is_none() {
+                        prompt.name = Some(title);
+                        self.storage.save_prompt(prompt).await?;
+                        self.load_prompts().await?;
+                        self.notify("Title generated".to_string(), ToastType::Info);
+                    }
+                }
+            }
             _ => {}
         }
         Ok(None)
@@ -219,6 +232,8 @@ impl App<'_> {
             settings: contracts::Settings::default(),
             last_notification_time: None,
             file_search_tx: None,
+            ai_title_tx: None,
+            ai_generating_title_for: std::collections::HashSet::new(),
             show_help: false,
             help_scroll: 0,
             claude_commands: Vec::new(),
@@ -432,6 +447,7 @@ impl App<'_> {
         }
         let tabs_len = Tab::settings_display_len();
         let slash_len = self.settings.slash_commands.len();
+        let ai_start = ui::settings::ai_section_start(&self.settings, tabs_len, slash_len);
 
         if self.nav.selected_index >= tabs_len && self.nav.selected_index < tabs_len + slash_len {
             // Edit existing Slash Command
@@ -443,6 +459,11 @@ impl App<'_> {
             // Add New Slash Command
             self.mode = Mode::Editor;
             self.editor.enter(String::new(), None, None, self.nav.active_tab, None);
+        } else if self.nav.selected_index == ai_start + 1 {
+            // Edit AI model path
+            let text = self.settings.ai_model_path.clone().unwrap_or_default();
+            self.mode = Mode::Editor;
+            self.editor.enter(text, None, None, self.nav.active_tab, None);
         }
     }
 
@@ -453,6 +474,7 @@ impl App<'_> {
     ///
     /// # Panics
     /// Panics if the title validation regex fails to compile.
+    #[allow(clippy::too_many_lines)]
     pub async fn save_editor(&mut self) -> contracts::Result<()> {
         let text = self.editor.textarea.lines().join("\n");
         let path = self.nav.current_project_path();
@@ -460,6 +482,19 @@ impl App<'_> {
         if self.nav.active_tab == Tab::Settings {
             let tabs_len = Tab::settings_display_len();
             let slash_len = self.settings.slash_commands.len();
+            let ai_start =
+                ui::settings::ai_section_start(&self.settings, tabs_len, slash_len);
+
+            if self.nav.selected_index == ai_start + 1 {
+                // Save AI model path
+                let trimmed = text.trim().to_string();
+                self.settings.ai_model_path =
+                    if trimmed.is_empty() { None } else { Some(trimmed) };
+                self.storage.save_settings(self.settings.clone()).await?;
+                self.exit_editor();
+                self.notify("AI model path saved!", ToastType::Success);
+                return Ok(());
+            }
 
             let re = regex::Regex::new("^[a-zA-Z0-9_:-]+$").unwrap();
             let mut trimmed = text.trim();
@@ -502,6 +537,8 @@ impl App<'_> {
             contracts::Processor::extract_title(&text).0
         };
 
+        let is_untitled = title.is_none();
+        let save_text = text.clone();
         self.nav.push_history();
 
         let branch = self.git.get_current_branch(&path).await.unwrap_or_default();
@@ -524,6 +561,15 @@ impl App<'_> {
         match res {
             Ok(saved_id) => {
                 self.exit_editor();
+
+                // Decide on AI queueing before load_prompts reloads settings from storage
+                let should_queue_ai = is_untitled
+                    && matches!(self.nav.active_tab, Tab::Prompts | Tab::Canned | Tab::Notes)
+                    && self.settings.ai_enabled
+                    && self.settings.ai_auto_title
+                    && self.settings.ai_model_path.is_some()
+                    && !self.ai_generating_title_for.contains(&saved_id);
+
                 self.load_prompts().await?;
 
                 // Select the saved item
@@ -532,6 +578,14 @@ impl App<'_> {
                 }
 
                 self.notify("Prompt saved!", ToastType::Success);
+
+                if should_queue_ai {
+                    if let Some(ref tx) = self.ai_title_tx {
+                        if tx.try_send((saved_id, save_text)).is_ok() {
+                            self.ai_generating_title_for.insert(saved_id);
+                        }
+                    }
+                }
             }
             Err(contracts::Error::Conflict(m)) => {
                 self.notify(format!("Conflict: {m}. Changes NOT saved."), ToastType::Error);

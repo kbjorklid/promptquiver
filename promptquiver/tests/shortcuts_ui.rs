@@ -24,6 +24,7 @@ async fn test_dynamic_shortcut_hints() {
                         current_branch: app.current_branch.as_deref(),
                         show_help: app.show_help,
                         help_scroll: app.help_scroll,
+                        ai_pending: None,
                     },
                     &mut None,
                 );

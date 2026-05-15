@@ -70,6 +70,7 @@ async fn test_create_title_in_editor() {
                     current_branch: app.current_branch.as_deref(),
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut None,
             );
@@ -111,6 +112,7 @@ async fn test_create_title_in_editor() {
                     current_branch: app.current_branch.as_deref(),
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut None,
             );
@@ -165,6 +167,7 @@ async fn test_editor_discard_confirmation_modal() {
                     current_branch: app.current_branch.as_deref(),
                     show_help: app.show_help,
                     help_scroll: app.help_scroll,
+                    ai_pending: None,
                 },
                 &mut None,
             );
