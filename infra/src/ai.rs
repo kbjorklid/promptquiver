@@ -48,7 +48,7 @@ pub mod engine {
             let user_message = title_prompt(text);
             let messages = TextMessages::new().add_message(TextMessageRole::User, &user_message);
 
-            let request = RequestBuilder::new(messages).set_sampler_max_len(30);
+            let request = RequestBuilder::from(messages).set_sampler_max_len(30);
 
             let response = self.model.send_chat_request(request).await?;
             let raw =
