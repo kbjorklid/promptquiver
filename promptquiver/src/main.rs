@@ -61,11 +61,10 @@ async fn main() -> Result<()> {
     let mut ai_result_rx = {
         let settings = storage.get_settings().await.unwrap_or_default();
         if settings.ai_enabled {
-            if let Some(model_id) = settings.ai_model_path {
-                setup_ai_task(&mut app, model_id)
-            } else {
-                tokio::sync::mpsc::channel(1).1
-            }
+            settings.ai_model_path.map_or_else(
+                || tokio::sync::mpsc::channel(1).1,
+                |model_id| setup_ai_task(&mut app, model_id),
+            )
         } else {
             tokio::sync::mpsc::channel(1).1
         }
