@@ -53,10 +53,7 @@ async fn test_canned_staging_does_not_archive_prompts() {
     assert!(prompts[0].staged, "P1 should remain staged");
 
     let archive = storage
-        .get_prompts(PromptFilter {
-            tab: Some(Tab::Archive),
-            ..Default::default()
-        })
+        .get_prompts(PromptFilter { tab: Some(Tab::Archive), ..Default::default() })
         .await
         .unwrap();
     assert!(archive.is_empty(), "Archive should be empty");

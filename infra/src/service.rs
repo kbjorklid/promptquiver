@@ -123,10 +123,8 @@ impl AppService for RealAppService {
             self.storage.save_prompt(item).await?;
         } else {
             // Archive previously-staged Prompts visible in the current scope
-            let staged_in_scope = self
-                .storage
-                .get_prompts(PromptFilter { staged: Some(true), ..scope })
-                .await?;
+            let staged_in_scope =
+                self.storage.get_prompts(PromptFilter { staged: Some(true), ..scope }).await?;
             for mut p in staged_in_scope {
                 if p.r#type == contracts::PromptType::Prompt && p.id != item.id {
                     p.staged = false;

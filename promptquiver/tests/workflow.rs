@@ -214,10 +214,7 @@ async fn test_staging_archives_prompt_from_different_folder() {
     app.stage_selected().await.unwrap();
 
     let archived = storage
-        .get_prompts(contracts::PromptFilter {
-            tab: Some(Tab::Archive),
-            ..Default::default()
-        })
+        .get_prompts(contracts::PromptFilter { tab: Some(Tab::Archive), ..Default::default() })
         .await
         .unwrap();
     assert_eq!(archived.len(), 1, "POther should have been archived");

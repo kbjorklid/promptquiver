@@ -707,8 +707,7 @@ impl ListModule {
             )));
         }
 
-        let (maintenance_start, advanced_start) =
-            Self::settings_section_offsets(slash_len);
+        let (maintenance_start, advanced_start) = Self::settings_section_offsets(slash_len);
 
         if self.selected_index < maintenance_start {
             return Ok(None);
