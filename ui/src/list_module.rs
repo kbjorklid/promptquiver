@@ -201,6 +201,14 @@ impl ListModule {
         }
     }
 
+    /// Returns `(maintenance_start, advanced_start)` — the first row indices of each section.
+    /// Both callers (`toggle_setting` and the shortcut handler) must use this to stay in sync.
+    pub fn settings_section_offsets(slash_len: usize) -> (usize, usize) {
+        let maintenance_start = Tab::settings_display_len() + slash_len + 1;
+        let advanced_start = maintenance_start + 2;
+        (maintenance_start, advanced_start)
+    }
+
     pub fn total_settings_count(&self, settings: &contracts::Settings) -> usize {
         let tabs_len = Tab::settings_display_len();
         let slash_len = settings.slash_commands.len();
@@ -694,19 +702,19 @@ impl ListModule {
             )));
         }
 
-        if self.selected_index < tabs.len() + slash_len + 1 {
+        let (maintenance_start, advanced_start) =
+            Self::settings_section_offsets(slash_len);
+
+        if self.selected_index < maintenance_start {
             return Ok(None);
         }
 
-        let maintenance_start = tabs.len() + slash_len + 1;
         if self.selected_index == maintenance_start {
             return Ok(Some(AppMessage::EnterExport));
         }
         if self.selected_index == maintenance_start + 1 {
             return Ok(Some(AppMessage::EnterImport));
         }
-
-        let advanced_start = maintenance_start + 2;
 
         match self.selected_index {
             idx if idx == advanced_start => {

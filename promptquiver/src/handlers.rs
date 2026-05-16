@@ -2,6 +2,7 @@ use crate::app::{App, AppMessage, Mode};
 use contracts::Tab;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui_toaster::ToastType;
+use ui::list_module::ListModule;
 use ui::shortcuts::{get_action, ShortcutAction};
 
 pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
@@ -147,22 +148,22 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
         }
         ShortcutAction::EditSelected => {
             if app.nav.active_tab == Tab::Settings {
-                let tabs_len = Tab::settings_display_len();
                 let slash_len = app.settings.slash_commands.len();
-                let maintenance_idx = tabs_len + slash_len + 1;
-                let advanced_idx = maintenance_idx + 2;
+                let (maintenance_start, advanced_start) =
+                    ListModule::settings_section_offsets(slash_len);
+                let tabs_len = Tab::settings_display_len();
 
                 if app.nav.selected_index < tabs_len
-                    || app.nav.selected_index == maintenance_idx
-                    || app.nav.selected_index == maintenance_idx + 1
-                    || app.nav.selected_index == advanced_idx
-                    || app.nav.selected_index == advanced_idx + 1
-                    || app.nav.selected_index == advanced_idx + 3
+                    || app.nav.selected_index == maintenance_start
+                    || app.nav.selected_index == maintenance_start + 1
+                    || app.nav.selected_index == advanced_start
+                    || app.nav.selected_index == advanced_start + 1
+                    || app.nav.selected_index == advanced_start + 3
                 {
                     messages.push(AppMessage::ToggleSetting);
-                } else if app.nav.selected_index == advanced_idx + 2 {
+                } else if app.nav.selected_index == advanced_start + 2 {
                     messages.push(AppMessage::SelectTheme);
-                } else if app.nav.selected_index == advanced_idx + 4 {
+                } else if app.nav.selected_index == advanced_start + 4 {
                     messages.push(AppMessage::SelectStartupProject);
                 } else {
                     messages.push(AppMessage::EditSetting);
