@@ -3,6 +3,66 @@ use common::setup_app;
 use contracts::{Clipboard, Prompt, PromptFilter, PromptType, Storage, Tab};
 
 #[tokio::test]
+async fn test_canned_staging_alias() {
+    let (mut app, storage, clipboard, _) = setup_app();
+
+    let c1 = Prompt::new("C1".to_string(), PromptType::Prompt, None, None, None, None);
+    storage.save_prompt(c1).await.unwrap();
+
+    app.set_tab(Tab::Canned);
+    app.load_prompts().await.unwrap();
+
+    app.stage_selected().await.unwrap();
+
+    assert!(!app.nav.prompts[0].staged, "Canned prompts should not be stageable");
+    assert_eq!(clipboard.paste().await.unwrap(), "C1", "Should copy to clipboard");
+}
+
+#[tokio::test]
+async fn test_canned_staging_does_not_archive_prompts() {
+    let (mut app, storage, _, _) = setup_app();
+
+    let mut p1 = Prompt::new(
+        "P1".to_string(),
+        PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+    p1.staged = true;
+    storage.save_prompt(p1.clone()).await.unwrap();
+
+    let c1 = Prompt::new("C1".to_string(), PromptType::Prompt, None, None, None, None);
+    storage.save_prompt(c1).await.unwrap();
+
+    app.set_tab(Tab::Canned);
+    app.load_prompts().await.unwrap();
+
+    app.stage_selected().await.unwrap();
+
+    let prompts = storage
+        .get_prompts(PromptFilter {
+            folder: Some(common::TEST_PATH.to_string()),
+            tab: Some(Tab::Prompts),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(prompts.len(), 1, "P1 should still be in Prompts (not archived)");
+    assert!(prompts[0].staged, "P1 should remain staged");
+
+    let archive = storage
+        .get_prompts(PromptFilter {
+            tab: Some(Tab::Archive),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(archive.is_empty(), "Archive should be empty");
+}
+
+#[tokio::test]
 async fn test_note_staging_alias() {
     let (mut app, storage, clipboard, _) = setup_app();
 

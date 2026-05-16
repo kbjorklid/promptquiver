@@ -91,7 +91,7 @@ fn score_and_collect(
 
 #[async_trait]
 impl AppService for RealAppService {
-    async fn stage_item(&self, _folder: &str, tab: Tab, mut item: Prompt) -> Result<()> {
+    async fn stage_item(&self, scope: PromptFilter, tab: Tab, mut item: Prompt) -> Result<()> {
         if tab == Settings {
             return Ok(());
         }
@@ -101,8 +101,8 @@ impl AppService for RealAppService {
             .get_prompts(PromptFilter { tab: Some(Snippets), ..Default::default() })
             .await?;
 
-        // Alias for Notes and Snippets: they cannot be staged anymore
-        if tab == Notes || tab == Snippets {
+        // Alias for Notes, Snippets, and Canned: clipboard-only, no staging/archiving
+        if tab == Notes || tab == Snippets || tab == Tab::Canned {
             let processed_text = Processor::process(&item.text, &snippets);
             self.clipboard.copy(processed_text).await?;
             return Ok(());
@@ -122,15 +122,13 @@ impl AppService for RealAppService {
             item.staged = false;
             self.storage.save_prompt(item).await?;
         } else {
-            // Stage
-            // Unstage and archive other staged items in the same scope?
-            // Old behavior: "Remove archived items from their original lists. Add to archive (to the top)"
-            let all_in_scope = self
+            // Archive previously-staged Prompts visible in the current scope
+            let staged_in_scope = self
                 .storage
-                .get_prompts(PromptFilter { folder: item.folder.clone(), ..Default::default() })
+                .get_prompts(PromptFilter { staged: Some(true), ..scope })
                 .await?;
-            for mut p in all_in_scope {
-                if p.r#type == contracts::PromptType::Prompt && p.staged && p.id != item.id {
+            for mut p in staged_in_scope {
+                if p.r#type == contracts::PromptType::Prompt && p.id != item.id {
                     p.staged = false;
                     p.is_archived = true;
                     self.storage.save_prompt(p).await?;

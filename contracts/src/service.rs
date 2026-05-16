@@ -1,4 +1,4 @@
-use crate::{Prompt, Result, Tab};
+use crate::{Prompt, PromptFilter, Result, Tab};
 use async_trait::async_trait;
 
 #[derive(Debug, Clone)]
@@ -16,10 +16,12 @@ pub struct SaveItemArgs {
 #[async_trait]
 pub trait AppService: Send + Sync {
     /// Stages an item and copies it to the clipboard.
+    /// `scope` mirrors the filter used to load the current view; previously-staged
+    /// Prompts visible within that scope are archived when the new item is staged.
     ///
     /// # Errors
     /// Returns an error if the item cannot be staged or copied.
-    async fn stage_item(&self, project_path: &str, tab: Tab, item: Prompt) -> Result<()>;
+    async fn stage_item(&self, scope: PromptFilter, tab: Tab, item: Prompt) -> Result<()>;
 
     /// Archives an item or deletes it permanently if already in Archive.
     ///

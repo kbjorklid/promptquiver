@@ -1,6 +1,78 @@
 mod common;
 use common::setup_app;
 use contracts::{Clipboard, PromptFilter, Storage, Tab};
+
+#[tokio::test]
+async fn test_staging_with_folder_filter_leaves_other_folders_untouched() {
+    let (mut app, storage, _, _) = setup_app();
+
+    let mut p_other = contracts::Prompt::new(
+        "POther".to_string(),
+        contracts::PromptType::Prompt,
+        Some("other_project".to_string()),
+        None,
+        None,
+        None,
+    );
+    p_other.staged = true;
+    storage.save_prompt(p_other).await.unwrap();
+
+    let p_current = contracts::Prompt::new(
+        "PCurrent".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+    storage.save_prompt(p_current).await.unwrap();
+
+    app.nav.folder_filter = true;
+    app.nav.current_path = common::TEST_PATH.to_string();
+    app.load_prompts().await.unwrap();
+    app.stage_selected().await.unwrap();
+
+    let all = storage.get_prompts(PromptFilter::default()).await.unwrap();
+    let p_other = all.iter().find(|p| p.text == "POther").unwrap();
+    assert!(p_other.staged, "POther should remain staged — not visible with folder filter ON");
+    assert!(!p_other.is_archived, "POther should not be archived");
+}
+
+#[tokio::test]
+async fn test_staging_with_branch_filter_leaves_other_branches_untouched() {
+    let (mut app, storage, _, _) = setup_app();
+
+    let mut p_main = contracts::Prompt::new(
+        "PMain".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        Some("main".to_string()),
+        None,
+        None,
+    );
+    p_main.staged = true;
+    storage.save_prompt(p_main).await.unwrap();
+
+    let p_feature = contracts::Prompt::new(
+        "PFeature".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        Some("feature".to_string()),
+        None,
+        None,
+    );
+    storage.save_prompt(p_feature).await.unwrap();
+
+    app.nav.branch_filter = true;
+    app.current_branch = Some("feature".to_string());
+    app.load_prompts().await.unwrap();
+    app.stage_selected().await.unwrap();
+
+    let all = storage.get_prompts(PromptFilter::default()).await.unwrap();
+    let p_main = all.iter().find(|p| p.text == "PMain").unwrap();
+    assert!(p_main.staged, "PMain should remain staged — not visible with branch filter ON");
+    assert!(!p_main.is_archived, "PMain should not be archived");
+}
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
@@ -107,6 +179,49 @@ async fn test_staging() {
         .unwrap();
     assert_eq!(archive.len(), 1);
     assert_eq!(archive[0].text, "P1");
+}
+
+#[tokio::test]
+async fn test_staging_archives_prompt_from_different_folder() {
+    let (mut app, storage, _, _) = setup_app();
+
+    let mut p_other = contracts::Prompt::new(
+        "POther".to_string(),
+        contracts::PromptType::Prompt,
+        Some("other_project".to_string()),
+        None,
+        None,
+        None,
+    );
+    p_other.staged = true;
+    storage.save_prompt(p_other).await.unwrap();
+
+    let p_current = contracts::Prompt::new(
+        "PCurrent".to_string(),
+        contracts::PromptType::Prompt,
+        Some(common::TEST_PATH.to_string()),
+        None,
+        None,
+        None,
+    );
+    storage.save_prompt(p_current).await.unwrap();
+
+    app.nav.folder_filter = false;
+    app.load_prompts().await.unwrap();
+
+    let current_idx = app.nav.prompts.iter().position(|p| p.text == "PCurrent").unwrap();
+    app.nav.selected_index = current_idx;
+    app.stage_selected().await.unwrap();
+
+    let archived = storage
+        .get_prompts(contracts::PromptFilter {
+            tab: Some(Tab::Archive),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(archived.len(), 1, "POther should have been archived");
+    assert_eq!(archived[0].text, "POther");
 }
 
 #[tokio::test]

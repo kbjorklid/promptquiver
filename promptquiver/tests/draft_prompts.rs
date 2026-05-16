@@ -1,4 +1,4 @@
-use contracts::Tab;
+use contracts::{PromptFilter, Tab};
 mod common;
 
 #[tokio::test]
@@ -96,7 +96,14 @@ async fn test_cannot_stage_draft_prompt() {
 
     // Try to stage it
     let prompt = app.nav.prompts[0].clone();
-    let res = app.service.stage_item(common::TEST_PATH, Tab::Prompts, prompt).await;
+    let res = app
+        .service
+        .stage_item(
+            PromptFilter { tab: Some(Tab::Prompts), ..Default::default() },
+            Tab::Prompts,
+            prompt,
+        )
+        .await;
 
     // Currently this will succeed because we haven't implemented the block.
     // The test should eventually check for an error.
@@ -125,7 +132,14 @@ async fn test_single_line_draft() {
 
     // Try to stage it
     let prompt = app.nav.prompts[0].clone();
-    let res = app.service.stage_item(common::TEST_PATH, Tab::Prompts, prompt).await;
+    let res = app
+        .service
+        .stage_item(
+            PromptFilter { tab: Some(Tab::Prompts), ..Default::default() },
+            Tab::Prompts,
+            prompt,
+        )
+        .await;
 
     assert!(res.is_err(), "Single line draft should be blocked from staging");
 }

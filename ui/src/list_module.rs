@@ -396,10 +396,34 @@ impl ListModule {
 
         let item = self.prompts[self.selected_index].clone();
         let is_staged = item.staged;
-        let is_alias = self.active_tab == Tab::Notes || self.active_tab == Tab::Snippets;
+        let is_alias = self.active_tab == Tab::Notes
+            || self.active_tab == Tab::Snippets
+            || self.active_tab == Tab::Canned;
+
+        let is_global_tab = self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets;
+        let scope = PromptFilter {
+            folder: if !self.folder_filter || is_global_tab {
+                None
+            } else {
+                Some(self.current_project_path())
+            },
+            branch: if self.branch_filter && !is_global_tab {
+                self.current_branch.clone()
+            } else {
+                None
+            },
+            project_id: if self.project_filter && !is_global_tab {
+                self.projects_manager.active_project_id
+            } else {
+                None
+            },
+            project_filter: self.project_filter && !is_global_tab,
+            tab: Some(self.active_tab),
+            ..Default::default()
+        };
 
         self.history.push(self.active_tab, self.prompts.clone());
-        ctx.service.stage_item(&self.current_project_path(), self.active_tab, item).await?;
+        ctx.service.stage_item(scope, self.active_tab, item).await?;
 
         let notify_msg = if is_alias {
             "Copied to clipboard!"
