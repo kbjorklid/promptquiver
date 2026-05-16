@@ -1,7 +1,23 @@
 use crate::history_manager::HistoryManager;
 use crate::project_manager::ProjectManager;
 use contracts::{Prompt, PromptFilter, Result, Storage, Tab};
+use crossterm::event::KeyCode;
 use std::sync::Arc;
+
+/// Applies a single keystroke to a text field. Returns `true` if the key was consumed.
+pub fn edit_text_field(field: &mut String, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Backspace => {
+            field.pop();
+            true
+        }
+        KeyCode::Char(c) => {
+            field.push(c);
+            true
+        }
+        _ => false,
+    }
+}
 
 #[derive(Debug)]
 pub struct ListModule {
@@ -624,9 +640,8 @@ impl ListModule {
         key: crossterm::event::KeyEvent,
     ) -> Option<crate::types::AppMessage> {
         use crate::types::AppMessage;
-        use crossterm::event::KeyCode;
         match key.code {
-            KeyCode::Esc => Some(AppMessage::SetTab(Tab::Settings)), // Exit dialog
+            KeyCode::Esc => Some(AppMessage::SetTab(Tab::Settings)),
             KeyCode::Enter => {
                 if self.data_manager.focus_checkbox {
                     self.data_manager.include_archived = !self.data_manager.include_archived;
@@ -646,12 +661,8 @@ impl ListModule {
                 self.data_manager.include_archived = !self.data_manager.include_archived;
                 None
             }
-            KeyCode::Backspace if !self.data_manager.focus_checkbox => {
-                self.data_manager.path.pop();
-                None
-            }
-            KeyCode::Char(c) if !self.data_manager.focus_checkbox => {
-                self.data_manager.path.push(c);
+            k if !self.data_manager.focus_checkbox => {
+                edit_text_field(&mut self.data_manager.path, k);
                 None
             }
             _ => None,
@@ -663,19 +674,13 @@ impl ListModule {
         key: crossterm::event::KeyEvent,
     ) -> Option<crate::types::AppMessage> {
         use crate::types::AppMessage;
-        use crossterm::event::KeyCode;
         match key.code {
-            KeyCode::Esc => Some(AppMessage::SetTab(Tab::Settings)), // Exit dialog
+            KeyCode::Esc => Some(AppMessage::SetTab(Tab::Settings)),
             KeyCode::Enter => Some(AppMessage::ImportData(self.data_manager.path.clone())),
-            KeyCode::Backspace => {
-                self.data_manager.path.pop();
+            k => {
+                edit_text_field(&mut self.data_manager.path, k);
                 None
             }
-            KeyCode::Char(c) => {
-                self.data_manager.path.push(c);
-                None
-            }
-            _ => None,
         }
     }
 
@@ -915,26 +920,16 @@ impl ListModule {
         key: crossterm::event::KeyEvent,
     ) -> Option<crate::types::AppMessage> {
         use crate::types::AppMessage;
-        use crossterm::event::KeyCode;
         match key.code {
-            KeyCode::Esc => {
-                return Some(AppMessage::SelectProject);
+            KeyCode::Esc => Some(AppMessage::SelectProject),
+            KeyCode::Enter => self.projects_manager.renaming_project_id.map(|id| {
+                AppMessage::RenameProject(id, self.projects_manager.new_project_name.clone())
+            }),
+            k => {
+                edit_text_field(&mut self.projects_manager.new_project_name, k);
+                None
             }
-            KeyCode::Enter => {
-                if let Some(id) = self.projects_manager.renaming_project_id {
-                    let name = self.projects_manager.new_project_name.clone();
-                    return Some(AppMessage::RenameProject(id, name));
-                }
-            }
-            KeyCode::Backspace => {
-                self.projects_manager.new_project_name.pop();
-            }
-            KeyCode::Char(c) => {
-                self.projects_manager.new_project_name.push(c);
-            }
-            _ => {}
         }
-        None
     }
 
     async fn handle_search_ops(

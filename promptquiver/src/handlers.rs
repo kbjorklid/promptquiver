@@ -208,22 +208,15 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
 }
 
 fn handle_add_project_events(app: &mut App<'_>, key: KeyEvent) -> Vec<AppMessage> {
-    let mut messages = Vec::new();
     match key.code {
-        KeyCode::Esc => {
-            messages.push(AppMessage::SelectProject);
-        }
+        KeyCode::Esc => vec![AppMessage::SelectProject],
         KeyCode::Enter => {
             let name = app.nav.projects_manager.new_project_name.clone();
-            messages.push(AppMessage::AddProject(name));
+            vec![AppMessage::AddProject(name)]
         }
-        KeyCode::Backspace => {
-            app.nav.projects_manager.new_project_name.pop();
+        k => {
+            ui::list_module::edit_text_field(&mut app.nav.projects_manager.new_project_name, k);
+            vec![]
         }
-        KeyCode::Char(c) => {
-            app.nav.projects_manager.new_project_name.push(c);
-        }
-        _ => {}
     }
-    messages
 }
