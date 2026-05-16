@@ -764,7 +764,7 @@ impl ListModule {
     async fn handle_project_ops(
         &mut self,
         msg: crate::types::AppMessage,
-        ctx: &crate::types::UpdateContext<'_>,
+        ctx: &mut crate::types::UpdateContext<'_>,
     ) -> Result<Option<crate::types::AppMessage>> {
         use crate::types::AppMessage;
         match msg {
@@ -801,15 +801,14 @@ impl ListModule {
                 )));
             }
             AppMessage::ToggleStartupBehavior => {
-                let mut settings = ctx.settings.clone();
-                settings.startup_behavior = match settings.startup_behavior {
+                ctx.settings.startup_behavior = match ctx.settings.startup_behavior {
                     contracts::StartupBehavior::Ask => contracts::StartupBehavior::LastActivated,
                     contracts::StartupBehavior::LastActivated => {
                         contracts::StartupBehavior::Specific
                     }
                     contracts::StartupBehavior::Specific => contracts::StartupBehavior::Ask,
                 };
-                ctx.storage.save_settings(settings).await?;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
             }
             AppMessage::SelectStartupProject => {
                 self.projects_manager.selecting_startup_project = true;

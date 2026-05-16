@@ -158,13 +158,13 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                     || app.nav.selected_index == maintenance_start + 1
                     || app.nav.selected_index == advanced_start
                     || app.nav.selected_index == advanced_start + 1
-                    || app.nav.selected_index == advanced_start + 3
+                    || app.nav.selected_index == advanced_start + 2
+                    || app.nav.selected_index == advanced_start + 4
+                    || app.nav.selected_index == advanced_start + 5
                 {
                     messages.push(AppMessage::ToggleSetting);
-                } else if app.nav.selected_index == advanced_start + 2 {
+                } else if app.nav.selected_index == advanced_start + 3 {
                     messages.push(AppMessage::SelectTheme);
-                } else if app.nav.selected_index == advanced_start + 4 {
-                    messages.push(AppMessage::SelectStartupProject);
                 } else {
                     messages.push(AppMessage::EditSetting);
                 }

@@ -73,7 +73,7 @@ async fn test_theme_picker_opening_and_dismissal() {
     let tabs_len = Tab::settings_display_len();
     let slash_len = app.settings.slash_commands.len();
     let maintenance_len = 2;
-    let theme_idx = tabs_len + slash_len + 1 + maintenance_len + 2; // theme item index: 5 + slash + 1 (Add New) + 2 (Maintenance) + 2 (claude, nerd) = 10 + slash
+    let theme_idx = tabs_len + slash_len + 1 + maintenance_len + 3; // theme item index: 5 + slash + 1 (Add New) + 2 (Maintenance) + 3 (claude, claude-builtin, nerd) = 11 + slash
     app.nav.selected_index = theme_idx;
 
     let enter_key = KeyEvent {
