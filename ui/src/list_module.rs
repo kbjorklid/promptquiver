@@ -64,20 +64,16 @@ impl ListModule {
         Self::default()
     }
 
-    /// Loads prompts from storage based on current filters.
-    ///
-    /// # Errors
-    /// Returns an error if the storage cannot be accessed.
-    pub async fn load_prompts(&mut self, storage: &Arc<dyn Storage>) -> Result<()> {
-        let path = self.current_project_path();
-
-        // Ensure project info is saved
-        let _ =
-            storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
-
+    /// Builds a `PromptFilter` that reflects the active tab and all active view filters.
+    /// Global tabs (Canned, Snippets) suppress folder/branch/project constraints.
+    pub fn current_filter(&self) -> PromptFilter {
         let is_global_tab = self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets;
-        let filter = PromptFilter {
-            folder: if !self.folder_filter || is_global_tab { None } else { Some(path) },
+        PromptFilter {
+            folder: if !self.folder_filter || is_global_tab {
+                None
+            } else {
+                Some(self.current_project_path())
+            },
             branch: if self.branch_filter && !is_global_tab {
                 self.current_branch.clone()
             } else {
@@ -91,7 +87,21 @@ impl ListModule {
             project_filter: self.project_filter && !is_global_tab,
             tab: Some(self.active_tab),
             ..Default::default()
-        };
+        }
+    }
+
+    /// Loads prompts from storage based on current filters.
+    ///
+    /// # Errors
+    /// Returns an error if the storage cannot be accessed.
+    pub async fn load_prompts(&mut self, storage: &Arc<dyn Storage>) -> Result<()> {
+        let path = self.current_project_path();
+
+        // Ensure project info is saved
+        let _ =
+            storage.save_project_info(&path, contracts::ProjectInfo { path: path.clone() }).await;
+
+        let filter = self.current_filter();
 
         let mut prompts = storage.get_prompts(filter).await?;
 
@@ -400,30 +410,8 @@ impl ListModule {
             || self.active_tab == Tab::Snippets
             || self.active_tab == Tab::Canned;
 
-        let is_global_tab = self.active_tab == Tab::Canned || self.active_tab == Tab::Snippets;
-        let scope = PromptFilter {
-            folder: if !self.folder_filter || is_global_tab {
-                None
-            } else {
-                Some(self.current_project_path())
-            },
-            branch: if self.branch_filter && !is_global_tab {
-                self.current_branch.clone()
-            } else {
-                None
-            },
-            project_id: if self.project_filter && !is_global_tab {
-                self.projects_manager.active_project_id
-            } else {
-                None
-            },
-            project_filter: self.project_filter && !is_global_tab,
-            tab: Some(self.active_tab),
-            ..Default::default()
-        };
-
         self.history.push(self.active_tab, self.prompts.clone());
-        ctx.service.stage_item(scope, self.active_tab, item).await?;
+        ctx.service.stage_item(self.current_filter(), self.active_tab, item).await?;
 
         let notify_msg = if is_alias {
             "Copied to clipboard!"
