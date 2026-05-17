@@ -85,6 +85,7 @@ pub enum StartupBehavior {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
     pub tab_visibility: HashMap<Tab, bool>,
     pub slash_commands: Vec<String>,
@@ -97,6 +98,8 @@ pub struct Settings {
     pub startup_behavior: StartupBehavior,
     pub last_active_project_id: Option<Uuid>,
     pub specific_project_id: Option<Uuid>,
+    #[serde(default)]
+    pub show_wide_view: bool,
 }
 
 impl Settings {
@@ -294,4 +297,15 @@ pub trait Git: Send + Sync {
     /// # Errors
     /// Returns a `Git` error if the branch name cannot be retrieved.
     async fn get_current_branch(&self, path: &str) -> Result<Option<String>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn show_wide_view_defaults_to_false() {
+        let s = Settings::default();
+        assert!(!s.show_wide_view);
+    }
 }

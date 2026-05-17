@@ -15,6 +15,7 @@ pub mod header;
 pub mod history_manager;
 pub mod list;
 pub mod list_module;
+pub mod metadata_editor;
 pub mod project_manager;
 pub mod project_picker;
 pub mod settings;
@@ -85,6 +86,9 @@ pub fn render(
     }
     if state.mode == Mode::ImportDialog {
         data_manager::render_import_dialog(f, &state);
+    }
+    if state.mode == Mode::MetadataEditor {
+        metadata_editor::render_metadata_editor(f, &mut state);
     }
     if state.mode == Mode::ProjectPicker
         || state.mode == Mode::AddProject

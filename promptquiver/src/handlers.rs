@@ -82,6 +82,9 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
                             Mode::RenameProject => vec![AppMessage::RenameProjectInput(*key)],
                             Mode::ExportDialog => vec![AppMessage::ExportDialogInput(*key)],
                             Mode::ImportDialog => vec![AppMessage::ImportDialogInput(*key)],
+                            Mode::MetadataEditor => {
+                                vec![AppMessage::MetadataEditorInput(*key)]
+                            }
                             _ => Vec::new(),
                         }
                     }
@@ -90,6 +93,13 @@ pub async fn handle_events(app: &mut App<'_>, events: Vec<Event>) {
                 }
             }
             Event::Paste(content) => vec![AppMessage::Paste(content.clone())],
+            Event::Mouse(mouse) => {
+                if app.mode == Mode::Editor {
+                    vec![AppMessage::MouseInput(*mouse)]
+                } else {
+                    Vec::new()
+                }
+            }
             _ => Vec::new(),
         };
 
@@ -161,6 +171,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                     || app.nav.selected_index == advanced_start + 2
                     || app.nav.selected_index == advanced_start + 4
                     || app.nav.selected_index == advanced_start + 5
+                    || app.nav.selected_index == advanced_start + 6
                 {
                     messages.push(AppMessage::ToggleSetting);
                 } else if app.nav.selected_index == advanced_start + 3 {
@@ -173,6 +184,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
                 messages.push(AppMessage::EnterEditor(p.text.clone(), Some(p.id)));
             }
         }
+        ShortcutAction::ToggleWideView => messages.push(AppMessage::ToggleWideView),
         ShortcutAction::ToggleBranchFilter => messages.push(AppMessage::ToggleBranchFilter),
         ShortcutAction::ToggleFolderFilter => messages.push(AppMessage::ToggleFolderFilter),
         ShortcutAction::ToggleProjectFilter => messages.push(AppMessage::ToggleProjectFilter),
@@ -202,6 +214,7 @@ fn map_action_to_messages(app: &App<'_>, action: ShortcutAction) -> Vec<AppMessa
         ShortcutAction::ToggleHelp => messages.push(AppMessage::ToggleHelp),
         ShortcutAction::ScrollHelpUp => messages.push(AppMessage::ScrollHelpUp),
         ShortcutAction::ScrollHelpDown => messages.push(AppMessage::ScrollHelpDown),
+        ShortcutAction::OpenMetadataEditor => messages.push(AppMessage::EnterMetadataEditor),
         _ => {}
     }
     messages

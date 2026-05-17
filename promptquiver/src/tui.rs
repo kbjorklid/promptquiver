@@ -30,7 +30,13 @@ impl<B: Backend> Tui<B> {
         B::Error: Send + Sync + 'static,
     {
         terminal::enable_raw_mode()?;
-        execute!(io::stdout(), EnterAlternateScreen, cursor::Hide, event::EnableBracketedPaste)?;
+        execute!(
+            io::stdout(),
+            EnterAlternateScreen,
+            cursor::Hide,
+            event::EnableBracketedPaste,
+            event::EnableMouseCapture,
+        )?;
         let panic_hook = panic::take_hook();
         panic::set_hook(Box::new(move |panic| {
             Self::reset().expect("failed to reset terminal");
@@ -47,7 +53,13 @@ impl<B: Backend> Tui<B> {
     /// Returns an error if raw mode cannot be disabled or the alternate screen cannot be left.
     pub fn reset() -> Result<()> {
         terminal::disable_raw_mode()?;
-        execute!(io::stdout(), LeaveAlternateScreen, cursor::Show, event::DisableBracketedPaste)?;
+        execute!(
+            io::stdout(),
+            LeaveAlternateScreen,
+            cursor::Show,
+            event::DisableBracketedPaste,
+            event::DisableMouseCapture,
+        )?;
         Ok(())
     }
 

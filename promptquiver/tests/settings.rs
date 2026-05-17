@@ -259,7 +259,7 @@ async fn test_enter_on_startup_project_row_opens_project_picker() {
 
     let slash_len = app.settings.slash_commands.len();
     let (_, advanced_start) = ListModule::settings_section_offsets(slash_len);
-    app.nav.selected_index = advanced_start + 5; // Startup Project (only visible when Specific)
+    app.nav.selected_index = advanced_start + 6; // Startup Project (only visible when Specific)
 
     handle_key_event(&mut app, enter()).await;
 
@@ -272,4 +272,26 @@ async fn test_enter_on_startup_project_row_opens_project_picker() {
         app.nav.projects_manager.selecting_startup_project,
         "must be selecting startup project, not active project"
     );
+}
+
+#[tokio::test]
+async fn test_w_key_toggles_wide_view() {
+    let (mut app, storage, _, _) = setup_app();
+
+    assert!(!app.settings.show_wide_view);
+
+    let w_key = KeyEvent {
+        code: KeyCode::Char('w'),
+        modifiers: KeyModifiers::empty(),
+        kind: KeyEventKind::Press,
+        state: KeyEventState::empty(),
+    };
+    handle_key_event(&mut app, w_key).await;
+
+    assert!(app.settings.show_wide_view, "w key must enable wide view");
+    let saved = storage.get_settings().await.unwrap();
+    assert!(saved.show_wide_view, "wide view must be persisted");
+
+    handle_key_event(&mut app, w_key).await;
+    assert!(!app.settings.show_wide_view, "second w press must disable wide view");
 }

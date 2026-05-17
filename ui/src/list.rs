@@ -1,9 +1,10 @@
 use crate::types::RenderState;
-use crate::utils::{get_palette, get_zebra_color};
+use crate::utils::{format_path, get_palette, get_zebra_color};
 use contracts::{Prompt, Tab};
 use ratatui::layout::Rect;
 use ratatui::prelude::Stylize;
 use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
     Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
@@ -30,6 +31,9 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
     } else {
         format!(" {active_tab:?} (Search: {search_query}) ")
     };
+
+    let show_wide =
+        settings.show_wide_view && (active_tab == Tab::Prompts || active_tab == Tab::Archive);
 
     let list_items: Vec<ListItem<'_>> = prompts
         .iter()
@@ -82,8 +86,9 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
                     (name, false)
                 };
 
+            let row_bg = if i % 2 == 0 { zebra_bg } else { palette.bg };
             let mut style = if i == selected_index {
-                Style::default().bg(palette.accent).fg(palette.bg).add_modifier(Modifier::BOLD)
+                Style::default().bg(row_bg).fg(palette.accent).add_modifier(Modifier::BOLD)
             } else if i % 2 == 0 {
                 Style::default().bg(zebra_bg).fg(palette.fg)
             } else {
@@ -94,7 +99,73 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
                 style = style.add_modifier(Modifier::DIM);
             }
 
-            ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}")).style(style)
+            let bar_style = Style::default().fg(palette.accent).bg(row_bg);
+            let is_bar_row = i == selected_index && mode_str != "Move";
+
+            if show_wide {
+                let meta_style = Style::default().bg(row_bg);
+
+                let mut meta_spans: Vec<Span<'_>> = vec![Span::raw("    ")];
+
+                if !state.nav.folder_filter {
+                    if let Some(folder) = &p.folder {
+                        meta_spans.push(Span::styled(
+                            format_path(folder),
+                            meta_style.fg(palette.secondary),
+                        ));
+                    }
+                }
+                if !state.nav.project_filter {
+                    if let Some(proj_name) = p.project_id.and_then(|id| {
+                        state
+                            .nav
+                            .projects_manager
+                            .projects
+                            .iter()
+                            .find(|proj| proj.id == id)
+                            .map(|proj| proj.title.as_str())
+                    }) {
+                        meta_spans.push(Span::raw("  "));
+                        meta_spans.push(Span::styled(proj_name, meta_style.fg(palette.accent)));
+                    }
+                }
+                if !state.nav.branch_filter {
+                    if let Some(branch) = &p.branch {
+                        meta_spans.push(Span::raw("  "));
+                        meta_spans
+                            .push(Span::styled(branch.as_str(), meta_style.fg(palette.warning)));
+                    }
+                }
+
+                let line1 = if is_bar_row {
+                    Line::from(vec![
+                        Span::styled("▌", bar_style),
+                        Span::styled(format!(" {staged_icon}{copy_icon}{display_name}"), style),
+                    ])
+                    .style(style)
+                } else {
+                    Line::from(Span::styled(
+                        format!("{prefix}{staged_icon}{copy_icon}{display_name}"),
+                        style,
+                    ))
+                    .style(style)
+                };
+
+                if is_bar_row {
+                    meta_spans[0] = Span::raw("   ");
+                    meta_spans.insert(0, Span::styled("▌", bar_style));
+                }
+                let line2 = Line::from(meta_spans).style(meta_style);
+                ListItem::new(Text::from(vec![line1, line2]))
+            } else if is_bar_row {
+                ListItem::new(Line::from(vec![
+                    Span::styled("▌", bar_style),
+                    Span::styled(format!(" {staged_icon}{copy_icon}{display_name}"), style),
+                ]))
+            } else {
+                ListItem::new(format!("{prefix}{staged_icon}{copy_icon}{display_name}"))
+                    .style(style)
+            }
         })
         .collect();
 

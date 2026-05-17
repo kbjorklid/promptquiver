@@ -31,6 +31,7 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &RenderState<'_, '_>) {
         crate::types::Mode::RenameProject => "Rename Project",
         crate::types::Mode::ExportDialog => "Export Data",
         crate::types::Mode::ImportDialog => "Import Data",
+        crate::types::Mode::MetadataEditor => "Metadata Editor",
     };
 
     let has_suggestions = !state.editor.autocomplete.suggestions.is_empty();

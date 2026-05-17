@@ -64,6 +64,27 @@ pub fn centered_rect_fixed(width: u16, height: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
+pub fn format_path(path_str: &str) -> String {
+    let path = std::path::Path::new(path_str);
+    let normal_components: Vec<_> =
+        path.components().filter(|c| matches!(c, std::path::Component::Normal(_))).collect();
+
+    if normal_components.len() <= 2 {
+        return path_str.replace('\\', "/");
+    }
+
+    let last_two = &normal_components[normal_components.len() - 2..];
+    let mut result = String::from(".../");
+    for (i, comp) in last_two.iter().enumerate() {
+        result.push_str(&comp.as_os_str().to_string_lossy().replace('\\', "/"));
+        if i < 1 {
+            result.push('/');
+        }
+    }
+
+    result
+}
+
 pub fn highlight_text<'a>(text: &'a str, palette: &ThemePalette) -> Vec<Line<'a>> {
     text.lines()
         .map(|line| {

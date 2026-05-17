@@ -50,9 +50,11 @@ pub enum ShortcutAction {
     MoveItemDown,
     MoveItemUp,
 
+    ToggleWideView,
     ToggleHelp,
     ScrollHelpUp,
     ScrollHelpDown,
+    OpenMetadataEditor,
 }
 
 #[derive(Debug)]
@@ -94,10 +96,12 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
                 Shortcut::new("/", "Search"),
                 Shortcut::new("Ctrl+e", "Preview"),
                 Shortcut::new("y/c", "Copy"),
+                Shortcut::new("w", "Wide"),
                 Shortcut::new("b", "Branch"),
                 Shortcut::new("f", "Folder"),
                 Shortcut::new("p", "Project"),
                 Shortcut::new("Ctrl+p", "Pick Prj"),
+                Shortcut::new("Ctrl+t", "Meta"),
             ]);
             if tab_name == "Settings" {
                 shortcuts.push(Shortcut::new("Space", "Toggle"));
@@ -105,6 +109,13 @@ pub fn get_shortcuts(mode: &str, tab_name: &str, has_suggestions: bool) -> Vec<S
             shortcuts
         }
         "Move" => vec![Shortcut::new("j/k", "Move"), Shortcut::new("Esc/m/Ent", "Back")],
+        "Metadata Editor" => vec![
+            Shortcut::new("Tab", "Focus"),
+            Shortcut::new("Space", "Toggle"),
+            Shortcut::new("j/k", "Project"),
+            Shortcut::new("Ent", "Accept"),
+            Shortcut::new("Esc", "Cancel"),
+        ],
         "Editor" => {
             if has_suggestions {
                 vec![
@@ -172,6 +183,9 @@ fn get_list_action(key: KeyEvent, active_tab: Tab) -> Option<ShortcutAction> {
         KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(ShortcutAction::SelectProject)
         }
+        KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Some(ShortcutAction::OpenMetadataEditor)
+        }
         KeyCode::Char('j') | KeyCode::Down => Some(ShortcutAction::MoveDown),
         KeyCode::Char('k') | KeyCode::Up => Some(ShortcutAction::MoveUp),
         KeyCode::Char('s') => Some(ShortcutAction::StageSelected),
@@ -182,6 +196,7 @@ fn get_list_action(key: KeyEvent, active_tab: Tab) -> Option<ShortcutAction> {
         KeyCode::Char('i') => Some(ShortcutAction::AddBefore),
         KeyCode::Char('I') => Some(ShortcutAction::AddAtTop),
         KeyCode::Char('A') => Some(ShortcutAction::AddAtBottom),
+        KeyCode::Char('w') => Some(ShortcutAction::ToggleWideView),
         KeyCode::Char('b') => Some(ShortcutAction::ToggleBranchFilter),
         KeyCode::Char('f') => Some(ShortcutAction::ToggleFolderFilter),
         KeyCode::Char('p') => Some(ShortcutAction::ToggleProjectFilter),

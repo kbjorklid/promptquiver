@@ -78,7 +78,8 @@ impl App<'_> {
                 | Mode::ThemePicker
                 | Mode::ProjectPicker
                 | Mode::AddProject
-                | Mode::RenameProject => self.nav.update(msg.clone(), &mut ctx).await?,
+                | Mode::RenameProject
+                | Mode::MetadataEditor => self.nav.update(msg.clone(), &mut ctx).await?,
             };
 
             if let Some(m) = next_msg {
@@ -115,7 +116,8 @@ impl App<'_> {
             | AppMessage::RenameProject(_, _)
             | AppMessage::DeleteProject(_)
             | AppMessage::ExportData(_, _)
-            | AppMessage::ImportData(_) => {
+            | AppMessage::ImportData(_)
+            | AppMessage::ApplyMetadataEdit { .. } => {
                 self.mode = Mode::List;
             }
             AppMessage::ExportDialogInput(ref key)
@@ -124,6 +126,11 @@ impl App<'_> {
                 self.mode = Mode::List;
             }
             AppMessage::ImportDialogInput(ref key)
+                if key.code == crossterm::event::KeyCode::Esc =>
+            {
+                self.mode = Mode::List;
+            }
+            AppMessage::MetadataEditorInput(ref key)
                 if key.code == crossterm::event::KeyCode::Esc =>
             {
                 self.mode = Mode::List;
@@ -192,6 +199,34 @@ impl App<'_> {
             }
             AppMessage::ScrollHelpDown => {
                 self.help_scroll = self.help_scroll.saturating_add(1);
+            }
+            AppMessage::EnterMetadataEditor => {
+                if self.nav.prompts.is_empty() || self.nav.active_tab == Tab::Settings {
+                    return Ok(None);
+                }
+                let prompt = self.nav.prompts[self.nav.selected_index].clone();
+                self.nav.init_metadata_editor(&prompt, &self.current_branch);
+                self.mode = Mode::MetadataEditor;
+            }
+            AppMessage::ApplyMetadataEdit {
+                use_current_folder,
+                use_current_branch,
+                project_id,
+            } => {
+                if self.nav.prompts.is_empty() {
+                    return Ok(None);
+                }
+                let mut prompt = self.nav.prompts[self.nav.selected_index].clone();
+                if use_current_folder {
+                    prompt.folder = Some(self.nav.current_path.clone());
+                }
+                if use_current_branch {
+                    prompt.branch = self.current_branch.clone();
+                }
+                prompt.project_id = project_id;
+                self.storage.save_prompt(prompt).await?;
+                self.load_prompts().await?;
+                self.notify("Prompt metadata updated!", ToastType::Success);
             }
             _ => {}
         }

@@ -16,6 +16,7 @@ pub enum Mode {
     RenameProject,
     ExportDialog,
     ImportDialog,
+    MetadataEditor,
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +78,7 @@ pub enum AppMessage {
     ToggleSettingValue,
     ToggleStartupBehavior,
     SelectStartupProject,
+    ToggleWideView,
     ToggleHelp,
     ScrollHelpUp,
     ScrollHelpDown,
@@ -86,6 +88,14 @@ pub enum AppMessage {
     ImportData(String),
     ExportDialogInput(crossterm::event::KeyEvent),
     ImportDialogInput(crossterm::event::KeyEvent),
+    EnterMetadataEditor,
+    MetadataEditorInput(crossterm::event::KeyEvent),
+    MouseInput(crossterm::event::MouseEvent),
+    ApplyMetadataEdit {
+        use_current_folder: bool,
+        use_current_branch: bool,
+        project_id: Option<uuid::Uuid>,
+    },
 }
 
 #[derive(Debug)]

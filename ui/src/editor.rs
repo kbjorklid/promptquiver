@@ -82,6 +82,7 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) ->
             .bg(palette.bg),
     );
     f.render_widget(&*textarea, editor_area);
+    state.editor.last_editor_area = Some(editor_area);
 
     // Render scrollbar for the text area
     let lines_count = textarea.lines().len();

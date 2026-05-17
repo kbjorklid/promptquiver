@@ -20,7 +20,7 @@ pub fn render(f: &mut Frame<'_>, area: Rect, state: &mut RenderState<'_, '_>) {
 
     let tab_height = 8;
     let slash_height = u16::try_from(slash_len + 3).unwrap_or(u16::MAX);
-    let mut advanced_count: usize = 7;
+    let mut advanced_count: usize = 8;
     if settings.startup_behavior == contracts::StartupBehavior::Specific {
         advanced_count += 1;
     }
@@ -397,6 +397,11 @@ fn build_advanced_items(
             selected_index == advanced_idx + 4,
             palette,
         ),
+        advanced_item(
+            &format!("Show Wide View: {}", on_off(s.show_wide_view)),
+            selected_index == advanced_idx + 5,
+            palette,
+        ),
     ];
 
     if s.startup_behavior == contracts::StartupBehavior::Specific {
@@ -414,7 +419,7 @@ fn build_advanced_items(
         );
         items.push(advanced_item(
             &format!("Startup Project: {project_name}"),
-            selected_index == advanced_idx + 5,
+            selected_index == advanced_idx + 6,
             palette,
         ));
     }

@@ -30,6 +30,9 @@ Filters help you manage which prompts are visible based on your current working 
 - p: Project Filter - Only shows items associated with the currently active project context (switchable via Ctrl+p).
 - Note: Filters only apply to the Prompts, Notes, and Archive tabs. Global tabs like Snippets and Canned are always visible.
 
+### Wide View
+- w: Toggle Wide View - Shows a second line below each prompt in the Prompts tab displaying its folder, project, and branch (using the same colors as the statusline). Fields that are currently active as filters are hidden since they are the same for all visible prompts. Can also be toggled in Settings → Advanced.
+
 ## Smart Editor
 The editor uses conventions and triggers to automate prompt preparation.
 

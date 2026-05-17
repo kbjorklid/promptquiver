@@ -1,8 +1,62 @@
 use crate::history_manager::HistoryManager;
 use crate::project_manager::ProjectManager;
 use contracts::{Prompt, PromptFilter, Result, Storage, Tab};
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::Arc;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetadataEditorFocus {
+    #[default]
+    FolderCheckbox,
+    BranchCheckbox,
+    ProjectList,
+}
+
+impl MetadataEditorFocus {
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::FolderCheckbox => Self::BranchCheckbox,
+            Self::BranchCheckbox => Self::ProjectList,
+            Self::ProjectList => Self::FolderCheckbox,
+        }
+    }
+
+    #[must_use]
+    pub const fn prev(self) -> Self {
+        match self {
+            Self::FolderCheckbox => Self::ProjectList,
+            Self::BranchCheckbox => Self::FolderCheckbox,
+            Self::ProjectList => Self::BranchCheckbox,
+        }
+    }
+}
+
+#[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct MetadataEditorState {
+    pub use_current_folder: bool,
+    pub folder_disabled: bool,
+    pub use_current_branch: bool,
+    pub branch_disabled: bool,
+    pub project_list_state: ratatui::widgets::ListState,
+    pub focus: MetadataEditorFocus,
+}
+
+impl Default for MetadataEditorState {
+    fn default() -> Self {
+        let mut project_list_state = ratatui::widgets::ListState::default();
+        project_list_state.select(Some(0));
+        Self {
+            use_current_folder: false,
+            folder_disabled: false,
+            use_current_branch: false,
+            branch_disabled: false,
+            project_list_state,
+            focus: MetadataEditorFocus::default(),
+        }
+    }
+}
 
 /// Applies a single keystroke to a text field. Returns `true` if the key was consumed.
 pub fn edit_text_field(field: &mut String, key: KeyCode) -> bool {
@@ -38,6 +92,7 @@ pub struct ListModule {
     pub current_branch: Option<String>,
     pub settings_scroll_offset: u16,
     pub data_manager: DataManagerState,
+    pub metadata_editor: MetadataEditorState,
 }
 
 #[derive(Debug, Default)]
@@ -71,6 +126,7 @@ impl Default for ListModule {
             current_branch: None,
             settings_scroll_offset: 0,
             data_manager: DataManagerState::default(),
+            metadata_editor: MetadataEditorState::default(),
         }
     }
 }
@@ -230,7 +286,7 @@ impl ListModule {
         let slash_len = settings.slash_commands.len();
         let mut count = tabs_len + slash_len + 1; // tabs + slash commands + "Add New"
         count += 2; // Maintenance: Export, Import
-        count += 4; // Advanced: Claude, Nerd, Theme, Startup Behavior
+        count += 6; // Advanced: Claude Commands, Claude Builtin, Nerd Font, Theme, Startup Behavior, Wide View
         if settings.startup_behavior == contracts::StartupBehavior::Specific {
             count += 1; // Startup Project
         }
@@ -252,6 +308,34 @@ impl ListModule {
 
     pub fn push_history(&mut self) {
         self.history.push(self.active_tab, self.prompts.clone());
+    }
+
+    pub fn init_metadata_editor(
+        &mut self,
+        prompt: &contracts::Prompt,
+        current_branch: &Option<String>,
+    ) {
+        let folder_disabled = prompt.folder.as_deref() == Some(self.current_path.as_str());
+        let branch_disabled = current_branch.is_none() || prompt.branch == *current_branch;
+
+        let project_index = match prompt.project_id {
+            None => 0,
+            Some(pid) => {
+                self.projects_manager.projects.iter().position(|p| p.id == pid).map_or(0, |i| i + 1)
+            }
+        };
+
+        let mut project_list_state = ratatui::widgets::ListState::default();
+        project_list_state.select(Some(project_index));
+
+        self.metadata_editor = MetadataEditorState {
+            use_current_folder: false,
+            folder_disabled,
+            use_current_branch: false,
+            branch_disabled,
+            project_list_state,
+            focus: MetadataEditorFocus::default(),
+        };
     }
 
     /// Handles application messages and updates state.
@@ -283,6 +367,7 @@ impl ListModule {
             | AppMessage::DuplicateSelected
             | AppMessage::RestoreSelected => self.handle_item_ops(msg, ctx).await,
             AppMessage::ToggleSetting
+            | AppMessage::ToggleWideView
             | AppMessage::ToggleBranchFilter
             | AppMessage::ToggleFolderFilter
             | AppMessage::ToggleProjectFilter
@@ -309,6 +394,7 @@ impl ListModule {
             AppMessage::SelectTheme | AppMessage::ThemePickerInput(_) => {
                 self.handle_theme_ops(&msg, ctx).await
             }
+            AppMessage::MetadataEditorInput(key) => Ok(self.handle_metadata_editor_input(key)),
 
             _ => Ok(None),
         }
@@ -548,6 +634,17 @@ impl ListModule {
         use crate::types::AppMessage;
         match msg {
             AppMessage::ToggleSetting => self.toggle_setting(ctx).await,
+            AppMessage::ToggleWideView => {
+                ctx.settings.show_wide_view = !ctx.settings.show_wide_view;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(Some(AppMessage::Notify(
+                    format!(
+                        "Wide View: {}",
+                        if ctx.settings.show_wide_view { "ON" } else { "OFF" }
+                    ),
+                    ratatui_toaster::ToastType::Info,
+                )))
+            }
             AppMessage::ToggleBranchFilter => {
                 self.branch_filter = !self.branch_filter;
                 self.load_prompts(ctx.storage).await?;
@@ -756,7 +853,18 @@ impl ListModule {
                 )))
             }
             idx if idx == advanced_start + 4 => Ok(Some(AppMessage::ToggleStartupBehavior)),
-            idx if idx == advanced_start + 5 => Ok(Some(AppMessage::SelectStartupProject)),
+            idx if idx == advanced_start + 5 => {
+                ctx.settings.show_wide_view = !ctx.settings.show_wide_view;
+                ctx.storage.save_settings(ctx.settings.clone()).await?;
+                Ok(Some(AppMessage::Notify(
+                    format!(
+                        "Wide View: {}",
+                        if ctx.settings.show_wide_view { "ON" } else { "OFF" }
+                    ),
+                    ratatui_toaster::ToastType::Info,
+                )))
+            }
+            idx if idx == advanced_start + 6 => Ok(Some(AppMessage::SelectStartupProject)),
             _ => Ok(None),
         }
     }
@@ -1053,5 +1161,70 @@ impl ListModule {
 
     pub fn current_project_path(&self) -> String {
         self.current_path.clone()
+    }
+
+    fn handle_metadata_editor_input(&mut self, key: KeyEvent) -> Option<crate::types::AppMessage> {
+        use crate::types::AppMessage;
+        match key.code {
+            KeyCode::Enter => {
+                let selected = self.metadata_editor.project_list_state.selected().unwrap_or(0);
+                let project_id = if selected == 0 {
+                    None
+                } else {
+                    self.projects_manager.projects.get(selected - 1).map(|p| p.id)
+                };
+                Some(AppMessage::ApplyMetadataEdit {
+                    use_current_folder: self.metadata_editor.use_current_folder,
+                    use_current_branch: self.metadata_editor.use_current_branch,
+                    project_id,
+                })
+            }
+            KeyCode::Tab => {
+                self.metadata_editor.focus = self.metadata_editor.focus.next();
+                None
+            }
+            KeyCode::BackTab => {
+                self.metadata_editor.focus = self.metadata_editor.focus.prev();
+                None
+            }
+            KeyCode::Char(' ') => {
+                match self.metadata_editor.focus {
+                    MetadataEditorFocus::FolderCheckbox
+                        if !self.metadata_editor.folder_disabled =>
+                    {
+                        self.metadata_editor.use_current_folder =
+                            !self.metadata_editor.use_current_folder;
+                    }
+                    MetadataEditorFocus::BranchCheckbox
+                        if !self.metadata_editor.branch_disabled =>
+                    {
+                        self.metadata_editor.use_current_branch =
+                            !self.metadata_editor.use_current_branch;
+                    }
+                    _ => {}
+                }
+                None
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                if self.metadata_editor.focus == MetadataEditorFocus::ProjectList {
+                    let total = self.projects_manager.projects.len() + 1;
+                    let current = self.metadata_editor.project_list_state.selected().unwrap_or(0);
+                    if current < total - 1 {
+                        self.metadata_editor.project_list_state.select(Some(current + 1));
+                    }
+                }
+                None
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if self.metadata_editor.focus == MetadataEditorFocus::ProjectList {
+                    let current = self.metadata_editor.project_list_state.selected().unwrap_or(0);
+                    if current > 0 {
+                        self.metadata_editor.project_list_state.select(Some(current - 1));
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
     }
 }
